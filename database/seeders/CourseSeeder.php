@@ -132,15 +132,24 @@ class CourseSeeder extends Seeder
 
         // Tạo tất cả các khóa học
         foreach ($accountingCourses as $course) {
-            Course::create($course);
+            Course::firstOrCreate([
+                'major_id' => $course['major_id'],
+                'name' => $course['name']
+            ], $course);
         }
         
         foreach ($marketingCourses as $course) {
-            Course::create($course);
+            Course::firstOrCreate([
+                'major_id' => $course['major_id'],
+                'name' => $course['name']
+            ], $course);
         }
         
         foreach ($managementCourses as $course) {
-            Course::create($course);
+            Course::firstOrCreate([
+                'major_id' => $course['major_id'],
+                'name' => $course['name']
+            ], $course);
         }
     }
 }

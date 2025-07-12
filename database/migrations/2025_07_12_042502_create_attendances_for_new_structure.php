@@ -11,9 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Tạo bảng attendances mới
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('enrollment_id')->constrained()->onDelete('cascade'); // Liên kết với bản ghi ghi danh
+            $table->foreignId('enrollment_id')->constrained('enrollments')->onDelete('cascade'); // Liên kết với bảng enrollments
             $table->date('class_date'); // Ngày học
             $table->time('start_time')->nullable(); // Giờ bắt đầu
             $table->time('end_time')->nullable(); // Giờ kết thúc

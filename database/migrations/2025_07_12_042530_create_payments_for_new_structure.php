@@ -11,9 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Tạo bảng payments mới
         Schema::create('payments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('enrollment_id')->constrained()->onDelete('cascade'); // Liên kết với bản ghi ghi danh
+            $table->foreignId('enrollment_id')->constrained('enrollments')->onDelete('cascade'); 
             $table->decimal('amount', 15, 2); // Số tiền thanh toán
             $table->date('payment_date'); // Ngày nộp tiền
             $table->enum('payment_method', ['cash', 'bank_transfer', 'card', 'qr_code']); // Hình thức nộp
@@ -29,6 +30,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payments');
+        Schema::dropIfExists('new_payments');
     }
 };

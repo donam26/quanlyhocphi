@@ -27,7 +27,10 @@ class ComplexCourseSeeder extends Seeder
         );
 
         // Tạo khóa học phức tạp "Đào tạo nghề kế toán"
-        $course = Course::create([
+        $course = Course::firstOrCreate([
+            'major_id' => $major->id,
+            'name' => 'Đào tạo nghề kế toán'
+        ], [
             'major_id' => $major->id,
             'name' => 'Đào tạo nghề kế toán',
             'description' => 'Khóa học đào tạo kế toán chuyên nghiệp',
@@ -124,11 +127,16 @@ class ComplexCourseSeeder extends Seeder
         ];
 
         foreach ($subCourses as $subCourseData) {
-            $course->subCourses()->create($subCourseData);
+            $course->subCourses()->firstOrCreate([
+                'name' => $subCourseData['name']
+            ], $subCourseData);
         }
 
         // Tạo gói khóa học Khóa 1 Online
-        $onlinePackage = CoursePackage::create([
+        $onlinePackage = CoursePackage::firstOrCreate([
+            'course_id' => $course->id,
+            'name' => 'Đào tạo nghề kế toán khóa 1 ONLINE'
+        ], [
             'course_id' => $course->id,
             'name' => 'Đào tạo nghề kế toán khóa 1 ONLINE',
             'description' => 'Gói khóa học online cho Đào tạo nghề kế toán khóa 1',
@@ -139,7 +147,10 @@ class ComplexCourseSeeder extends Seeder
         ]);
 
         // Tạo gói khóa học Khóa 1 Offline
-        $offlinePackage = CoursePackage::create([
+        $offlinePackage = CoursePackage::firstOrCreate([
+            'course_id' => $course->id,
+            'name' => 'Đào tạo nghề kế toán khóa 1 OFFLINE'
+        ], [
             'course_id' => $course->id,
             'name' => 'Đào tạo nghề kế toán khóa 1 OFFLINE',
             'description' => 'Gói khóa học offline cho Đào tạo nghề kế toán khóa 1',
@@ -154,7 +165,13 @@ class ComplexCourseSeeder extends Seeder
         
         foreach ($subCourseList as $index => $subCourse) {
             // Tạo lớp online
-            $onlineClass = CourseClass::create([
+            $onlineClass = CourseClass::firstOrCreate([
+                'course_id' => $course->id,
+                'sub_course_id' => $subCourse->id,
+                'name' => $subCourse->name . ' khóa 1 Online',
+                'type' => 'online',
+                'batch_number' => 1
+            ], [
                 'course_id' => $course->id,
                 'sub_course_id' => $subCourse->id,
                 'name' => $subCourse->name . ' khóa 1 Online',
@@ -169,7 +186,13 @@ class ComplexCourseSeeder extends Seeder
             $onlinePackage->addClass($onlineClass, $subCourse->order);
             
             // Tạo lớp offline
-            $offlineClass = CourseClass::create([
+            $offlineClass = CourseClass::firstOrCreate([
+                'course_id' => $course->id,
+                'sub_course_id' => $subCourse->id,
+                'name' => $subCourse->name . ' khóa 1 Offline',
+                'type' => 'offline',
+                'batch_number' => 1
+            ], [
                 'course_id' => $course->id,
                 'sub_course_id' => $subCourse->id,
                 'name' => $subCourse->name . ' khóa 1 Offline',
@@ -185,7 +208,10 @@ class ComplexCourseSeeder extends Seeder
         }
 
         // Tạo thêm một khóa học tiêu chuẩn "Kế toán trưởng DN"
-        $standardCourse = Course::create([
+        $standardCourse = Course::firstOrCreate([
+            'major_id' => $major->id,
+            'name' => 'Kế toán trưởng DN'
+        ], [
             'major_id' => $major->id,
             'name' => 'Kế toán trưởng DN',
             'description' => 'Khóa học đào tạo kế toán trưởng doanh nghiệp',
@@ -197,7 +223,12 @@ class ComplexCourseSeeder extends Seeder
         ]);
 
         // Tạo lớp online cho khóa học tiêu chuẩn
-        CourseClass::create([
+        CourseClass::firstOrCreate([
+            'course_id' => $standardCourse->id,
+            'name' => 'Kế toán trưởng DN khóa 1 Online',
+            'type' => 'online',
+            'batch_number' => 1
+        ], [
             'course_id' => $standardCourse->id,
             'name' => 'Kế toán trưởng DN khóa 1 Online',
             'type' => 'online',
@@ -208,7 +239,12 @@ class ComplexCourseSeeder extends Seeder
         ]);
 
         // Tạo lớp offline cho khóa học tiêu chuẩn
-        CourseClass::create([
+        CourseClass::firstOrCreate([
+            'course_id' => $standardCourse->id,
+            'name' => 'Kế toán trưởng DN khóa 1 Offline',
+            'type' => 'offline',
+            'batch_number' => 1
+        ], [
             'course_id' => $standardCourse->id,
             'name' => 'Kế toán trưởng DN khóa 1 Offline',
             'type' => 'offline',

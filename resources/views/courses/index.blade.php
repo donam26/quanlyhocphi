@@ -6,6 +6,103 @@
 <li class="breadcrumb-item active">Khóa học</li>
 @endsection
 
+@section('styles')
+<style>
+.tree-list, .tree-list ul {
+    list-style: none;
+    padding-left: 1.5em;
+    margin-bottom: 0;
+}
+.tree-list > li {
+    margin-bottom: 1em;
+}
+.tree-branch {
+    font-weight: 600;
+    font-size: 1.1em;
+    margin-bottom: 0.5em;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+.tree-leaf {
+    font-weight: 400;
+    margin-bottom: 0.3em;
+    display: flex;
+    align-items: center;
+}
+.tree-icon {
+    margin-right: 0.5em;
+    font-size: 1.1em;
+}
+.badge-fee {
+    background: #27ae60;
+    color: #fff;
+    font-weight: 500;
+    margin-left: 0.5em;
+    padding: 0.3em 0.7em;
+    border-radius: 6px;
+    font-size: 0.95em;
+}
+.badge-mode {
+    margin-left: 0.3em;
+    font-size: 0.85em;
+    padding: 0.2em 0.6em;
+    border-radius: 5px;
+}
+.tree-list ul {
+    border-left: 2px solid #e0e0e0;
+    margin-left: 0.7em;
+    padding-left: 1.2em;
+}
+.tree-list li:hover > .tree-branch, .tree-list li:hover > .tree-leaf {
+    background: #f8f9fa;
+    border-radius: 5px;
+}
+.tree-toggle {
+    margin-right: 0.5em;
+    color: #3498db;
+    font-size: 1.1em;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+.tree-toggle.collapsed {
+    transform: rotate(-90deg);
+    color: #aaa;
+}
+.tree-action {
+    margin-left: 0.7em;
+    font-size: 0.95em;
+    color: #888;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+.tree-action:hover {
+    color: #e74c3c;
+}
+/* Tab ngành đẹp */
+#majorTabs .nav-link {
+    font-weight: 600;
+    color: #34495e;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: none;
+    border-radius: 0;
+    margin-right: 8px;
+    transition: border-color 0.2s, color 0.2s;
+}
+#majorTabs .nav-link.active {
+    color: #2c3e50;
+    border-bottom: 2.5px solid #3498db;
+    background: #f8f9fa;
+}
+@media (max-width: 600px) {
+    .tree-list, .tree-list ul { padding-left: 0.7em; }
+    .tree-branch, .tree-leaf { font-size: 1em; }
+}
+</style>
+@endsection
+
 @section('content')
 <!-- Filter & Search -->
 <div class="card mb-4">
@@ -54,170 +151,68 @@
     <div class="card-header d-flex justify-content-between align-items-center">
         <h5 class="card-title mb-0">
             <i class="fas fa-graduation-cap me-2"></i>
-            Danh sách khóa học
-            <span class="badge bg-primary ms-2">{{ $courses->total() }} khóa học</span>
+            Cây ngành - khóa học - lớp học
         </h5>
-        <div class="btn-group">
-            <button class="btn btn-sm btn-outline-success" onclick="exportCourses()">
-                <i class="fas fa-file-excel me-1"></i>Xuất Excel
-            </button>
-            <button class="btn btn-sm btn-outline-info" onclick="printCourses()">
-                <i class="fas fa-print me-1"></i>In danh sách
-            </button>
+    </div>
+    <div class="card-body">
+        <ul class="nav nav-tabs mb-3" id="majorTabs" role="tablist">
+            <!-- Tabs ngành sẽ render bằng JS -->
+        </ul>
+        <div id="treeContent">
+            <div class="text-center text-muted">Đang tải dữ liệu...</div>
         </div>
     </div>
-    <div class="card-body p-0">
-        @if($courses->count() > 0)
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead>
-                        <tr>
-                            <th width="5%">#</th>
-                            <th width="30%">Khóa học</th>
-                            <th width="15%">Ngành</th>
-                            <th width="15%">Sub-courses</th>
-                            <th width="10%">Học phí</th>
-                            <th width="10%">Lớp học</th>
-                            <th width="10%">Trạng thái</th>
-                            <th width="5%">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($courses as $index => $course)
-                        <tr>
-                            <td>{{ $courses->firstItem() + $index }}</td>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3">
-                                        {{ substr($course->name, 0, 1) }}
-                                    </div>
-                                    <div>
-                                        <div class="fw-medium">{{ $course->name }}</div>
-                                        @if($course->description)
-                                            <small class="text-muted">{{ Str::limit($course->description, 50) }}</small>
-                                        @endif
-                                        <div class="small text-muted">
-                                            <i class="fas fa-clock me-1"></i>{{ $course->duration_hours ?? 'N/A' }} giờ
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span class="badge bg-info">{{ $course->major->name }}</span>
-                            </td>
-                            <td>
-                                @if($course->subCourses->count() > 0)
-                                    <div class="d-flex align-items-center">
-                                        <span class="badge bg-success me-2">{{ $course->subCourses->count() }} khóa con</span>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="showSubCourses({{ $course->id }})">
-                                            <i class="fas fa-eye"></i>
-                                        </button>
-                                    </div>
-                                    <div class="collapse mt-2" id="subCourses{{ $course->id }}">
-                                        @foreach($course->subCourses as $subCourse)
-                                            <div class="small">
-                                                <i class="fas fa-angle-right me-1"></i>{{ $subCourse->name }}
-                                                <span class="badge bg-light text-dark ms-1">{{ number_format($subCourse->price) }}đ</span>
-                                            </div>
-                                        @endforeach
-                                    </div>
-                                @else
-                                    <span class="text-muted">Không có</span>
-                                @endif
-                            </td>
-                            <td>
-                                <div class="fw-medium">{{ number_format($course->price) }}đ</div>
-                                @if($course->subCourses->count() > 0)
-                                    <small class="text-muted">
-                                        Tổng: {{ number_format($course->subCourses->sum('price')) }}đ
-                                    </small>
-                                @endif
-                            </td>
-                            <td>
-                                @php
-                                    $totalClasses = $course->classes->count();
-                                    $activeClasses = $course->classes->where('status', 'active')->count();
-                                @endphp
-                                <div>
-                                    <span class="fw-medium">{{ $totalClasses }}</span> lớp
-                                </div>
-                                @if($activeClasses > 0)
-                                    <small class="text-success">{{ $activeClasses }} đang mở</small>
-                                @endif
-                            </td>
-                            <td>
-                                @if($course->is_active)
-                                    <span class="badge bg-success">Hoạt động</span>
-                                @else
-                                    <span class="badge bg-secondary">Tạm dừng</span>
-                                @endif
-                            </td>
-                            <td>
-                                <div class="btn-group">
-                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                            type="button" data-bs-toggle="dropdown">
-                                        <i class="fas fa-cog"></i>
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li>
-                                            <a class="dropdown-item" href="{{ route('courses.show', $course) }}">
-                                                <i class="fas fa-eye me-2"></i>Chi tiết
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item" href="{{ route('courses.edit', $course) }}">
-                                                <i class="fas fa-edit me-2"></i>Chỉnh sửa
-                                            </a>
-                                        </li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        @if($course->subCourses->count() > 0)
-                                            <li>
-                                                <a class="dropdown-item" href="{{ route('courses.sub-courses', $course) }}">
-                                                    <i class="fas fa-list me-2"></i>Quản lý sub-courses
-                                                </a>
-                                            </li>
-                                        @endif
-                                        <li>
-                                            <a class="dropdown-item" href="{{ route('course-classes.index', ['course_id' => $course->id]) }}">
-                                                <i class="fas fa-chalkboard-teacher me-2"></i>Quản lý lớp học
-                                            </a>
-                                        </li>
-                                        <li><hr class="dropdown-divider"></li>
-                                        <li>
-                                            <button class="dropdown-item" onclick="duplicateCourse({{ $course->id }})">
-                                                <i class="fas fa-copy me-2"></i>Nhân bản
-                                            </button>
-                                        </li>
-                                        <li>
-                                            <button class="dropdown-item" onclick="toggleStatus({{ $course->id }})">
-                                                <i class="fas fa-{{ $course->is_active ? 'pause' : 'play' }} me-2"></i>
-                                                {{ $course->is_active ? 'Tạm dừng' : 'Kích hoạt' }}
-                                            </button>
-                                        </li>
-                                    </ul>
-                                </div>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+</div>
 
-            <!-- Pagination -->
-            <div class="card-footer">
-                {{ $courses->links() }}
-            </div>
-        @else
-            <div class="text-center py-5">
-                <i class="fas fa-graduation-cap fa-3x text-muted mb-3"></i>
-                <h5 class="text-muted">Chưa có khóa học nào</h5>
-                <p class="text-muted">Hãy thêm khóa học đầu tiên để bắt đầu</p>
-                <a href="{{ route('courses.create') }}" class="btn btn-primary">
-                    <i class="fas fa-plus me-2"></i>Thêm khóa học mới
-                </a>
-            </div>
-        @endif
+<!-- Modal động cho Thêm/Sửa/Xóa node -->
+<div class="modal fade" id="treeModal" tabindex="-1" aria-labelledby="treeModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="treeModalForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="treeModalLabel">Thao tác</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="node_id" id="modalNodeId">
+          <input type="hidden" name="action" id="modalAction">
+          <div class="mb-3">
+            <label for="modalNodeName" class="form-label">Tên</label>
+            <input type="text" class="form-control" id="modalNodeName" name="name" required>
+          </div>
+          <div class="mb-3" id="modalFeeGroup" style="display:none;">
+            <label for="modalNodeFee" class="form-label">Học phí</label>
+            <input type="number" class="form-control" id="modalNodeFee" name="fee" min="0">
+          </div>
+          <div class="mb-3" id="modalTypeGroup" style="display:none;">
+            <label class="form-label">Loại</label>
+            <select class="form-select" id="modalNodeType" name="type">
+              <option value="">-- Chọn --</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+            </select>
+          </div>
+          <div class="mb-3 text-danger" id="modalDeleteConfirm" style="display:none;">
+            Bạn có chắc chắn muốn xóa node này không? Thao tác này không thể hoàn tác!
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+          <button type="submit" class="btn btn-primary" id="modalSubmitBtn">Lưu</button>
+        </div>
+      </form>
     </div>
+  </div>
+</div>
+
+<!-- Toast thông báo -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index: 9999">
+  <div id="treeToast" class="toast align-items-center text-bg-success border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body" id="treeToastBody">Thành công!</div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
 </div>
 
 <!-- Quick Stats -->
@@ -286,120 +281,283 @@
 </div>
 @endsection
 
-@section('scripts')
+@push('scripts')
+<script src="/node_modules/sortablejs/modular/sortable.core.esm.js"></script>
 <script>
-function showSubCourses(courseId) {
-    loadSubCoursesModal(courseId);
-}
-
-function exportCourses() {
-    alert('Chức năng xuất Excel đang được phát triển');
-}
-
-function printCourses() {
-    window.print();
-}
-
-function duplicateCourse(courseId) {
-    if (confirm('Bạn có muốn nhân bản khóa học này?')) {
-        $.post('/api/courses/' + courseId + '/duplicate', {
-            _token: $('meta[name="csrf-token"]').attr('content')
-        }).done(function(response) {
-            alert('Nhân bản thành công!');
-            location.reload();
-        }).fail(function() {
-            alert('Có lỗi xảy ra!');
+$(document).ready(function() {
+    fetch('/tree')
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                $('#treeContent').html('<div class="text-center text-muted">Không có dữ liệu ngành</div>');
+                return;
+            }
+            // Render tabs ngành
+            let tabHtml = '';
+            data.forEach((major, idx) => {
+                tabHtml += `<li class="nav-item" role="presentation">
+                    <button class="nav-link${idx===0?' active':''}" id="tab-major-${major.id}" data-bs-toggle="tab" type="button" role="tab" aria-selected="${idx===0?'true':'false'}" onclick="showMajorTree(${major.id})">${major.name}</button>
+                </li>`;
+            });
+            $('#majorTabs').html(tabHtml);
+            // Render cây ngành đầu tiên
+            showMajorTree(data[0].id, data);
+            window.treeData = data; // Lưu lại để dùng khi chuyển tab
         });
+});
+
+function showMajorTree(majorId, data) {
+    data = data || window.treeData;
+    const major = data.find(m => m.id === majorId);
+    if (!major) return;
+    let html = renderCourseTree(major.courses);
+    $('#treeContent').html(html);
+}
+
+// Đệ quy render sub-course nhiều cấp
+function renderSubCourseTree(subCourses) {
+    if (!subCourses || subCourses.length === 0) return '';
+    let html = '<ul>';
+    subCourses.forEach(sub => {
+        const isLeaf = !sub.children || sub.children.length === 0;
+        html += `<li>`;
+        html += `<div class='tree-leaf'><span class='tree-icon' style='color:#e67e22'>🏷️</span>${sub.name}`;
+        if (sub.has_online) html += ' <span class="badge bg-info badge-mode">Online</span>';
+        if (sub.has_offline) html += ' <span class="badge bg-secondary badge-mode">Offline</span>';
+        if (sub.fee) html += ` <span class="badge-fee">${formatFee(sub.fee)}</span>`;
+        // Thao tác
+        html += `<span class='tree-action' onclick='openTreeModal("edit", "sub-course", ${JSON.stringify(sub)})'>✏️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("delete", "sub-course", ${JSON.stringify(sub)})'>🗑️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("add", "sub-course", {parent_id: ${sub.id}})'>➕</span>`;
+        html += `</div>`;
+        if (!isLeaf) {
+            html += renderSubCourseTree(sub.children);
+        }
+        html += `</li>`;
+    });
+    html += '</ul>';
+    return html;
+}
+
+// Đệ quy render cây lớp học nhiều cấp
+function renderClassTree(classes) {
+    if (!classes || classes.length === 0) return '';
+    let html = '<ul class="tree-list">';
+    classes.forEach(cls => {
+        const isLeaf = !cls.child_classes || cls.child_classes.length === 0;
+        html += `<li>`;
+        html += `<div class='${isLeaf ? 'tree-leaf' : 'tree-branch'}'>`;
+        if (!isLeaf) html += `<span class='tree-toggle' onclick='toggleTree(this)'>▼</span>`;
+        html += `<span class='tree-icon' style='color:${isLeaf ? '#16a085':'#8e44ad'}'>${isLeaf ? '👨‍🏫' : '📦'}</span>${cls.name}`;
+        if (cls.type) html += ` <span class="badge bg-${cls.type==='online'?'info':'secondary'} badge-mode">${cls.type}</span>`;
+        if (isLeaf && cls.fee) html += ` <span class="badge-fee">${formatFee(cls.fee)}</span>`;
+        // Thao tác
+        html += `<span class='tree-action' onclick='openTreeModal("edit", "class", ${JSON.stringify(cls)})'>✏️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("delete", "class", ${JSON.stringify(cls)})'>🗑️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("add", "class", {parent_id: ${cls.id}})'>➕</span>`;
+        html += `</div>`;
+        if (!isLeaf) {
+            html += `<div class='tree-children'>` + renderClassTree(cls.child_classes) + `</div>`;
+        }
+        html += `</li>`;
+    });
+    html += '</ul>';
+    return html;
+}
+
+// Đệ quy render cây ngành-khóa-lớp nhiều cấp
+function renderCourseTree(courses) {
+    if (!courses || courses.length === 0) return '<div class="text-muted">Không có khóa học</div>';
+    let html = '<ul class="tree-list">';
+    courses.forEach(course => {
+        html += `<li>`;
+        html += `<div class='tree-branch'><span class='tree-toggle' onclick='toggleTree(this)'>▼</span><span class='tree-icon' style='color:#2980b9'>📚</span>${course.name}`;
+        // Thao tác
+        html += `<span class='tree-action' onclick='openTreeModal("edit", "course", ${JSON.stringify(course)})'>✏️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("delete", "course", ${JSON.stringify(course)})'>🗑️</span>`;
+        html += `<span class='tree-action' onclick='openTreeModal("add", "course", {parent_id: ${course.id}})'>➕</span>`;
+        html += `</div>`;
+        // Nếu có sub_courses thì render sub_course nhiều cấp
+        if (course.is_complex && course.sub_courses && course.sub_courses.length > 0) {
+            html += `<div class='tree-children'>` + renderSubCourseTree(course.sub_courses) + `</div>`;
+        }
+        // Nếu có lớp học thì render cây lớp học đệ quy
+        if (course.classes && course.classes.length > 0) {
+            html += `<div class='tree-children'>` + renderClassTree(course.classes) + `</div>`;
+        }
+        html += '</li>';
+    });
+    html += '</ul>';
+    return html;
+}
+function formatFee(fee) {
+    if (!fee || fee == 0) return '';
+    return Number(fee).toLocaleString('vi-VN') + 'đ';
+}
+// Expand/collapse logic
+function toggleTree(el) {
+    const $el = $(el);
+    const $children = $el.closest('li').children('.tree-children, ul');
+    if ($children.is(':visible')) {
+        $children.slideUp(150);
+        $el.addClass('collapsed').text('▶');
+    } else {
+        $children.slideDown(150);
+        $el.removeClass('collapsed').text('▼');
     }
 }
-
-function toggleStatus(courseId) {
-    $.post('/api/courses/' + courseId + '/toggle-status', {
-        _token: $('meta[name="csrf-token"]').attr('content')
-    }).done(function(response) {
-        alert('Cập nhật trạng thái thành công!');
-        location.reload();
-    }).fail(function() {
-        alert('Có lỗi xảy ra!');
-    });
-}
-
-// Auto-submit form when select changes
-$(document).ready(function() {
-    $('select[name="major_id"], select[name="status"]').change(function() {
-        $(this).closest('form').submit();
+// Mặc định đóng các nhánh con, chỉ mở nhánh đầu
+$(document).on('ready ajaxComplete', function() {
+    $('.tree-list > li > .tree-branch .tree-toggle').each(function(i, el) {
+        if (i > 0) toggleTree(el);
     });
 });
 
-// Load sub-courses modal
-function loadSubCoursesModal(courseId) {
-    $.get('/api/courses/' + courseId + '/sub-courses')
-        .done(function(data) {
-            var html = '<div class="table-responsive">';
-            html += '<table class="table table-bordered table-hover">';
-            html += '<thead><tr>';
-            html += '<th>STT</th>';
-            html += '<th>Tên khóa con</th>';
-            html += '<th>Mã</th>';
-            html += '<th>Học phí</th>';
-            html += '<th>Thứ tự</th>';
-            html += '<th>Hình thức</th>';
-            html += '<th>Trạng thái</th>';
-            html += '</tr></thead>';
-            html += '<tbody>';
-            
-            if (data.subCourses && data.subCourses.length > 0) {
-                data.subCourses.forEach(function(subCourse, index) {
-                    html += '<tr>';
-                    html += '<td>' + (index + 1) + '</td>';
-                    html += '<td>' + subCourse.name + '</td>';
-                    html += '<td>' + (subCourse.code || 'N/A') + '</td>';
-                    html += '<td>' + subCourse.formatted_fee + '</td>';
-                    html += '<td>' + subCourse.order + '</td>';
-                    
-                    // Hình thức
-                    html += '<td>';
-                    if (subCourse.has_online && subCourse.has_offline) {
-                        html += '<span class="badge bg-primary">Online & Offline</span>';
-                    } else if (subCourse.has_online) {
-                        html += '<span class="badge bg-success">Online</span>';
-                    } else if (subCourse.has_offline) {
-                        html += '<span class="badge bg-warning">Offline</span>';
-                    } else {
-                        html += '<span class="badge bg-secondary">N/A</span>';
-                    }
-                    html += '</td>';
-                    
-                    // Trạng thái
-                    html += '<td>';
-                    if (subCourse.active) {
-                        html += '<span class="badge bg-success">Hoạt động</span>';
-                    } else {
-                        html += '<span class="badge bg-secondary">Không hoạt động</span>';
-                    }
-                    html += '</td>';
-                    
-                    html += '</tr>';
-                });
-            } else {
-                html += '<tr><td colspan="7" class="text-center">Không có khóa con nào</td></tr>';
-            }
-            
-            html += '</tbody></table></div>';
-            
-            // Thêm footer với link xem chi tiết
-            html += '<div class="mt-3 text-end">';
-            html += '<a href="/courses/' + data.course.id + '/sub-courses" class="btn btn-primary btn-sm">';
-            html += '<i class="fas fa-list me-1"></i>Xem chi tiết khóa con';
-            html += '</a>';
-            html += '</div>';
-            
-            $('#subCoursesContent').html(html);
-            $('#subCoursesModal').modal('show');
-        })
-        .fail(function() {
-            alert('Không thể tải thông tin khóa con');
-        });
+// Thay các alert thao tác bằng gọi openTreeModal
+function openTreeModal(action, nodeType, nodeData = {}) {
+    $('#treeModalLabel').text(
+        action === 'add' ? 'Thêm mới ' + nodeType :
+        action === 'edit' ? 'Sửa ' + nodeType :
+        'Xóa ' + nodeType
+    );
+    $('#modalAction').val(action);
+    $('#modalNodeId').val(nodeData.id || '');
+    $('#modalNodeName').val(nodeData.name || '');
+    $('#modalNodeFee').val(nodeData.fee || '');
+    $('#modalNodeType').val(nodeData.type || '');
+    // Ẩn/hiện các trường phù hợp
+    $('#modalFeeGroup').toggle(nodeType === 'sub-course' || nodeType === 'class');
+    $('#modalTypeGroup').toggle(nodeType === 'class');
+    $('#modalDeleteConfirm').toggle(action === 'delete');
+    $('#modalNodeName').prop('readonly', action === 'delete');
+    $('#modalSubmitBtn').text(action === 'delete' ? 'Xóa' : 'Lưu');
+    // Hiện modal
+    var modal = new bootstrap.Modal(document.getElementById('treeModal'));
+    modal.show();
 }
+// Sửa các nút thao tác trong render tree:
+// html += `<span class='tree-action' onclick='openTreeModal("edit", "class", ${JSON.stringify(cls)})'>✏️</span>`;
+// html += `<span class='tree-action' onclick='openTreeModal("delete", "class", ${JSON.stringify(cls)})'>🗑️</span>`;
+// html += `<span class='tree-action' onclick='openTreeModal("add", "class", {parent_id: ${cls.id}})'>➕</span>`;
+// Tương tự cho sub-course, course
+
+// Submit form modal (demo AJAX)
+$('#treeModalForm').on('submit', function(e) {
+    e.preventDefault();
+    var action = $('#modalAction').val();
+    var nodeType = $('#treeModalLabel').text().toLowerCase().includes('ngành') ? 'major'
+        : $('#treeModalLabel').text().toLowerCase().includes('khóa') ? 'course'
+        : $('#treeModalLabel').text().toLowerCase().includes('sub-course') ? 'sub-course'
+        : 'class';
+    var id = $('#modalNodeId').val();
+    var name = $('#modalNodeName').val();
+    var fee = $('#modalNodeFee').val();
+    var type = $('#modalNodeType').val();
+    var parent_id = $(this).find('[name=parent_id]').val() || null;
+    let url = '', method = '', data = {};
+    if (nodeType === 'major') {
+        url = action === 'add' ? '/api/majors' : `/api/majors/${id}`;
+        method = action === 'add' ? 'POST' : (action === 'edit' ? 'PUT' : 'DELETE');
+        data = { name };
+    } else if (nodeType === 'course') {
+        url = action === 'add' ? '/api/courses' : `/api/courses/${id}`;
+        method = action === 'add' ? 'POST' : (action === 'edit' ? 'PUT' : 'DELETE');
+        data = { name, parent_id };
+    } else if (nodeType === 'sub-course') {
+        url = action === 'add' ? '/api/sub-courses' : `/api/sub-courses/${id}`;
+        method = action === 'add' ? 'POST' : (action === 'edit' ? 'PUT' : 'DELETE');
+        data = { name, fee, parent_id };
+    } else if (nodeType === 'class') {
+        url = action === 'add' ? '/api/course-classes' : `/api/course-classes/${id}`;
+        method = action === 'add' ? 'POST' : (action === 'edit' ? 'PUT' : 'DELETE');
+        data = { name, fee, type, parent_id };
+    }
+    if (action === 'delete') {
+        fetch(url, { method: 'DELETE', headers: { 'Accept': 'application/json' } })
+            .then(res => {
+                if (res.status === 204) {
+                    $('#treeModal').on('hidden.bs.modal', function () {
+                        showTreeToast('Đã xóa thành công!');
+                        reloadTree();
+                        $(this).off('hidden.bs.modal');
+                    });
+                    $('#treeModal').modal('hide');
+                } else if (res.status === 404) {
+                    showTreeToast('Lớp học không tồn tại hoặc đã bị xoá!', true);
+                } else {
+                    showTreeToast('Có lỗi khi xóa!', true);
+                }
+            })
+            .catch(() => showTreeToast('Có lỗi khi xóa!', true));
+        return;
+    }
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(data)
+    })
+    .then(res => res.json())
+    .then(data => {
+        $('#treeModal').modal('hide');
+        showTreeToast('Thao tác thành công!');
+        reloadTree();
+    })
+    .catch(() => showTreeToast('Có lỗi xảy ra!', true));
+});
+function showTreeToast(msg) {
+    $('#treeToastBody').text(msg);
+    var toast = new bootstrap.Toast(document.getElementById('treeToast'));
+    toast.show();
+}
+// Sau khi render xong cây, kích hoạt drag & drop cho các ul.tree-list
+function enableDragDrop() {
+    document.querySelectorAll('.tree-list, .tree-list ul').forEach(function(ul) {
+        if (!ul.classList.contains('sortable-enabled')) {
+            ul.classList.add('sortable-enabled');
+            Sortable.create(ul, {
+                group: 'tree',
+                animation: 150,
+                fallbackOnBody: true,
+                swapThreshold: 0.65,
+                onEnd: function (evt) {
+                    // Lấy id node kéo và id node cha mới
+                    var nodeId = $(evt.item).find('[data-node-id]').data('node-id');
+                    var newParentLi = $(evt.to).closest('li');
+                    var newParentId = newParentLi.length ? newParentLi.find('> .tree-branch, > .tree-leaf').data('node-id') : null;
+                    var newOrder = Array.from(evt.to.children).indexOf(evt.item);
+                    // Gửi AJAX cập nhật parent_id và order
+                    $.ajax({
+                        url: '/api/tree/move',
+                        method: 'POST',
+                        data: {
+                            node_id: nodeId,
+                            new_parent_id: newParentId,
+                            new_order: newOrder,
+                            _token: $('meta[name="csrf-token"]').attr('content')
+                        },
+                        success: function() {
+                            showTreeToast('Di chuyển thành công!');
+                            // Reload lại cây (hoặc cập nhật node động)
+                            reloadTree();
+                        },
+                        error: function() {
+                            showTreeToast('Có lỗi khi di chuyển!', true);
+                        }
+                    });
+                }
+            });
+        }
+    });
+}
+// Gọi enableDragDrop sau mỗi lần render cây
+function reloadTree() {
+    // ... code fetch lại dữ liệu cây và render lại ...
+    // Sau khi render xong:
+    enableDragDrop();
+}
+// Gọi enableDragDrop lần đầu sau khi trang ready
+$(document).on('ready ajaxComplete', function() {
+    enableDragDrop();
+});
 </script>
-@endsection 
+@endpush 

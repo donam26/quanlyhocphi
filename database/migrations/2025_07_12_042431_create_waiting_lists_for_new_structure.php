@@ -11,10 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Tạo bảng waiting_lists mới
         Schema::create('waiting_lists', function (Blueprint $table) {
             $table->id();
             $table->foreignId('student_id')->constrained()->onDelete('cascade'); // Liên kết với học viên
-            $table->foreignId('course_id')->constrained()->onDelete('cascade'); // Liên kết với khóa học quan tâm
+            $table->foreignId('course_item_id')->constrained()->onDelete('cascade'); // Liên kết với khóa học (course_items)
             $table->date('added_date'); // Ngày thêm vào danh sách chờ
             $table->enum('interest_level', ['low', 'medium', 'high'])->default('medium'); // Mức độ quan tâm
             $table->enum('status', ['waiting', 'contacted', 'enrolled', 'not_interested'])->default('waiting'); // Trạng thái
@@ -23,7 +24,7 @@ return new class extends Migration
             $table->timestamps();
             
             // Đảm bảo một học viên chỉ có một bản ghi chờ cho một khóa học
-            $table->unique(['student_id', 'course_id']);
+            $table->unique(['student_id', 'course_item_id']);
         });
     }
 

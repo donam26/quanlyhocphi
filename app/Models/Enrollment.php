@@ -11,7 +11,7 @@ class Enrollment extends Model
 
     protected $fillable = [
         'student_id',
-        'course_class_id',
+        'class_id', // Đổi từ course_class_id thành class_id
         'enrollment_date',
         'status',
         'discount_percentage',
@@ -36,11 +36,11 @@ class Enrollment extends Model
     }
 
     /**
-     * Quan hệ với lớp học
+     * Quan hệ với lớp học (đổi từ CourseClass sang Classes)
      */
-    public function courseClass()
+    public function class()
     {
-        return $this->belongsTo(CourseClass::class);
+        return $this->belongsTo(Classes::class, 'class_id');
     }
 
     /**
@@ -52,7 +52,7 @@ class Enrollment extends Model
     }
 
     /**
-     * Quan hệ với điểm danh
+     * Quan hệ với các điểm danh
      */
     public function attendances()
     {
@@ -60,47 +60,34 @@ class Enrollment extends Model
     }
 
     /**
-     * Tính tổng số tiền đã đóng
+     * Tổng số tiền đã thanh toán
      */
-    public function getTotalPaidAmount()
+    public function getPaidAmountAttribute()
     {
         return $this->payments()->where('status', 'confirmed')->sum('amount');
     }
 
     /**
-     * Tính số tiền còn thiếu
+     * Số tiền còn thiếu
      */
-    public function getRemainingAmount()
+    public function getRemainingAmountAttribute()
     {
-        return $this->final_fee - $this->getTotalPaidAmount();
+        return max(0, $this->final_fee - $this->paid_amount);
     }
 
     /**
-     * Kiểm tra đã đóng đủ học phí chưa
+     * Kiểm tra xem đã thanh toán đủ chưa
      */
-    public function hasFullyPaid()
+    public function getIsFullyPaidAttribute()
     {
-        return $this->getRemainingAmount() <= 0;
+        return $this->remaining_amount <= 0;
     }
 
     /**
-     * Scope cho các ghi danh đang hoạt động
+     * Kiểm tra xem có khoản thanh toán đang chờ xác nhận không
      */
-    public function scopeActive($query)
+    public function getHasPendingPaymentAttribute()
     {
-        return $query->where('status', 'enrolled');
-    }
-
-    /**
-     * Scope cho các ghi danh chưa đóng đủ học phí
-     */
-    public function scopeUnpaid($query)
-    {
-        return $query->whereHas('payments', function($q) {
-            $q->selectRaw('enrollment_id, SUM(amount) as total_paid')
-              ->where('status', 'confirmed')
-              ->groupBy('enrollment_id')
-              ->havingRaw('total_paid < final_fee');
-        });
+        return $this->payments()->where('status', 'pending')->exists();
     }
 }

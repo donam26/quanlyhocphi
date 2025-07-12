@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Course;
-use App\Models\CourseClass;
+use App\Models\CourseItem;
+use App\Models\Classes;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\Student;
@@ -18,8 +18,8 @@ class DashboardController extends Controller
         // Thống kê tổng quan
         $stats = [
             'total_students' => Student::count(),
-            'total_courses' => Course::count(),
-            'total_classes' => CourseClass::count(),
+            'total_courses' => CourseItem::where('is_leaf', true)->count(),
+            'total_classes' => Classes::count(),
             'total_enrollments' => Enrollment::count(),
             'unpaid_count' => Enrollment::whereHas('payments', function ($query) {
                 $query->where('status', 'pending');
@@ -48,14 +48,14 @@ class DashboardController extends Controller
         // Lấy danh sách học viên chưa thanh toán gần đây
         $unpaidStudents = Enrollment::whereHas('payments', function ($query) {
             $query->where('status', 'pending');
-        })->with(['student', 'courseClass.course'])
+        })->with(['student', 'class'])
             ->latest()
             ->take(5)
             ->get();
 
         // Lấy danh sách thanh toán gần đây
         $recentPayments = Payment::where('status', 'confirmed')
-            ->with(['enrollment.student', 'enrollment.courseClass.course'])
+            ->with(['enrollment.student', 'enrollment.class'])
             ->latest('payment_date')
             ->take(5)
             ->get();

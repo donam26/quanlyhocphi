@@ -295,12 +295,17 @@
                     Học viên
                 </a>
                 
-                <a href="{{ route('courses.index') }}" class="nav-link {{ request()->routeIs('courses.*') ? 'active' : '' }}">
+                <a href="{{ route('course-items.index') }}" class="nav-link {{ request()->routeIs('course-items.*') && !request()->routeIs('course-items.tree') ? 'active' : '' }}">
                     <i class="fas fa-book"></i>
                     Khóa học
                 </a>
                 
-                <a href="{{ route('course-classes.index') }}" class="nav-link {{ request()->routeIs('course-classes.*') ? 'active' : '' }}">
+                <a href="{{ route('course-items.tree') }}" class="nav-link {{ request()->routeIs('course-items.tree') ? 'active' : '' }}">
+                    <i class="fas fa-project-diagram"></i>
+                    Cây khóa học
+                </a>
+                
+                <a href="{{ route('classes.index') }}" class="nav-link {{ request()->routeIs('classes.*') ? 'active' : '' }}">
                     <i class="fas fa-chalkboard-teacher"></i>
                     Lớp học
                 </a>
@@ -424,10 +429,16 @@
         @yield('content')
     </div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Bootstrap Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- jQuery UI -->
+    <script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+    <link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+    <!-- Toastr -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     
     @stack('scripts')
 </body>

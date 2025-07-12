@@ -80,7 +80,7 @@
                                 <div class="list-group-item d-flex justify-content-between align-items-center">
                                     <div>
                                         <div class="fw-medium">{{ $enrollment->student->full_name }}</div>
-                                        <small class="text-muted">{{ $enrollment->courseClass->name }}</small>
+                                        <small class="text-muted">{{ $enrollment->class->name }}</small>
                                     </div>
                                     <a href="{{ route('payments.create', $enrollment) }}" class="btn btn-sm btn-outline-primary">Thu phí</a>
                                 </div>
@@ -122,7 +122,7 @@
                                     @foreach($recentPayments as $payment)
                                         <tr>
                                             <td>{{ $payment->enrollment->student->full_name }}</td>
-                                            <td>{{ $payment->enrollment->courseClass->course->name }}</td>
+                                            <td>{{ $payment->enrollment->class->name }}</td>
                                             <td>{{ number_format($payment->amount) }} VND</td>
                                             <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                             <td>{{ $payment->payment_method }}</td>
@@ -145,6 +145,22 @@
             </div>
         </div>
     </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card mb-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="m-0 font-weight-bold">Cây khóa học</h6>
+                    <a href="{{ route('course-items.index') }}" class="btn btn-primary btn-sm">Quản lý cây khóa học</a>
+                </div>
+                <div class="card-body">
+                    <div id="treeContent">
+                        <div class="text-center text-muted">Đang tải dữ liệu...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -154,21 +170,14 @@
 $(document).ready(function() {
     // Biểu đồ doanh thu
     const ctx = document.getElementById('revenueChart').getContext('2d');
-    
-    // Lấy dữ liệu từ controller
     const chartData = @json($chartData);
-    
-    // Tạo mảng labels và data
     const labels = [];
     const data = [];
-    
     for (let i = 1; i <= 12; i++) {
-        // Tên tháng
         const monthName = new Date(2023, i-1, 1).toLocaleString('vi', { month: 'long' });
         labels.push(monthName);
         data.push(chartData[i] || 0);
     }
-    
     new Chart(ctx, {
         type: 'bar',
         data: {
@@ -204,7 +213,51 @@ $(document).ready(function() {
             }
         }
     });
+
+    // Fetch tree data
+    fetch('/tree')
+        .then(res => res.json())
+        .then(data => {
+            if (!data || data.length === 0) {
+                $('#treeContent').html('<div class="text-center text-muted">Không có dữ liệu cây khóa học</div>');
+                return;
+            }
+            
+            // Render cây khóa học
+            let html = renderTree(data);
+            $('#treeContent').html(html);
+        });
 });
+
+function renderTree(items) {
+    if (!items || items.length === 0) return '<div class="text-muted">Không có dữ liệu</div>';
+    
+    let html = '<ul class="tree-list">';
+    items.forEach(function(item) {
+        html += '<li>' +
+            '<b>' + item.name + '</b> ' +
+            '<a href="' + item.url + '" class="btn btn-xs btn-outline-primary">Chi tiết</a>';
+        
+        if (item.is_leaf) {
+            if (item.has_online) html += ' <span class="badge bg-info">Online</span>';
+            if (item.has_offline) html += ' <span class="badge bg-secondary">Offline</span>';
+            if (item.fee > 0) html += ' <span class="badge bg-success">' + formatFee(item.fee) + '</span>';
+        }
+        
+        if (item.children && item.children.length > 0) {
+            html += renderTree(item.children);
+        }
+        
+        html += '</li>';
+    });
+    html += '</ul>';
+    return html;
+}
+
+function formatFee(fee) {
+    if (!fee || fee == 0) return '';
+    return Number(fee).toLocaleString('vi-VN') + 'đ';
+}
 </script>
 @endpush 
  

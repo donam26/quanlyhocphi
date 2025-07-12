@@ -20,8 +20,8 @@ class Attendance extends Model
 
     protected $casts = [
         'class_date' => 'date',
-        'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i'
+        'start_time' => 'datetime',
+        'end_time' => 'datetime'
     ];
 
     /**
@@ -33,23 +33,23 @@ class Attendance extends Model
     }
 
     /**
-     * Quan hệ với học viên thông qua ghi danh
+     * Lấy học viên từ quan hệ ghi danh
      */
     public function student()
     {
-        return $this->hasOneThrough(Student::class, Enrollment::class, 'id', 'id', 'enrollment_id', 'student_id');
+        return $this->enrollment->student();
     }
 
     /**
-     * Quan hệ với lớp học thông qua ghi danh
+     * Lấy lớp học từ quan hệ ghi danh
      */
-    public function courseClass()
+    public function class()
     {
-        return $this->hasOneThrough(CourseClass::class, Enrollment::class, 'id', 'id', 'enrollment_id', 'course_class_id');
+        return $this->enrollment->class();
     }
 
     /**
-     * Scope cho học viên có mặt
+     * Scope cho các bản ghi có mặt
      */
     public function scopePresent($query)
     {
@@ -57,7 +57,7 @@ class Attendance extends Model
     }
 
     /**
-     * Scope cho học viên vắng mặt
+     * Scope cho các bản ghi vắng mặt
      */
     public function scopeAbsent($query)
     {
@@ -65,7 +65,7 @@ class Attendance extends Model
     }
 
     /**
-     * Scope cho học viên đi muộn
+     * Scope cho các bản ghi đi trễ
      */
     public function scopeLate($query)
     {
@@ -73,10 +73,21 @@ class Attendance extends Model
     }
 
     /**
-     * Scope theo ngày
+     * Scope cho các bản ghi có phép
      */
-    public function scopeByDate($query, $date)
+    public function scopeExcused($query)
     {
-        return $query->where('class_date', $date);
+        return $query->where('status', 'excused');
+    }
+
+    /**
+     * Tính thời gian tham gia (giờ)
+     */
+    public function getDurationAttribute()
+    {
+        if ($this->start_time && $this->end_time) {
+            return $this->start_time->diffInHours($this->end_time);
+        }
+        return 0;
     }
 }

@@ -98,7 +98,10 @@ class SubCourseSeeder extends Seeder
         ];
 
         foreach ($subCourses as $subCourse) {
-            SubCourse::create($subCourse);
+            SubCourse::firstOrCreate([
+                'course_id' => $subCourse['course_id'],
+                'name' => $subCourse['name']
+            ], $subCourse);
         }
     }
 }

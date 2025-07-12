@@ -1,0 +1,242 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\CourseItem;
+use App\Models\Classes;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Validator;
+
+class CourseItemController extends Controller
+{
+    /**
+     * Lấy danh sách các item cấp cao nhất
+     */
+    public function index(Request $request)
+    {
+        $query = CourseItem::query();
+        
+        // Lọc theo parent_id nếu có
+        if ($request->has('parent_id')) {
+            $query->where('parent_id', $request->parent_id);
+        } else {
+            $query->whereNull('parent_id');
+        }
+        
+        // Lọc theo active
+        if ($request->has('active')) {
+            $query->where('active', $request->boolean('active'));
+        }
+        
+        $items = $query->orderBy('order_index')->get();
+        
+        return response()->json($items);
+    }
+
+    /**
+     * Lưu item mới
+     */
+    public function store(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:course_items,id',
+            'description' => 'nullable|string',
+            'fee' => 'nullable|numeric|min:0',
+            'code' => 'nullable|string|max:50',
+            'has_online' => 'boolean',
+            'has_offline' => 'boolean',
+            'active' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        // Xác định level dựa trên parent_id
+        $level = 1; // Mặc định là cấp cao nhất
+        $isLeaf = false;
+        
+        if ($request->parent_id) {
+            $parentItem = CourseItem::findOrFail($request->parent_id);
+            $level = $parentItem->level + 1;
+            
+            // Nếu có giá tiền, đánh dấu là nút lá
+            if ($request->fee > 0) {
+                $isLeaf = true;
+            }
+        }
+        
+        // Lấy order_index cao nhất trong cùng cấp và parent
+        $maxOrder = CourseItem::where('level', $level)
+                        ->when($request->parent_id, function($query) use ($request) {
+                            return $query->where('parent_id', $request->parent_id);
+                        })
+                        ->max('order_index') ?? 0;
+        
+        $courseItem = CourseItem::create([
+            'name' => $request->name,
+            'description' => $request->description,
+            'parent_id' => $request->parent_id,
+            'fee' => $request->fee,
+            'level' => $level,
+            'is_leaf' => $isLeaf,
+            'code' => $request->code,
+            'has_online' => $request->has_online ?? false,
+            'has_offline' => $request->has_offline ?? false,
+            'order_index' => $maxOrder + 1,
+            'active' => $request->active ?? true,
+        ]);
+        
+        return response()->json($courseItem, 201);
+    }
+
+    /**
+     * Hiển thị chi tiết item
+     */
+    public function show($id)
+    {
+        $courseItem = CourseItem::with(['children' => function($query) {
+                            $query->orderBy('order_index');
+                        }])->findOrFail($id);
+        
+        // Nếu là nút lá, lấy các lớp học liên quan
+        if ($courseItem->is_leaf) {
+            $courseItem->load('classes');
+        }
+        
+        return response()->json($courseItem);
+    }
+
+    /**
+     * Cập nhật item
+     */
+    public function update(Request $request, $id)
+    {
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:course_items,id',
+            'description' => 'nullable|string',
+            'fee' => 'nullable|numeric|min:0',
+            'code' => 'nullable|string|max:50',
+            'has_online' => 'boolean',
+            'has_offline' => 'boolean',
+            'active' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json(['errors' => $validator->errors()], 422);
+        }
+        
+        $courseItem = CourseItem::findOrFail($id);
+        
+        // Kiểm tra không cho phép item là cha của chính nó
+        if ($request->parent_id == $id) {
+            return response()->json(['error' => 'Không thể chọn chính nó làm cha'], 422);
+        }
+        
+        // Kiểm tra không cho phép chọn con làm cha
+        $descendants = $courseItem->descendants()->pluck('id')->toArray();
+        if (in_array($request->parent_id, $descendants)) {
+            return response()->json(['error' => 'Không thể chọn con làm cha'], 422);
+        }
+        
+        // Xác định level dựa trên parent_id
+        $level = 1; // Mặc định là cấp cao nhất
+        $isLeaf = $courseItem->is_leaf; // Giữ nguyên trạng thái leaf
+        
+        if ($request->parent_id) {
+            $parentItem = CourseItem::findOrFail($request->parent_id);
+            $level = $parentItem->level + 1;
+            
+            // Nếu có giá tiền, đánh dấu là nút lá
+            if ($request->fee > 0) {
+                $isLeaf = true;
+            }
+        }
+        
+        $courseItem->update([
+            'name' => $request->name,
+            'description' => $request->description,
+            'parent_id' => $request->parent_id,
+            'fee' => $request->fee,
+            'level' => $level,
+            'is_leaf' => $isLeaf,
+            'code' => $request->code,
+            'has_online' => $request->has_online ?? $courseItem->has_online,
+            'has_offline' => $request->has_offline ?? $courseItem->has_offline,
+            'active' => $request->active ?? $courseItem->active,
+        ]);
+        
+        return response()->json($courseItem);
+    }
+
+    /**
+     * Xóa item
+     */
+    public function destroy($id)
+    {
+        $courseItem = CourseItem::findOrFail($id);
+        
+        // Kiểm tra xem có item con không
+        if ($courseItem->children()->count() > 0) {
+            return response()->json(['error' => 'Không thể xóa vì còn chứa khóa con'], 422);
+        }
+        
+        // Kiểm tra xem có lớp học liên quan không
+        if ($courseItem->is_leaf && $courseItem->classes()->count() > 0) {
+            return response()->json(['error' => 'Không thể xóa vì có lớp học liên quan'], 422);
+        }
+        
+        $courseItem->delete();
+        
+        return response()->json(['message' => 'Đã xóa thành công']);
+    }
+    
+    /**
+     * Hiển thị cấu trúc cây khóa học
+     */
+    public function tree()
+    {
+        $rootItems = CourseItem::whereNull('parent_id')
+                            ->where('active', true)
+                            ->orderBy('order_index')
+                            ->get();
+                            
+        $treeData = [];
+        foreach ($rootItems as $item) {
+            $treeData[] = $this->buildTreeNode($item);
+        }
+        
+        return response()->json($treeData);
+    }
+    
+    /**
+     * Xây dựng cây đệ quy từ một nút
+     */
+    private function buildTreeNode(CourseItem $item)
+    {
+        $node = [
+            'id' => $item->id,
+            'name' => $item->name,
+            'url' => route('course-items.show', $item->id),
+            'code' => $item->code,
+            'fee' => $item->fee,
+            'is_leaf' => $item->is_leaf,
+            'has_online' => $item->has_online,
+            'has_offline' => $item->has_offline,
+            'children' => []
+        ];
+        
+        // Nếu không phải là nút lá, lấy các con
+        if (!$item->is_leaf) {
+            $children = $item->activeChildren()->get();
+            foreach ($children as $child) {
+                $node['children'][] = $this->buildTreeNode($child);
+            }
+        }
+        
+        return $node;
+    }
+} 

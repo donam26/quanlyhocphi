@@ -11,7 +11,7 @@ class WaitingList extends Model
 
     protected $fillable = [
         'student_id',
-        'course_id',
+        'course_item_id', // Đổi từ course_id sang course_item_id
         'added_date',
         'interest_level',
         'status',
@@ -33,38 +33,58 @@ class WaitingList extends Model
     }
 
     /**
-     * Quan hệ với khóa học
+     * Quan hệ với khóa học (đổi từ Course sang CourseItem)
      */
-    public function course()
+    public function courseItem()
     {
-        return $this->belongsTo(Course::class);
+        return $this->belongsTo(CourseItem::class, 'course_item_id');
     }
 
     /**
-     * Scope cho danh sách chờ đang hoạt động
+     * Scope cho danh sách chờ đang chờ
      */
-    public function scopeActive($query)
+    public function scopeWaiting($query)
     {
         return $query->where('status', 'waiting');
     }
 
     /**
-     * Scope cho danh sách chờ mức độ quan tâm cao
+     * Scope cho danh sách đã liên hệ
      */
-    public function scopeHighInterest($query)
+    public function scopeContacted($query)
     {
-        return $query->where('interest_level', 'high');
+        return $query->where('status', 'contacted');
     }
 
     /**
-     * Scope cho danh sách chờ cần liên hệ
+     * Scope cho danh sách đã ghi danh
      */
-    public function scopeNeedContact($query)
+    public function scopeEnrolled($query)
     {
-        return $query->where('status', 'waiting')
-                    ->where(function($q) {
-                        $q->whereNull('last_contact_date')
-                          ->orWhere('last_contact_date', '<', now()->subDays(7));
-                    });
+        return $query->where('status', 'enrolled');
+    }
+
+    /**
+     * Scope cho danh sách không quan tâm
+     */
+    public function scopeNotInterested($query)
+    {
+        return $query->where('status', 'not_interested');
+    }
+
+    /**
+     * Kiểm tra xem học viên có thể ghi danh không
+     */
+    public function canEnroll()
+    {
+        return $this->status === 'waiting' || $this->status === 'contacted';
+    }
+
+    /**
+     * Lấy đường dẫn đầy đủ của khóa học
+     */
+    public function getCoursePathAttribute()
+    {
+        return $this->courseItem->path;
     }
 }

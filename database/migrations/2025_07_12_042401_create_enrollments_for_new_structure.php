@@ -11,10 +11,11 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // Đầu tiên tạo bảng enrollments mới
         Schema::create('enrollments', function (Blueprint $table) {
             $table->id();
             $table->foreignId('student_id')->constrained()->onDelete('cascade'); // Liên kết với học viên
-            $table->foreignId('course_class_id')->constrained()->onDelete('cascade'); // Liên kết với lớp học
+            $table->foreignId('class_id')->constrained()->onDelete('cascade'); // Liên kết với lớp học mới
             $table->date('enrollment_date'); // Ngày ghi danh
             $table->enum('status', ['enrolled', 'completed', 'dropped', 'transferred'])->default('enrolled'); // Trạng thái ghi danh
             $table->decimal('discount_percentage', 5, 2)->default(0); // Phần trăm chiết khấu
@@ -24,7 +25,7 @@ return new class extends Migration
             $table->timestamps();
             
             // Đảm bảo một học viên chỉ ghi danh một lần cho một lớp
-            $table->unique(['student_id', 'course_class_id']);
+            $table->unique(['student_id', 'class_id']);
         });
     }
 
