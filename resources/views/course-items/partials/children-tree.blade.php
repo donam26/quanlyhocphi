@@ -7,6 +7,9 @@
     @foreach($children->sortBy('order_index') as $courseItem)
         <li>
             <div class="tree-item level-2 {{ $courseItem->active ? 'active' : 'inactive' }}" data-id="{{ $courseItem->id }}">
+                <span class="sort-handle" title="Kéo để sắp xếp">
+                    <i class="fas fa-arrows-alt"></i>
+                </span>
                 <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#{{ $tabPrefix }}children-{{ $courseItem->id }}">
                     <i class="fas fa-minus-circle"></i>
                 </span>
@@ -25,6 +28,9 @@
                             <i class="fas fa-plus"></i>
                         </button>
                     @endif
+                    <a href="{{ route('course-items.students', $courseItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                        <i class="fas fa-user-graduate"></i>
+                    </a>
                     <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa" onclick="setupEditModal({{ $courseItem->id }})">
                         <i class="fas fa-edit"></i>
                     </button>

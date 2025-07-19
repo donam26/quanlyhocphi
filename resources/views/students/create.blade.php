@@ -57,33 +57,6 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label">Nơi sinh</label>
-                            <input type="text" name="place_of_birth" class="form-control @error('place_of_birth') is-invalid @enderror" 
-                                   value="{{ old('place_of_birth') }}">
-                            @error('place_of_birth')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label">Số CCCD/CMND</label>
-                            <input type="text" name="citizen_id" class="form-control @error('citizen_id') is-invalid @enderror" 
-                                   value="{{ old('citizen_id') }}">
-                            @error('citizen_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        
-                        <div class="col-md-6">
-                            <label class="form-label">Dân tộc</label>
-                            <input type="text" name="ethnicity" class="form-control @error('ethnicity') is-invalid @enderror" 
-                                   value="{{ old('ethnicity', 'Kinh') }}">
-                            @error('ethnicity')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        
-                        <div class="col-md-6">
                             <label class="form-label">Email</label>
                             <input type="email" name="email" class="form-control @error('email') is-invalid @enderror" 
                                    value="{{ old('email') }}">

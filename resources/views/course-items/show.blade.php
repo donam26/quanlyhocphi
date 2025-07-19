@@ -89,12 +89,15 @@
                         <i class="fas fa-plus"></i> Thêm khóa con
                     </a>
                 @endif
+                <a href="{{ route('course-items.students', $courseItem->id) }}" class="btn btn-info">
+                    <i class="fas fa-user-graduate"></i> Học viên
+                </a>
             </div>
         </div>
     </div>
 
     @if($courseItem->is_leaf)
-        <!-- Nút lá - Hiển thị thông tin khóa học và các lớp học -->
+        <!-- Nút lá - Hiển thị thông tin khóa học -->
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h4>Thông tin khóa học</h4>
@@ -107,7 +110,7 @@
                     <div class="col-md-6">
                         <p><strong>Học phí:</strong> {{ number_format($courseItem->fee, 0, ',', '.') }} đồng</p>
                         <p>
-                            <strong>Loại lớp:</strong>
+                            <strong>Loại học:</strong>
                             @if($courseItem->has_online && $courseItem->has_offline)
                                 Online & Offline
                             @elseif($courseItem->has_online)
@@ -120,84 +123,6 @@
                         </p>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h4>Các lớp học</h4>
-                <div>
-                    <a href="{{ route('classes.create', ['course_item_id' => $courseItem->id]) }}" class="btn btn-sm btn-success">
-                        <i class="fas fa-plus"></i> Thêm lớp mới
-                    </a>
-                </div>
-            </div>
-            <div class="card-body">
-                @if(!$classes || $classes->isEmpty())
-                    <div class="alert alert-info">
-                        Chưa có lớp học nào được tạo cho khóa học này.
-                    </div>
-                @else
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Tên lớp</th>
-                                    <th>Loại</th>
-                                    <th>Khóa</th>
-                                    <th>Học viên</th>
-                                    <th>Ngày bắt đầu</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($classes as $class)
-                                    <tr>
-                                        <td>{{ $class->name }}</td>
-                                        <td>
-                                            <span class="badge {{ $class->type == 'online' ? 'badge-primary' : 'badge-secondary' }}">
-                                                {{ $class->type == 'online' ? 'Online' : 'Offline' }}
-                                            </span>
-                                        </td>
-                                        <td>Khóa {{ $class->batch_number }}</td>
-                                        <td>{{ $class->student_count }}/{{ $class->max_students }}</td>
-                                        <td>{{ $class->start_date ? $class->start_date->format('d/m/Y') : 'Chưa xác định' }}</td>
-                                        <td>
-                                            @switch($class->status)
-                                                @case('planned')
-                                                    <span class="badge badge-info">Dự kiến</span>
-                                                    @break
-                                                @case('open')
-                                                    <span class="badge badge-success">Đang tuyển sinh</span>
-                                                    @break
-                                                @case('in_progress')
-                                                    <span class="badge badge-primary">Đang học</span>
-                                                    @break
-                                                @case('completed')
-                                                    <span class="badge badge-secondary">Đã kết thúc</span>
-                                                    @break
-                                                @case('cancelled')
-                                                    <span class="badge badge-danger">Đã hủy</span>
-                                                    @break
-                                            @endswitch
-                                        </td>
-                                        <td>
-                                            <div class="btn-group">
-                                                <a href="{{ route('classes.show', $class->id) }}" class="btn btn-sm btn-info">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                                <a href="{{ route('classes.edit', $class->id) }}" class="btn btn-sm btn-primary">
-                                                    <i class="fas fa-edit"></i>
-                                                </a>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @endif
             </div>
         </div>
     @else
@@ -224,7 +149,7 @@
                                     <th width="5%">#</th>
                                     <th width="30%">Tên khóa học</th>
                                     <th width="15%">Học phí</th>
-                                    <th width="15%">Loại lớp</th>
+                                    <th width="15%">Loại học</th>
                                     <th width="10%">Trạng thái</th>
                                     <th width="25%">Thao tác</th>
                                 </tr>
@@ -274,6 +199,9 @@
                                             <div class="btn-group">
                                                 <a href="{{ route('course-items.show', $child->id) }}" class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
+                                                </a>
+                                                <a href="{{ route('course-items.students', $child->id) }}" class="btn btn-sm btn-info" title="Học viên">
+                                                    <i class="fas fa-user-graduate"></i>
                                                 </a>
                                                 <a href="{{ route('course-items.edit', $child->id) }}" class="btn btn-sm btn-primary">
                                                     <i class="fas fa-edit"></i>

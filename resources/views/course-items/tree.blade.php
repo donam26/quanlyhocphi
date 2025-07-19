@@ -1,22 +1,101 @@
 @extends('layouts.app')
+@section('page-title', 'Khóa học')
 
 @section('content')
+<style>
+    .tree-container {
+        padding: 15px;
+        overflow-x: auto;
+        margin-bottom: 20px;
+    }
+    .course-tree, .course-tree ul {
+        list-style-type: none;
+        padding-left: 25px;
+    }
+    .course-tree li {
+        position: relative;
+        padding: 5px 0;
+        border-left: 1px dashed #ccc;
+    }
+    .course-tree li::before {
+        content: '';
+        position: absolute;
+        top: 15px;
+        left: 0;
+        width: 20px;
+        height: 1px;
+        background-color: #ccc;
+    }
+    .tree-item {
+        display: flex;
+        align-items: center;
+        padding: 8px;
+        border-radius: 4px;
+        background-color: #f8f9fa;
+        margin-bottom: 5px;
+        transition: all 0.2s;
+    }
+    .tree-item.inactive {
+        opacity: 0.6;
+    }
+    .tree-item.class-item {
+        background-color: #e9ecef;
+    }
+    .tree-item.ui-sortable-helper {
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        background-color: #e9f2ff;
+        border: 1px solid #bedcff;
+    }
+    .tree-item.ui-state-highlight {
+        background-color: #fffde7;
+        border: 1px dashed #ffc107;
+        height: 40px;
+    }
+    .tree-item.highlight {
+        animation: highlight 3s;
+    }
+    @keyframes highlight {
+        0% { background-color: #fff3cd; }
+        100% { background-color: #f8f9fa; }
+    }
+    .tree-item > * {
+        margin-right: 8px;
+    }
+    .toggle-icon {
+        cursor: pointer;
+        width: 20px;
+        text-align: center;
+    }
+    .item-icon {
+        width: 20px;
+        text-align: center;
+    }
+    .item-actions {
+        margin-left: auto;
+    }
+    .class-list {
+        list-style-type: none;
+        padding-left: 40px;
+    }
+    .sort-handle {
+        cursor: move;
+        margin-right: 5px;
+        padding: 2px 5px;
+        border-radius: 3px;
+    }
+    .sort-handle:hover {
+        background-color: #e9ecef;
+    }
+    .sort-handle i {
+        color: #6c757d;
+    }
+</style>
 <div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h2>Cấu trúc cây khóa học</h2>
-        </div>
-        <div class="col-md-4 text-end">
-            <a href="{{ route('course-items.index') }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Quay lại
-            </a>
-        </div>
-    </div>
 
     <div class="card">
         <div class="card-header">
             <div class="d-flex justify-content-between align-items-center">
-                <h4>Cây ngành - khóa học - lớp học</h4>
+                <h4>Cây khoá học</h4>
                 <div>
                     <button class="btn btn-sm btn-info me-2" id="expand-all">
                         <i class="fas fa-expand-arrows-alt"></i> Mở rộng tất cả
@@ -37,10 +116,17 @@
                 </div>
             @else
                 <!-- Tab navigation -->
-                <ul class="nav nav-tabs mb-3" id="courseTab" role="tablist">
+                <ul class="nav nav-tabs course-tabs mb-3" id="courseTab" role="tablist">
                     @foreach($rootItems as $index => $rootItem)
                         <li class="nav-item" role="presentation">
-                            <button class="nav-link {{ $index === 0 ? 'active' : '' }}" id="tab-{{ $rootItem->id }}" data-bs-toggle="tab" data-bs-target="#content-{{ $rootItem->id }}" type="button" role="tab" aria-controls="content-{{ $rootItem->id }}" aria-selected="{{ $index === 0 ? 'true' : 'false' }}">
+                            <button class="nav-link @if($index === 0) active @endif" 
+                                    id="tab-{{ $rootItem->id }}" 
+                                    data-bs-toggle="tab" 
+                                    data-bs-target="#content-{{ $rootItem->id }}" 
+                                    type="button" 
+                                    role="tab" 
+                                    aria-controls="content-{{ $rootItem->id }}" 
+                                    aria-selected="@if($index === 0) true @else false @endif">
                                 {{ $rootItem->name }}
                             </button>
                         </li>
@@ -50,11 +136,17 @@
                 <!-- Tab content -->
                 <div class="tab-content" id="courseTabContent">
                     @foreach($rootItems as $index => $rootItem)
-                        <div class="tab-pane fade {{ $index === 0 ? 'show active' : '' }}" id="content-{{ $rootItem->id }}" role="tabpanel" aria-labelledby="tab-{{ $rootItem->id }}">
+                        <div class="tab-pane fade @if($index === 0) show active @endif" 
+                             id="content-{{ $rootItem->id }}" 
+                             role="tabpanel" 
+                             aria-labelledby="tab-{{ $rootItem->id }}">
                             <div class="tree-container">
-                                <ul class="course-tree">
+                                <ul class="course-tree sortable-tree">
                                     <li>
                                         <div class="tree-item level-1 {{ $rootItem->active ? 'active' : 'inactive' }}" data-id="{{ $rootItem->id }}">
+                                            <span class="sort-handle" title="Kéo để sắp xếp">
+                                                <i class="fas fa-arrows-alt"></i>
+                                            </span>
                                             <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#tab-children-{{ $rootItem->id }}">
                                                 <i class="fas fa-minus-circle"></i>
                                             </span>
@@ -71,6 +163,14 @@
                                                     onclick="setupAddModal({{ $rootItem->id }}, '{{ $rootItem->name }}')">
                                                     <i class="fas fa-plus"></i>
                                                 </button>
+                                                @if($rootItem->is_leaf)
+                                                <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-info" title="Thêm lớp học">
+                                                    <i class="fas fa-users"></i>
+                                                </a>
+                                                @endif
+                                                <a href="{{ route('course-items.students', $rootItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                    <i class="fas fa-user-graduate"></i>
+                                                </a>
                                                 <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
                                                     onclick="setupEditModal({{ $rootItem->id }})">
                                                     <i class="fas fa-edit"></i>
@@ -84,6 +184,44 @@
                                         @include('course-items.partials.children-tree', ['children' => $rootItem->children, 'parentId' => $rootItem->id, 'tabPrefix' => 'tab-'])
                                     </li>
                                 </ul>
+                                @if($rootItem->is_leaf)
+                                <div class="mt-3">
+                                    <h5>Danh sách lớp học</h5>
+                                    <ul class="class-list">
+                                        @php
+                                            $classes = \App\Models\Classes::where('course_item_id', $rootItem->id)->orderBy('batch_number')->get();
+                                        @endphp
+                                        @forelse($classes as $class)
+                                            <li>
+                                                <div class="tree-item class-item {{ $class->status != 'cancelled' ? 'active' : 'inactive' }}">
+                                                    <span class="item-icon"><i class="fas fa-users"></i></span>
+                                                    <a href="{{ route('classes.show', $class->id) }}">{{ $class->name }}</a>
+                                                    <span class="badge {{ $class->status == 'in_progress' ? 'bg-success' : ($class->status == 'planned' ? 'bg-warning' : 'bg-secondary') }}">
+                                                        {{ $class->status }}
+                                                    </span>
+                                                    <div class="item-actions">
+                                                        <a href="{{ route('classes.edit', $class->id) }}" class="btn btn-sm btn-primary" title="Chỉnh sửa lớp">
+                                                            <i class="fas fa-edit"></i>
+                                                        </a>
+                                                        <a href="{{ route('course-items.students', $class->course_item_id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                            <i class="fas fa-user-graduate"></i>
+                                                        </a>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        @empty
+                                            <li>
+                                                <div class="tree-item class-empty">
+                                                    <em>Chưa có lớp học nào</em>
+                                                    <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-success">
+                                                        <i class="fas fa-plus"></i> Tạo lớp học mới
+                                                    </a>
+                                                </div>
+                                            </li>
+                                        @endforelse
+                                    </ul>
+                                </div>
+                                @endif
                             </div>
                         </div>
                     @endforeach
@@ -365,11 +503,65 @@
     70% { background-color: #fff3cd; box-shadow: 0 0 10px rgba(255, 193, 7, 0.8); }
     100% { background-color: inherit; box-shadow: inherit; }
 }
+
+/* Thêm CSS cho tabs */
+.course-tabs {
+    border-bottom: 1px solid #dee2e6;
+}
+
+.course-tabs .nav-link {
+    margin-bottom: -1px;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.25rem;
+    border-top-right-radius: 0.25rem;
+    padding: 0.5rem 1rem;
+    color: #495057;
+    background-color: #f8f9fa;
+    transition: all 0.2s ease;
+}
+
+.course-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    background-color: #e9ecef;
+}
+
+.course-tabs .nav-link.active {
+    color: #0d6efd;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+    font-weight: 600;
+}
+
+.tab-content > .tab-pane {
+    display: none;
+}
+
+.tab-content > .active {
+    display: block;
+}
+
+.tab-content > .show {
+    opacity: 1;
+}
+
+.tab-content > .fade {
+    transition: opacity 0.15s linear;
+}
+
+.tab-content > .fade:not(.show) {
+    opacity: 0;
+}
 </style>
 
 @push('scripts')
 <script>
     $(function() {
+        // Kích hoạt tab đầu tiên khi tải trang
+        const firstTab = document.querySelector('#courseTab .nav-link');
+        if (firstTab) {
+            new bootstrap.Tab(firstTab).show();
+        }
+        
         // Mở rộng tất cả
         $('#expand-all').click(function() {
             $('.course-tree .collapse').collapse('show');
@@ -643,6 +835,112 @@
         }
         
         $('#editItemModal').modal('show');
+    }
+</script>
+
+<!-- Kéo thả để sắp xếp -->
+<script>
+    $(function() {
+        // Cho phép kéo thả các mục cấp root
+        $(".course-tree.sortable-tree").sortable({
+            items: "> li",
+            handle: ".sort-handle",
+            placeholder: "tree-item ui-state-highlight",
+            update: function(event, ui) {
+                const items = [];
+                $(this).children("li").each(function(index) {
+                    const id = $(this).find("> .tree-item").data("id");
+                    items.push({
+                        id: id,
+                        order: index + 1
+                    });
+                });
+
+                // Gửi Ajax để cập nhật thứ tự
+                updateItemsOrder(items);
+            }
+        });
+
+        // Cho phép kéo thả các mục cùng cấp (con)
+        $(".collapse.show").each(function() {
+            $(this).sortable({
+                items: "> li",
+                handle: ".sort-handle",
+                placeholder: "tree-item ui-state-highlight",
+                connectWith: ".collapse.show",
+                update: function(event, ui) {
+                    // Chỉ xử lý một lần khi kết thúc kéo thả
+                    if (this === ui.item.parent()[0]) {
+                        const items = [];
+                        $(this).children("li").each(function(index) {
+                            const id = $(this).find("> .tree-item").data("id");
+                            items.push({
+                                id: id,
+                                order: index + 1
+                            });
+                        });
+
+                        // Cập nhật parent_id nếu đã di chuyển sang nhóm khác
+                        const newParentId = $(this).attr('id').replace(/^(tab-)?children-/, '');
+                        const itemId = ui.item.find("> .tree-item").data("id");
+                        
+                        // Gửi Ajax để cập nhật thứ tự và parent nếu cần
+                        updateItemsOrder(items, newParentId);
+                    }
+                }
+            });
+        });
+    });
+
+    // Hàm cập nhật thứ tự qua AJAX
+    function updateItemsOrder(items, newParentId = null) {
+        $.ajax({
+            url: '{{ route("course-items.update-order") }}',
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                items: items,
+                parent_id: newParentId
+            },
+            success: function(response) {
+                if (response.success) {
+                    showToast('Đã cập nhật thứ tự hiển thị', 'success');
+                } else {
+                    showToast('Có lỗi xảy ra khi cập nhật thứ tự', 'danger');
+                }
+            },
+            error: function() {
+                showToast('Có lỗi xảy ra khi cập nhật thứ tự', 'danger');
+            }
+        });
+    }
+
+    // Hàm hiển thị thông báo toast
+    function showToast(message, type = 'success') {
+        const toastHTML = `
+            <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        
+        const toastContainer = $('.toast-container');
+        if (!toastContainer.length) {
+            $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
+        }
+        
+        const toast = $(toastHTML).appendTo('.toast-container');
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Tự động xóa toast sau 5 giây
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
     }
 </script>
 @endpush

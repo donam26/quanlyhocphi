@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\CourseItem;
-use App\Models\Classes;
+use App\Models\Enrollment;
 use Illuminate\Http\Request;
 
 class CourseItemController extends Controller
@@ -122,19 +122,10 @@ class CourseItemController extends Controller
                             $query->where('active', true)->orderBy('order_index');
                         }])->findOrFail($id);
         
-        // Nếu là nút lá, lấy các lớp học liên quan
-        $classes = null;
-        if ($courseItem->is_leaf) {
-            $classes = Classes::where('course_item_id', $id)
-                            ->orderBy('status')
-                            ->orderBy('batch_number')
-                            ->get();
-        }
-        
         // Lấy đường dẫn từ gốc đến item này
         $breadcrumbs = $courseItem->ancestors()->push($courseItem);
         
-        return view('course-items.show', compact('courseItem', 'classes', 'breadcrumbs'));
+        return view('course-items.show', compact('courseItem', 'breadcrumbs'));
     }
 
     /**
@@ -271,24 +262,18 @@ class CourseItemController extends Controller
             $this->deleteRecursively($child);
         }
         
-        // Nếu là nút lá, xóa các lớp học liên quan
+        // Xóa các ghi danh liên quan đến khóa học này nếu là nút lá
         if ($courseItem->is_leaf) {
-            $classes = $courseItem->classes;
-            foreach ($classes as $class) {
-                // Xóa tất cả các ghi danh và thanh toán liên quan
-                foreach ($class->enrollments as $enrollment) {
-                    // Xóa các thanh toán liên quan
-                    $enrollment->payments()->delete();
-                    
-                    // Xóa các điểm danh liên quan
-                    $enrollment->attendances()->delete();
-                    
-                    // Xóa ghi danh
-                    $enrollment->delete();
-                }
+            $enrollments = \App\Models\Enrollment::where('course_item_id', $courseItem->id)->get();
+            foreach ($enrollments as $enrollment) {
+                // Xóa các thanh toán liên quan
+                $enrollment->payments()->delete();
                 
-                // Xóa lớp học
-                $class->delete();
+                // Xóa các điểm danh liên quan
+                $enrollment->attendances()->delete();
+                
+                // Xóa ghi danh
+                $enrollment->delete();
             }
         }
         
@@ -343,5 +328,159 @@ class CourseItemController extends Controller
                             ->get();
         
         return view('course-items.tree', compact('rootItems'));
+    }
+
+    /**
+     * Hiển thị danh sách học viên theo ngành học
+     */
+    public function showStudents($id)
+    {
+        $courseItem = CourseItem::findOrFail($id);
+        
+        // Lấy tất cả ID của khóa học con thuộc ngành này
+        $courseItemIds = [$id];
+        $this->getAllChildrenIds($courseItem, $courseItemIds);
+        
+        // Lấy tất cả học viên đã đăng ký các khóa học này
+        $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->with('student', 'courseItem')
+            ->get();
+        
+        $students = $enrollments->map(function($enrollment) {
+            return [
+                'student' => $enrollment->student,
+                'course_item' => $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A',
+                'enrollment_date' => $enrollment->enrollment_date,
+                'status' => $enrollment->status
+            ];
+        });
+        
+        return view('course-items.students', [
+            'courseItem' => $courseItem,
+            'students' => $students,
+            'enrollmentCount' => $enrollments->count(),
+            'studentCount' => $enrollments->pluck('student_id')->unique()->count()
+        ]);
+    }
+
+    /**
+     * Import học viên từ file Excel/CSV
+     */
+    public function importStudents(Request $request, $id)
+    {
+        $courseItem = CourseItem::findOrFail($id);
+        
+        $request->validate([
+            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+            'auto_enroll' => 'boolean'
+        ]);
+
+        $autoEnroll = $request->has('auto_enroll');
+        
+        // Import dữ liệu từ file
+        try {
+            // Sử dụng Queue nếu cần xử lý batch import lớn
+            // (new \App\Imports\StudentImport($id, $autoEnroll))->queue($request->file('import_file'));
+            
+            // Sử dụng cách import đồng bộ cho import nhỏ
+            $import = new \App\Imports\StudentImport($id, $autoEnroll);
+            $import->import($request->file('import_file'));
+            
+            $summary = $import->getSummary();
+            $message = "Import thành công {$summary['imported']} học viên mới, {$summary['existing']} học viên đã tồn tại, {$summary['enrolled']} được đăng ký vào khóa học.";
+            
+            if ($summary['failures'] > 0) {
+                $message .= " Có {$summary['failures']} dòng không hợp lệ, kiểm tra lại định dạng dữ liệu.";
+            }
+            
+            return redirect()->route('course-items.students', $id)->with('success', $message);
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Xử lý lỗi cơ sở dữ liệu cụ thể
+            if ($e->getCode() === '23000') {  // Mã lỗi Integrity constraint violation
+                return redirect()->route('course-items.students', $id)
+                    ->with('error', 'Lỗi khi import: Xung đột dữ liệu trong cơ sở dữ liệu. Có thể do ID trùng lặp hoặc vi phạm ràng buộc unique.');
+            }
+            
+            return redirect()->route('course-items.students', $id)
+                ->with('error', 'Lỗi cơ sở dữ liệu: ' . $e->getMessage());
+        } catch (\Exception $e) {
+            // Xử lý các lỗi khác
+            return redirect()->route('course-items.students', $id)
+                ->with('error', 'Lỗi khi import: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Tải mẫu file import học viên
+     */
+    public function downloadImportTemplate()
+    {
+        // Tạo file Excel mẫu
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Thiết lập tiêu đề
+        $headers = ['TT', 'Họ', 'Tên', 'Ng.sinh', 'Giới', 'Ghi chú'];
+        $sheet->fromArray([$headers], NULL, 'A1');
+        
+        // Thêm một số dữ liệu mẫu
+        $sampleData = [
+            [1, 'Nguyễn Văn', 'An', '15/05/2000', 'Nam', 'ON'],
+            [2, 'Trần Thị', 'Bình', '20/06/2001', 'Nữ', 'OFF'],
+        ];
+        $sheet->fromArray($sampleData, NULL, 'A2');
+        
+        // Định dạng cột cho đẹp
+        $sheet->getColumnDimension('A')->setWidth(5);
+        $sheet->getColumnDimension('B')->setWidth(20);
+        $sheet->getColumnDimension('C')->setWidth(10);
+        $sheet->getColumnDimension('D')->setWidth(12);
+        $sheet->getColumnDimension('E')->setWidth(10);
+        $sheet->getColumnDimension('F')->setWidth(10);
+        
+        // Tạo style cho header
+        $headerStyle = [
+            'font' => [
+                'bold' => true,
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                'startColor' => [
+                    'rgb' => 'E0E0E0',
+                ],
+            ],
+        ];
+        $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
+        
+        // Tạo Writer để xuất file
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        
+        // Xuất file
+        $filename = 'mau_import_hoc_vien_' . date('Ymd_His') . '.xlsx';
+        $path = storage_path('app/public/' . $filename);
+        
+        // Đảm bảo thư mục tồn tại
+        if (!file_exists(storage_path('app/public'))) {
+            mkdir(storage_path('app/public'), 0755, true);
+        }
+        
+        $writer->save($path);
+        
+        return response()->download($path, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Lấy tất cả ID của các khóa học con
+     */
+    private function getAllChildrenIds($courseItem, &$ids)
+    {
+        foreach ($courseItem->children as $child) {
+            $ids[] = $child->id;
+            if ($child->children->count() > 0) {
+                $this->getAllChildrenIds($child, $ids);
+            }
+        }
     }
 }

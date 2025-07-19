@@ -34,11 +34,14 @@
                     @endif
                 </div>
                 <div class="col-md-3">
-                    <select name="major_id" class="form-select">
-                        <option value="">Tất cả ngành</option>
-                        @foreach($majors as $major)
-                            <option value="{{ $major->id }}" {{ request('major_id') == $major->id ? 'selected' : '' }}>
-                                {{ $major->name }}
+                    <select name="course_item_id" class="form-select">
+                        <option value="">Tất cả khóa học</option>
+                        @php
+                            $courseItems = \App\Models\CourseItem::whereNull('parent_id')->get();
+                        @endphp
+                        @foreach($courseItems as $courseItem)
+                            <option value="{{ $courseItem->id }}" {{ request('course_item_id') == $courseItem->id ? 'selected' : '' }}>
+                                {{ $courseItem->name }}
                             </option>
                         @endforeach
                     </select>
@@ -135,9 +138,9 @@
                                 @if($student->enrollments->count() > 0)
                                     @foreach($student->enrollments->take(2) as $enrollment)
                                         <div class="mb-1">
-                                            <span class="fw-medium">{{ $enrollment->courseClass->course->name }}</span>
+                                            <span class="fw-medium">{{ $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A' }}</span>
                                             <br>
-                                            <small class="text-muted">{{ $enrollment->courseClass->name }}</small>
+                                            <small class="text-muted">{{ $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A' }}</small>
                                         </div>
                                     @endforeach
                                     @if($student->enrollments->count() > 2)
@@ -275,7 +278,7 @@ function printStudents() {
 }
 
 // Auto-submit form when select changes
-$('select[name="major_id"], select[name="status"]').change(function() {
+$('select[name="course_item_id"], select[name="status"]').change(function() {
     $(this).closest('form').submit();
 });
 </script>

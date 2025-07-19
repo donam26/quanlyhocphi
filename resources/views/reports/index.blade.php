@@ -116,37 +116,6 @@
             </div>
         </div>
 
-        <!-- Báo cáo lớp học -->
-        <div class="col-md-6">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">Báo cáo lớp học</h6>
-                    <a href="{{ route('course-classes.index') }}" class="btn btn-sm btn-outline-primary">Xem chi tiết</a>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-bordered">
-                            <tr>
-                                <td width="60%">Tổng số lớp</td>
-                                <td class="text-end">{{ $totalClasses ?? 0 }} lớp</td>
-                            </tr>
-                            <tr>
-                                <td>Lớp đang mở</td>
-                                <td class="text-end">{{ $activeClasses ?? 0 }} lớp</td>
-                            </tr>
-                            <tr>
-                                <td>Lớp đã kết thúc</td>
-                                <td class="text-end">{{ $completedClasses ?? 0 }} lớp</td>
-                            </tr>
-                            <tr>
-                                <td>Tỷ lệ lấp đầy trung bình</td>
-                                <td class="text-end">{{ number_format($averageOccupancy ?? 0, 1) }}%</td>
-                            </tr>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 </div>
 @endsection

@@ -1,0 +1,29 @@
+/* Styles for class list in tree */
+.class-list {
+    padding-left: 2rem;
+    list-style: none;
+}
+
+.class-item {
+    background-color: #f8f9fa;
+    border-left: 3px solid #28a745;
+    margin-bottom: 5px;
+}
+
+.class-empty {
+    background-color: #f8f9fa;
+    border-left: 3px dashed #adb5bd;
+    opacity: 0.8;
+    padding: 0.5rem 1rem;
+}
+
+/* Thêm space giữa các nút trong action */
+.item-actions .btn {
+    margin-right: 2px;
+}
+
+/* Badge cho trạng thái */
+.tree-item .badge {
+    margin-left: 5px;
+    font-size: 0.75rem;
+} 
