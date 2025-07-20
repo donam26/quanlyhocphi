@@ -12,9 +12,7 @@ class Student extends Model
     protected $fillable = [
         'full_name',
         'date_of_birth',
-        'place_of_birth',
-        'citizen_id',
-        'ethnicity',
+        'gender',
         'email',
         'phone',
         'address',
@@ -39,11 +37,11 @@ class Student extends Model
     }
 
     /**
-     * Quan hệ với các lớp học thông qua ghi danh
+     * Quan hệ với các khóa học thông qua ghi danh
      */
-    public function classes()
+    public function courseItems()
     {
-        return $this->belongsToMany(CourseClass::class, 'enrollments')
+        return $this->belongsToMany(CourseItem::class, 'enrollments', 'student_id', 'course_item_id')
                     ->withPivot('enrollment_date', 'status', 'discount_percentage', 'discount_amount', 'final_fee')
                     ->withTimestamps();
     }
@@ -123,8 +121,7 @@ class Student extends Model
         } else {
             // Ngược lại, tìm kiếm theo tên hoặc số điện thoại
             return $query->where('full_name', 'like', "%{$term}%")
-                        ->orWhere('phone', 'like', "%{$term}%")
-                        ->orWhere('citizen_id', 'like', "%{$term}%");
+                        ->orWhere('phone', 'like', "%{$term}%");
         }
     }
 }

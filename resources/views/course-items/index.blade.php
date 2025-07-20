@@ -59,6 +59,9 @@
                                             <a href="{{ route('course-items.show', $item->id) }}" class="btn btn-sm btn-info">
                                                 <i class="fas fa-eye"></i>
                                             </a>
+                                            <a href="{{ route('course-items.students', $item->id) }}" class="btn btn-sm btn-primary" title="Xem học viên">
+                                                <i class="fas fa-users"></i>
+                                            </a>
                                             <a href="{{ route('course-items.edit', $item->id) }}" class="btn btn-sm btn-primary">
                                                 <i class="fas fa-edit"></i>
                                             </a>

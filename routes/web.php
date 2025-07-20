@@ -27,9 +27,9 @@ Route::resource('course-items', CourseItemController::class);
 Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
 Route::post('course-items/{courseItem}/toggle-active', [CourseItemController::class, 'toggleActive'])->name('course-items.toggle-active');
 Route::get('tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
-
-// Lớp học
-Route::resource('classes', ClassesController::class);
+Route::get('course-items/{id}/students', [CourseItemController::class, 'showStudents'])->name('course-items.students');
+Route::post('course-items/{id}/students/import', [CourseItemController::class, 'importStudents'])->name('course-items.students.import');
+Route::get('course-items/students/download-template', [CourseItemController::class, 'downloadImportTemplate'])->name('course-items.students.download-template');
 
 // Enrollments
 Route::resource('enrollments', EnrollmentController::class);

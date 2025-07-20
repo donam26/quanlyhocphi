@@ -15,7 +15,7 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Student::with(['enrollments.courseClass.course', 'waitingLists.course']);
+        $query = Student::with(['enrollments']);
 
         // Tìm kiếm theo tên hoặc số điện thoại
         if ($request->filled('search')) {
@@ -27,19 +27,16 @@ class StudentController extends Controller
             $query->where('status', $request->status);
         }
         
-        // Lọc theo ngành học
-        if ($request->filled('major_id')) {
-            $query->whereHas('enrollments.courseClass.course', function($q) use ($request) {
-                $q->where('major_id', $request->major_id);
+        // Lọc theo khóa học
+        if ($request->filled('course_item_id')) {
+            $query->whereHas('enrollments', function($q) use ($request) {
+                $q->where('course_item_id', $request->course_item_id);
             });
         }
 
         $students = $query->latest()->paginate(20)->appends($request->except('page'));
         
-        // Lấy danh sách ngành học để lọc
-        $majors = \App\Models\Major::all();
-
-        return view('students.index', compact('students', 'majors'));
+        return view('students.index', compact('students'));
     }
 
     /**
@@ -58,9 +55,6 @@ class StudentController extends Controller
         $validatedData = $request->validate([
             'full_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
-            'place_of_birth' => 'nullable|string|max:255',
-            'citizen_id' => 'required|string|unique:students,citizen_id',
-            'ethnicity' => 'nullable|string|max:100',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
             'address' => 'nullable|string',
@@ -108,9 +102,6 @@ class StudentController extends Controller
         $validatedData = $request->validate([
             'full_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
-            'place_of_birth' => 'nullable|string|max:255',
-            'citizen_id' => 'required|string|unique:students,citizen_id,' . $student->id,
-            'ethnicity' => 'nullable|string|max:100',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone,' . $student->id,
             'address' => 'nullable|string',

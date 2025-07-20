@@ -55,27 +55,11 @@ class CourseItem extends Model
     }
 
     /**
-     * Lấy các lớp học liên kết với item này (chỉ áp dụng cho nút lá)
+     * Lấy danh sách các ghi danh vào khóa học này
      */
-    public function classes()
+    public function enrollments()
     {
-        return $this->hasMany(Classes::class, 'course_item_id');
-    }
-
-    /**
-     * Lấy các lớp học online
-     */
-    public function onlineClasses()
-    {
-        return $this->hasMany(Classes::class, 'course_item_id')->where('type', 'online');
-    }
-
-    /**
-     * Lấy các lớp học offline
-     */
-    public function offlineClasses()
-    {
-        return $this->hasMany(Classes::class, 'course_item_id')->where('type', 'offline');
+        return $this->hasMany(Enrollment::class, 'course_item_id');
     }
 
     /**

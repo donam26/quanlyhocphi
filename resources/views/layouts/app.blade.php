@@ -295,19 +295,9 @@
                     Học viên
                 </a>
                 
-                <a href="{{ route('course-items.index') }}" class="nav-link {{ request()->routeIs('course-items.*') && !request()->routeIs('course-items.tree') ? 'active' : '' }}">
-                    <i class="fas fa-book"></i>
-                    Khóa học
-                </a>
-                
                 <a href="{{ route('course-items.tree') }}" class="nav-link {{ request()->routeIs('course-items.tree') ? 'active' : '' }}">
                     <i class="fas fa-project-diagram"></i>
-                    Cây khóa học
-                </a>
-                
-                <a href="{{ route('classes.index') }}" class="nav-link {{ request()->routeIs('classes.*') ? 'active' : '' }}">
-                    <i class="fas fa-chalkboard-teacher"></i>
-                    Lớp học
+                    Khóa học
                 </a>
                 
                 <a href="{{ route('enrollments.index') }}" class="nav-link {{ request()->routeIs('enrollments.index') || (request()->routeIs('enrollments.*') && !request()->is('unpaid-enrollments')) ? 'active' : '' }}">

@@ -11,7 +11,7 @@ class Enrollment extends Model
 
     protected $fillable = [
         'student_id',
-        'class_id', // Đổi từ course_class_id thành class_id
+        'course_item_id',
         'enrollment_date',
         'status',
         'discount_percentage',
@@ -36,11 +36,11 @@ class Enrollment extends Model
     }
 
     /**
-     * Quan hệ với lớp học (đổi từ CourseClass sang Classes)
+     * Quan hệ với khóa học
      */
-    public function class()
+    public function courseItem()
     {
-        return $this->belongsTo(Classes::class, 'class_id');
+        return $this->belongsTo(CourseItem::class, 'course_item_id');
     }
 
     /**
