@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\CourseItem;
 use App\Models\Enrollment;
+use App\Models\LearningPath;
+use App\Models\LearningPathProgress;
 use Illuminate\Http\Request;
 
 class CourseItemController extends Controller
@@ -120,6 +122,8 @@ class CourseItemController extends Controller
     {
         $courseItem = CourseItem::with(['children' => function($query) {
                             $query->where('active', true)->orderBy('order_index');
+                        }, 'learningPaths' => function($query) {
+                            $query->orderBy('order');
                         }])->findOrFail($id);
         
         // Lấy đường dẫn từ gốc đến item này
@@ -262,6 +266,13 @@ class CourseItemController extends Controller
             $this->deleteRecursively($child);
         }
         
+        // Xóa các lộ trình học tập và tiến độ liên quan
+        $learningPaths = LearningPath::where('course_item_id', $courseItem->id)->get();
+        foreach ($learningPaths as $path) {
+            LearningPathProgress::where('learning_path_id', $path->id)->delete();
+            $path->delete();
+        }
+        
         // Xóa các ghi danh liên quan đến khóa học này nếu là nút lá
         if ($courseItem->is_leaf) {
             $enrollments = \App\Models\Enrollment::where('course_item_id', $courseItem->id)->get();
@@ -271,6 +282,9 @@ class CourseItemController extends Controller
                 
                 // Xóa các điểm danh liên quan
                 $enrollment->attendances()->delete();
+                
+                // Xóa tiến độ lộ trình liên quan
+                $enrollment->learningPathProgress()->delete();
                 
                 // Xóa ghi danh
                 $enrollment->delete();

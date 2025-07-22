@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\PaymentReminderMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
+use App\Models\CourseItem; // Added this import
 
 class PaymentController extends Controller
 {
@@ -18,7 +19,7 @@ class PaymentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Payment::with(['enrollment.student', 'enrollment.courseClass.course']);
+        $query = Payment::with(['enrollment.student', 'enrollment.courseItem']);
 
         // Lọc theo học viên
         if ($request->filled('student_id')) {
@@ -67,7 +68,7 @@ class PaymentController extends Controller
     {
         $enrollment = null;
         if ($request->filled('enrollment_id')) {
-            $enrollment = Enrollment::with(['student', 'courseClass.course'])
+            $enrollment = Enrollment::with(['student', 'courseItem'])
                                    ->findOrFail($request->enrollment_id);
         }
 
@@ -113,7 +114,7 @@ class PaymentController extends Controller
      */
     public function show(Payment $payment)
     {
-        $payment->load(['enrollment.student', 'enrollment.courseClass.course']);
+        $payment->load(['enrollment.student', 'enrollment.courseItem']);
 
         return view('payments.show', compact('payment'));
     }
@@ -123,7 +124,7 @@ class PaymentController extends Controller
      */
     public function edit(Payment $payment)
     {
-        $payment->load(['enrollment.student', 'enrollment.courseClass.course']);
+        $payment->load(['enrollment.student', 'enrollment.courseItem']);
 
         return view('payments.edit', compact('payment'));
     }
@@ -240,21 +241,16 @@ class PaymentController extends Controller
      */
     public function monthlyReport(Request $request)
     {
-        $month = $request->get('month', now()->format('Y-m'));
-        
-        $payments = Payment::with(['enrollment.student', 'enrollment.courseClass.course'])
-                          ->whereYear('payment_date', substr($month, 0, 4))
-                          ->whereMonth('payment_date', substr($month, 5, 2))
+        $payments = Payment::with(['enrollment.student', 'enrollment.courseItem'])
                           ->where('status', 'confirmed')
+                          ->whereYear('payment_date', $request->year ?? date('Y'))
+                          ->whereMonth('payment_date', $request->month ?? date('m'))
                           ->get();
-
-        $totalRevenue = $payments->sum('amount');
-        $revenueByMethod = $payments->groupBy('payment_method')
-                                  ->map(function($group) {
-                                      return $group->sum('amount');
-                                  });
-
-        return view('payments.monthly-report', compact('payments', 'totalRevenue', 'revenueByMethod', 'month'));
+        
+        $total = $payments->sum('amount');
+        $count = $payments->count();
+        
+        return view('payments.monthly-report', compact('payments', 'total', 'count'));
     }
 
     /**
@@ -295,20 +291,23 @@ class PaymentController extends Controller
     }
 
     /**
-     * Lấy thông tin thanh toán của một ghi danh (API)
+     * Lấy lịch sử thanh toán của một ghi danh
      */
     public function getEnrollmentPayments(Enrollment $enrollment)
     {
         $payments = $enrollment->payments()->orderBy('payment_date', 'desc')->get();
-        $totalPaid = $enrollment->getTotalPaidAmount();
-        $remaining = $enrollment->getRemainingAmount();
-
-        return response()->json([
-            'payments' => $payments,
-            'total_paid' => $totalPaid,
-            'remaining' => $remaining,
-            'fully_paid' => $enrollment->hasFullyPaid()
-        ]);
+        
+        // Tính toán số tiền đã đóng và còn lại
+        $paidAmount = $payments->where('status', 'confirmed')->sum('amount');
+        $remainingAmount = $enrollment->final_fee - $paidAmount;
+        
+        // Nếu request là AJAX, trả về HTML để hiển thị trong modal
+        if (request()->ajax()) {
+            return view('payments.partials.enrollment-payments', compact('enrollment', 'payments', 'paidAmount', 'remainingAmount'))->render();
+        }
+        
+        // Nếu không phải AJAX, hiển thị trang đầy đủ
+        return view('payments.enrollment', compact('enrollment', 'payments', 'paidAmount', 'remainingAmount'));
     }
 
     /**
@@ -316,9 +315,9 @@ class PaymentController extends Controller
      */
     public function bulkReceipt(Request $request)
     {
-        $paymentIds = explode(',', $request->get('ids', ''));
-        $payments = Payment::with(['enrollment.student', 'enrollment.courseClass.course'])
-                          ->whereIn('id', $paymentIds)
+        $ids = explode(',', $request->ids);
+        $payments = Payment::whereIn('id', $ids)
+                          ->with(['enrollment.student', 'enrollment.courseItem'])
                           ->get();
 
         return view('payments.bulk-receipt', compact('payments'));
@@ -413,8 +412,36 @@ class PaymentController extends Controller
      */
     public function generateReceipt(Payment $payment)
     {
-        $payment->load(['enrollment.student', 'enrollment.courseClass.course']);
+        $payment->load(['enrollment.student', 'enrollment.courseItem']);
         
         return view('payments.receipt', compact('payment'));
+    }
+
+    /**
+     * Hiển thị thanh toán theo khóa học
+     */
+    public function coursePayments(CourseItem $courseItem)
+    {
+        // Lấy danh sách ghi danh của khóa học này
+        $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+                                ->with('student')
+                                ->get();
+        
+        // Lấy tất cả thanh toán liên quan đến các ghi danh này
+        $enrollmentIds = $enrollments->pluck('id')->toArray();
+        $payments = Payment::whereIn('enrollment_id', $enrollmentIds)
+                        ->with('enrollment.student')
+                        ->orderBy('payment_date', 'desc')
+                        ->get();
+        
+        // Thống kê thanh toán
+        $stats = [
+            'total_enrollments' => $enrollments->count(),
+            'total_paid' => $payments->where('status', 'confirmed')->sum('amount'),
+            'total_fee' => $enrollments->sum('final_fee'),
+            'remaining' => $enrollments->sum('final_fee') - $payments->where('status', 'confirmed')->sum('amount'),
+        ];
+        
+        return view('payments.course', compact('courseItem', 'enrollments', 'payments', 'stats'));
     }
 }

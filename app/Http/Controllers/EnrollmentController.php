@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use App\Models\CourseItem; // Added this import
 
 class EnrollmentController extends Controller
 {
@@ -17,76 +18,96 @@ class EnrollmentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Enrollment::with(['student', 'courseClass.course', 'payments']);
-        
-        // Áp dụng các bộ lọc
-        if ($request->has('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function ($q) use ($search) {
-                $q->where('full_name', 'like', "%$search%")
-                  ->orWhere('phone', 'like', "%$search%");
-            });
-        }
-        
-        if ($request->has('status') && $request->status) {
+        $query = Enrollment::with(['student', 'courseItem', 'payments']);
+
+        // Lọc theo trạng thái
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
         
-        if ($request->has('payment_status') && $request->payment_status) {
-            if ($request->payment_status === 'paid') {
-                $query->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") >= enrollments.final_fee');
-            } elseif ($request->payment_status === 'partial') {
-                $query->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") > 0')
-                      ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee');
-            } elseif ($request->payment_status === 'pending') {
-                $query->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") = 0');
-            }
+        // Lọc theo khóa học
+        if ($request->filled('course_item_id')) {
+            $query->where('course_item_id', $request->course_item_id);
         }
-        
+
+        // Lọc theo ngày ghi danh
+        if ($request->filled('date_from')) {
+            $query->where('enrollment_date', '>=', $request->date_from);
+        }
+
+        if ($request->filled('date_to')) {
+            $query->where('enrollment_date', '<=', $request->date_to);
+        }
+
+        // Lọc theo tìm kiếm
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('full_name', 'like', '%' . $search . '%')
+                  ->orWhere('phone', 'like', '%' . $search . '%')
+                  ->orWhere('email', 'like', '%' . $search . '%');
+            });
+        }
+
         $enrollments = $query->latest()->paginate(15);
-        
-        // Thống kê
-        $pendingCount = Enrollment::whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") = 0')->count();
-        
-        $totalPaid = Payment::where('status', 'confirmed')->sum('amount');
-        
-        // Tính tổng số tiền còn nợ
-        $totalFees = Enrollment::sum('final_fee');
-        $totalUnpaid = $totalFees - $totalPaid;
-        
-        return view('enrollments.index', compact('enrollments', 'pendingCount', 'totalPaid', 'totalUnpaid'));
+
+        return view('enrollments.index', compact('enrollments'));
     }
 
     /**
-     * Hiển thị danh sách ghi danh chưa thanh toán
+     * Hiển thị danh sách học viên chưa thanh toán đủ
      */
     public function unpaidList()
     {
-        $unpaidEnrollments = Enrollment::with(['student', 'courseClass.course', 'payments'])
-            ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
-            ->latest()
-            ->paginate(15);
-            
-        // Tính tổng số tiền còn nợ và đã đóng
-        $totalFees = $unpaidEnrollments->sum('final_fee');
-        $totalPaid = 0;
-        $totalUnpaid = 0;
+        // Lấy danh sách ghi danh có trạng thái "enrolled" (đang học)
+        $enrollments = Enrollment::where('status', 'enrolled')
+                                ->with(['student', 'courseItem', 'payments' => function ($query) {
+                                    $query->where('status', 'confirmed'); // Chỉ lấy các thanh toán đã xác nhận
+                                }])
+                                ->get();
         
+        // Lọc các ghi danh chưa thanh toán đủ
+        $unpaidEnrollments = $enrollments->filter(function ($enrollment) {
+            $paidAmount = $enrollment->payments->sum('amount');
+            return $paidAmount < $enrollment->final_fee; // Sử dụng final_fee thay vì fee cố định
+        });
+        
+        // Nhóm theo student_id để tạo danh sách học viên
+        $studentEnrollments = [];
         foreach ($unpaidEnrollments as $enrollment) {
-            $paid = $enrollment->getTotalPaidAmount();
-            $totalPaid += $paid;
-            $totalUnpaid += $enrollment->getRemainingAmount();
+            $studentId = $enrollment->student_id;
+            if (!isset($studentEnrollments[$studentId])) {
+                $studentEnrollments[$studentId] = [
+                    'student' => $enrollment->student,
+                    'enrollments' => [],
+                    'total_fee' => 0,
+                    'total_paid' => 0,
+                    'total_remaining' => 0
+                ];
+            }
+            
+            $paidAmount = $enrollment->payments->sum('amount');
+            $remainingAmount = $enrollment->final_fee - $paidAmount;
+            
+            $studentEnrollments[$studentId]['enrollments'][] = [
+                'enrollment' => $enrollment,
+                'course_name' => $enrollment->courseItem->name,
+                'fee' => $enrollment->final_fee, // Học phí cá nhân hóa
+                'paid' => $paidAmount,
+                'remaining' => $remainingAmount
+            ];
+            
+            $studentEnrollments[$studentId]['total_fee'] += $enrollment->final_fee;
+            $studentEnrollments[$studentId]['total_paid'] += $paidAmount;
+            $studentEnrollments[$studentId]['total_remaining'] += $remainingAmount;
         }
         
-        // Tạo mảng thống kê
-        $stats = [
-            'total_unpaid_count' => $unpaidEnrollments->total(),
-            'total_unpaid_amount' => $totalUnpaid,
-            'total_paid_amount' => $totalPaid,
-            'average_remaining' => $unpaidEnrollments->count() > 0 ? $totalUnpaid / $unpaidEnrollments->count() : 0
-        ];
+        // Sắp xếp theo tổng số tiền còn lại giảm dần
+        uasort($studentEnrollments, function ($a, $b) {
+            return $b['total_remaining'] <=> $a['total_remaining'];
+        });
         
-        return view('enrollments.unpaid', compact('unpaidEnrollments', 'stats'));
+        return view('enrollments.unpaid', compact('studentEnrollments'));
     }
 
     /**
@@ -95,9 +116,9 @@ class EnrollmentController extends Controller
     public function create()
     {
         $students = Student::all();
-        $classes = CourseClass::where('status', 'open')->get();
+        $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
         
-        return view('enrollments.create', compact('students', 'classes'));
+        return view('enrollments.create', compact('students', 'courseItems'));
     }
 
     /**
@@ -107,7 +128,7 @@ class EnrollmentController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
-            'course_class_id' => 'required|exists:course_classes,id',
+            'course_item_id' => 'required|exists:course_items,id',
             'enrollment_date' => 'required|date',
             'final_fee' => 'required|numeric|min:0',
             'status' => 'required|in:enrolled,cancelled',
@@ -118,7 +139,7 @@ class EnrollmentController extends Controller
         
         $enrollment = Enrollment::create([
             'student_id' => $request->student_id,
-            'course_class_id' => $request->course_class_id,
+            'course_item_id' => $request->course_item_id,
             'enrollment_date' => $request->enrollment_date,
             'discount_percentage' => $request->discount_percentage ?? 0,
             'discount_amount' => $request->discount_amount ?? 0,
@@ -148,8 +169,7 @@ class EnrollmentController extends Controller
      */
     public function show(Enrollment $enrollment)
     {
-        $enrollment->load(['student', 'courseClass.course', 'payments']);
-        
+        $enrollment->load(['student', 'courseItem', 'payments']);
         return view('enrollments.show', compact('enrollment'));
     }
 
@@ -159,9 +179,9 @@ class EnrollmentController extends Controller
     public function edit(Enrollment $enrollment)
     {
         $students = Student::all();
-        $classes = CourseClass::all();
+        $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
         
-        return view('enrollments.edit', compact('enrollment', 'students', 'classes'));
+        return view('enrollments.edit', compact('enrollment', 'students', 'courseItems'));
     }
 
     /**
@@ -171,7 +191,7 @@ class EnrollmentController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
-            'course_class_id' => 'required|exists:course_classes,id',
+            'course_item_id' => 'required|exists:course_items,id',
             'enrollment_date' => 'required|date',
             'final_fee' => 'required|numeric|min:0',
             'status' => 'required|in:enrolled,cancelled',
@@ -182,7 +202,7 @@ class EnrollmentController extends Controller
         
         $enrollment->update([
             'student_id' => $request->student_id,
-            'course_class_id' => $request->course_class_id,
+            'course_item_id' => $request->course_item_id,
             'enrollment_date' => $request->enrollment_date,
             'discount_percentage' => $request->discount_percentage ?? 0,
             'discount_amount' => $request->discount_amount ?? 0,
@@ -209,5 +229,60 @@ class EnrollmentController extends Controller
         
         return redirect()->route('enrollments.index')
             ->with('success', 'Ghi danh đã được xóa.');
+    }
+
+    /**
+     * Cập nhật học phí cho ghi danh
+     */
+    public function updateFee(Request $request)
+    {
+        $request->validate([
+            'enrollment_id' => 'required|exists:enrollments,id',
+            'discount_type' => 'required|in:none,percentage,fixed,custom',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'final_fee' => 'nullable|numeric|min:0',
+            'reason' => 'nullable|string'
+        ]);
+        
+        $enrollment = Enrollment::with('courseItem')->findOrFail($request->enrollment_id);
+        $originalFee = $enrollment->courseItem->fee;
+        
+        // Tính học phí cuối cùng dựa trên loại chiết khấu
+        switch ($request->discount_type) {
+            case 'none':
+                $finalFee = $originalFee;
+                $discountPercentage = 0;
+                $discountAmount = 0;
+                break;
+                
+            case 'percentage':
+                $discountPercentage = $request->discount_percentage;
+                $discountAmount = ($originalFee * $discountPercentage) / 100;
+                $finalFee = $originalFee - $discountAmount;
+                break;
+                
+            case 'fixed':
+                $discountAmount = $request->discount_amount;
+                $discountPercentage = $originalFee > 0 ? ($discountAmount / $originalFee) * 100 : 0;
+                $finalFee = $originalFee - $discountAmount;
+                break;
+                
+            case 'custom':
+                $finalFee = $request->final_fee;
+                $discountAmount = $originalFee - $finalFee;
+                $discountPercentage = $originalFee > 0 ? ($discountAmount / $originalFee) * 100 : 0;
+                break;
+        }
+        
+        // Cập nhật ghi danh
+        $enrollment->update([
+            'discount_percentage' => $discountPercentage,
+            'discount_amount' => $discountAmount,
+            'final_fee' => $finalFee,
+            'notes' => $enrollment->notes . "\n[" . now()->format('d/m/Y H:i') . "] Điều chỉnh học phí: " . $request->reason
+        ]);
+        
+        return redirect()->back()->with('success', 'Đã cập nhật học phí thành công!');
     }
 }

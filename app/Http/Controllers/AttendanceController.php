@@ -3,330 +3,251 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\CourseClass;
 use App\Models\Student;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
     /**
-     * Hiển thị danh sách điểm danh
+     * Hiển thị trang chủ điểm danh
      */
     public function index(Request $request)
     {
-        $query = Attendance::with(['enrollment.student', 'enrollment.courseClass.course']);
-
-        // Lọc theo lớp học
-        if ($request->filled('course_class_id')) {
-            $query->whereHas('enrollment', function($q) use ($request) {
-                $q->where('course_class_id', $request->course_class_id);
-            });
-        }
-
+        $query = Attendance::with(['enrollment.student', 'enrollment.courseItem'])
+                    ->orderBy('class_date', 'desc');
+        
         // Lọc theo ngày
-        if ($request->filled('class_date')) {
-            $query->where('class_date', $request->class_date);
+        if ($request->filled('date_from')) {
+            $query->whereDate('class_date', '>=', $request->date_from);
         }
-
+        
+        if ($request->filled('date_to')) {
+            $query->whereDate('class_date', '<=', $request->date_to);
+        }
+        
         // Lọc theo trạng thái
-        if ($request->filled('status')) {
+        if ($request->filled('status') && $request->status != 'all') {
             $query->where('status', $request->status);
         }
-
-        $attendances = $query->orderBy('class_date', 'desc')->paginate(20);
-        $courseClasses = CourseClass::with('course')->get();
-
-        return view('attendance.index', compact('attendances', 'courseClasses'));
-    }
-
-    /**
-     * Hiển thị form điểm danh cho lớp học
-     */
-    public function create(Request $request)
-    {
-        $courseClass = null;
-        $classDate = $request->get('class_date', today()->toDateString());
-
-        if ($request->filled('course_class_id')) {
-            $courseClass = CourseClass::with(['course', 'enrollments.student'])
-                                     ->findOrFail($request->course_class_id);
+        
+        // Lọc theo khóa học
+        if ($request->filled('course_item_id')) {
+            $query->whereHas('enrollment', function ($q) use ($request) {
+                $q->where('course_item_id', $request->course_item_id);
+            });
         }
-
-        $courseClasses = CourseClass::with('course')
-                                   ->whereIn('status', ['in_progress', 'open'])
-                                   ->get();
-
-        return view('attendance.create', compact('courseClass', 'courseClasses', 'classDate'));
+        
+        // Lọc theo học viên
+        if ($request->filled('student_id')) {
+            $query->whereHas('enrollment', function ($q) use ($request) {
+                $q->where('student_id', $request->student_id);
+            });
+        }
+        
+        $attendances = $query->paginate(20);
+        $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->orderBy('name')->get();
+        $students = Student::orderBy('full_name')->get();
+        
+        return view('attendance.index', compact('attendances', 'courseItems', 'students'));
     }
 
     /**
-     * Lưu điểm danh hàng loạt
+     * Hiển thị form điểm danh theo khóa học
      */
-    public function store(Request $request)
+    public function createByCourse(Request $request, CourseItem $courseItem)
     {
-        $validatedData = $request->validate([
-            'course_class_id' => 'required|exists:course_classes,id',
-            'class_date' => 'required|date',
+        // Lấy ngày điểm danh (mặc định là hôm nay)
+        $attendanceDate = $request->filled('attendance_date') 
+            ? $request->attendance_date 
+            : Carbon::today()->format('Y-m-d');
+        
+        // Xác định ID của khóa học con nếu là khóa học cha
+        $childCourseItemIds = [$courseItem->id]; // Bắt đầu với ID của khóa hiện tại
+        
+        // Nếu không phải nút lá (có thể có các khóa con), lấy tất cả ID khóa con
+        if (!$courseItem->is_leaf) {
+            $childCourseItems = $this->getAllChildrenLeafItems($courseItem);
+            $childCourseItemIds = $childCourseItems->pluck('id')->toArray();
+        } else {
+            $childCourseItems = collect([$courseItem]);
+        }
+        
+        // Lấy tất cả ghi danh của các khóa học con
+        $enrollments = Enrollment::whereIn('course_item_id', $childCourseItemIds)
+            ->where('status', 'enrolled') // Chỉ lấy học viên đang học
+            ->with('student', 'courseItem')
+            ->get();
+        
+        // Lấy điểm danh hiện có cho ngày được chọn
+        $existingAttendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
+            ->whereDate('class_date', $attendanceDate)
+            ->get()
+            ->keyBy('enrollment_id'); // Sử dụng enrollment_id làm khóa để dễ tìm kiếm
+        
+        // Tạo lịch tháng
+        $currentMonth = Carbon::parse($attendanceDate)->startOfMonth();
+        $calendar = $this->generateCalendar($currentMonth, $courseItem->id);
+        
+        // Lấy thống kê điểm danh trong tháng
+        $startOfMonth = $currentMonth->copy()->startOfMonth();
+        $endOfMonth = $currentMonth->copy()->endOfMonth();
+        
+        // Tạo mảng chứa thống kê điểm danh theo ngày
+        $attendanceStats = $this->getMonthlyAttendanceStats($childCourseItemIds, $startOfMonth, $endOfMonth);
+        
+        return view('attendance.course', compact(
+            'courseItem', 
+            'attendanceDate', 
+            'enrollments', 
+            'existingAttendances', 
+            'childCourseItems',
+            'calendar',
+            'currentMonth',
+            'attendanceStats'
+        ));
+    }
+
+    /**
+     * Lưu điểm danh cho khóa học
+     */
+    public function storeByCourse(Request $request, CourseItem $courseItem)
+    {
+        $request->validate([
+            'attendance_date' => 'required|date',
             'attendances' => 'required|array',
             'attendances.*.enrollment_id' => 'required|exists:enrollments,id',
             'attendances.*.status' => 'required|in:present,absent,late,excused',
-            'attendances.*.start_time' => 'nullable|date_format:H:i',
-            'attendances.*.end_time' => 'nullable|date_format:H:i',
-            'attendances.*.notes' => 'nullable|string',
+            'attendances.*.notes' => 'nullable|string|max:255',
         ]);
 
-        $courseClass = CourseClass::findOrFail($validatedData['course_class_id']);
-        $classDate = $validatedData['class_date'];
-
-        // Kiểm tra đã điểm danh ngày này chưa
-        $existingAttendance = Attendance::whereHas('enrollment', function($q) use ($courseClass) {
-                                       $q->where('course_class_id', $courseClass->id);
-                                   })
-                                   ->where('class_date', $classDate)
-                                   ->exists();
-
-        if ($existingAttendance) {
-            return back()->withErrors(['error' => 'Đã có điểm danh cho ngày này rồi!']);
-        }
-
+        $attendanceDate = $request->attendance_date;
+        
         DB::beginTransaction();
         try {
-            foreach ($validatedData['attendances'] as $attendanceData) {
-                // Kiểm tra enrollment thuộc lớp học này
-                $enrollment = Enrollment::where('id', $attendanceData['enrollment_id'])
-                                       ->where('course_class_id', $courseClass->id)
-                                       ->first();
-
-                if (!$enrollment) {
-                    continue;
-                }
-
-                Attendance::create([
-                    'enrollment_id' => $attendanceData['enrollment_id'],
-                    'class_date' => $classDate,
-                    'start_time' => $attendanceData['start_time'] ?? null,
-                    'end_time' => $attendanceData['end_time'] ?? null,
-                    'status' => $attendanceData['status'],
-                    'notes' => $attendanceData['notes'] ?? null,
-                ]);
+            foreach ($request->attendances as $attendanceData) {
+                Attendance::updateOrCreate(
+                    [
+                        'enrollment_id' => $attendanceData['enrollment_id'],
+                        'class_date' => $attendanceDate,
+                    ],
+                    [
+                        'status' => $attendanceData['status'],
+                        'notes' => $attendanceData['notes'] ?? null,
+                    ]
+                );
             }
-
+            
             DB::commit();
-
-            return redirect()->route('attendance.show-class', [
-                'course_class_id' => $courseClass->id,
-                'class_date' => $classDate
-            ])->with('success', 'Điểm danh thành công!');
-
+            return redirect()->route('course-items.attendance.by-date', [
+                'courseItem' => $courseItem->id, 
+                'date' => $attendanceDate
+            ])->with('success', 'Điểm danh đã được lưu thành công!');
+            
         } catch (\Exception $e) {
-            DB::rollback();
-            return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Có lỗi xảy ra khi lưu điểm danh: ' . $e->getMessage()]);
         }
     }
 
     /**
-     * Hiển thị điểm danh của một lớp trong ngày
+     * Hiển thị điểm danh theo ngày
      */
-    public function showClass(Request $request)
+    public function showByDate(CourseItem $courseItem, $date)
     {
-        $courseClassId = $request->get('course_class_id');
-        $classDate = $request->get('class_date', today()->toDateString());
-
-        $courseClass = CourseClass::with(['course', 'enrollments.student'])
-                                 ->findOrFail($courseClassId);
-
-        $attendances = Attendance::with(['enrollment.student'])
-                                ->whereHas('enrollment', function($q) use ($courseClassId) {
-                                    $q->where('course_class_id', $courseClassId);
-                                })
-                                ->where('class_date', $classDate)
-                                ->get()
-                                ->keyBy('enrollment_id');
-
-        $stats = [
-            'total_students' => $courseClass->enrollments->where('status', 'enrolled')->count(),
-            'present' => $attendances->where('status', 'present')->count(),
-            'absent' => $attendances->where('status', 'absent')->count(),
-            'late' => $attendances->where('status', 'late')->count(),
-            'excused' => $attendances->where('status', 'excused')->count(),
-        ];
-
-        return view('attendance.show-class', compact('courseClass', 'attendances', 'classDate', 'stats'));
-    }
-
-    /**
-     * Hiển thị chi tiết điểm danh
-     */
-    public function show(Attendance $attendance)
-    {
-        $attendance->load(['enrollment.student', 'enrollment.courseClass.course']);
-
-        return view('attendance.show', compact('attendance'));
-    }
-
-    /**
-     * Hiển thị form chỉnh sửa điểm danh
-     */
-    public function edit(Attendance $attendance)
-    {
-        $attendance->load(['enrollment.student', 'enrollment.courseClass.course']);
-
-        return view('attendance.edit', compact('attendance'));
-    }
-
-    /**
-     * Cập nhật điểm danh
-     */
-    public function update(Request $request, Attendance $attendance)
-    {
-        $validatedData = $request->validate([
-            'class_date' => 'required|date',
-            'start_time' => 'nullable|date_format:H:i',
-            'end_time' => 'nullable|date_format:H:i',
-            'status' => 'required|in:present,absent,late,excused',
-            'notes' => 'nullable|string',
-        ]);
-
-        $attendance->update($validatedData);
-
-        return redirect()->route('attendance.show', $attendance)
-                        ->with('success', 'Cập nhật điểm danh thành công!');
-    }
-
-    /**
-     * Xóa điểm danh
-     */
-    public function destroy(Attendance $attendance)
-    {
-        try {
-            $attendance->delete();
-            return redirect()->route('attendance.index')
-                            ->with('success', 'Xóa điểm danh thành công!');
-        } catch (\Exception $e) {
-            return redirect()->route('attendance.index')
-                            ->with('error', 'Không thể xóa điểm danh!');
+        $attendanceDate = $date;
+        
+        // Xác định ID của khóa học con nếu là khóa học cha
+        $childCourseItemIds = [$courseItem->id]; // Bắt đầu với ID của khóa hiện tại
+        
+        // Nếu không phải nút lá (có thể có các khóa con), lấy tất cả ID khóa con
+        if (!$courseItem->is_leaf) {
+            $childCourseItems = $this->getAllChildrenLeafItems($courseItem);
+            $childCourseItemIds = $childCourseItems->pluck('id')->toArray();
+        } else {
+            $childCourseItems = collect([$courseItem]);
         }
-    }
-
-    /**
-     * Báo cáo điểm danh của học viên
-     */
-    public function studentReport(Student $student)
-    {
-        $attendances = Attendance::with(['enrollment.courseClass.course'])
-                                ->whereHas('enrollment', function($q) use ($student) {
-                                    $q->where('student_id', $student->id);
-                                })
-                                ->orderBy('class_date', 'desc')
-                                ->get();
-
+        
+        // Lấy tất cả ghi danh của các khóa học con
+        $enrollments = Enrollment::whereIn('course_item_id', $childCourseItemIds)
+            ->where('status', 'enrolled') // Chỉ lấy học viên đang học
+            ->with('student', 'courseItem')
+            ->get();
+        
+        // Lấy điểm danh hiện có cho ngày được chọn
+        $existingAttendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
+            ->whereDate('class_date', $attendanceDate)
+            ->get()
+            ->keyBy('enrollment_id');
+        
+        // Tính toán thống kê
         $stats = [
-            'total_classes' => $attendances->count(),
-            'present' => $attendances->where('status', 'present')->count(),
-            'absent' => $attendances->where('status', 'absent')->count(),
-            'late' => $attendances->where('status', 'late')->count(),
-            'excused' => $attendances->where('status', 'excused')->count(),
+            'total_students' => $enrollments->count(),
+            'present' => $existingAttendances->where('status', 'present')->count(),
+            'absent' => $existingAttendances->where('status', 'absent')->count(),
+            'late' => $existingAttendances->where('status', 'late')->count(),
+            'excused' => $existingAttendances->where('status', 'excused')->count(),
         ];
-
-        $stats['attendance_rate'] = $stats['total_classes'] > 0 
-                                  ? (($stats['present'] + $stats['late']) / $stats['total_classes']) * 100 
-                                  : 0;
-
-        return view('attendance.student-report', compact('student', 'attendances', 'stats'));
+        
+        return view('attendance.course-by-date', compact(
+            'courseItem', 
+            'attendanceDate', 
+            'enrollments', 
+            'existingAttendances', 
+            'childCourseItems',
+            'stats'
+        ));
     }
 
     /**
-     * Báo cáo điểm danh của lớp học
-     */
-    public function classReport(CourseClass $courseClass, Request $request)
-    {
-        $dateFrom = $request->get('date_from', now()->startOfMonth()->toDateString());
-        $dateTo = $request->get('date_to', now()->toDateString());
-
-        $attendances = Attendance::with(['enrollment.student'])
-                                ->whereHas('enrollment', function($q) use ($courseClass) {
-                                    $q->where('course_class_id', $courseClass->id);
-                                })
-                                ->whereBetween('class_date', [$dateFrom, $dateTo])
-                                ->get();
-
-        // Thống kê theo học viên
-        $studentStats = $attendances->groupBy('enrollment.student.id')
-                                   ->map(function($studentAttendances, $studentId) {
-                                       $student = $studentAttendances->first()->enrollment->student;
-                                       $total = $studentAttendances->count();
-                                       $present = $studentAttendances->where('status', 'present')->count();
-                                       $late = $studentAttendances->where('status', 'late')->count();
-                                       $absent = $studentAttendances->where('status', 'absent')->count();
-                                       $excused = $studentAttendances->where('status', 'excused')->count();
-
-                                       return [
-                                           'student' => $student,
-                                           'total' => $total,
-                                           'present' => $present,
-                                           'late' => $late,
-                                           'absent' => $absent,
-                                           'excused' => $excused,
-                                           'attendance_rate' => $total > 0 ? (($present + $late) / $total) * 100 : 0
-                                       ];
-                                   })
-                                   ->sortByDesc('attendance_rate');
-
-        // Thống kê theo ngày
-        $dailyStats = $attendances->groupBy('class_date')
-                                 ->map(function($dayAttendances, $date) {
-                                     $total = $dayAttendances->count();
-                                     $present = $dayAttendances->where('status', 'present')->count();
-                                     $late = $dayAttendances->where('status', 'late')->count();
-                                     $absent = $dayAttendances->where('status', 'absent')->count();
-
-                                     return [
-                                         'date' => $date,
-                                         'total' => $total,
-                                         'present' => $present,
-                                         'late' => $late,
-                                         'absent' => $absent,
-                                         'attendance_rate' => $total > 0 ? (($present + $late) / $total) * 100 : 0
-                                     ];
-                                 })
-                                 ->sortBy('date');
-
-        return view('attendance.class-report', compact('courseClass', 'studentStats', 'dailyStats', 'dateFrom', 'dateTo'));
-    }
-
-    /**
-     * API điểm danh nhanh
+     * Tạo điểm danh nhanh
      */
     public function quickAttendance(Request $request)
     {
-        $validatedData = $request->validate([
-            'enrollment_id' => 'required|exists:enrollments,id',
+        $request->validate([
+            'course_item_id' => 'required|exists:course_items,id',
             'class_date' => 'required|date',
             'status' => 'required|in:present,absent,late,excused',
         ]);
-
-        // Kiểm tra đã điểm danh chưa
-        $existingAttendance = Attendance::where('enrollment_id', $validatedData['enrollment_id'])
-                                       ->where('class_date', $validatedData['class_date'])
-                                       ->first();
-
-        if ($existingAttendance) {
-            $existingAttendance->update(['status' => $validatedData['status']]);
-            return response()->json([
-                'success' => true,
-                'message' => 'Cập nhật điểm danh thành công!'
-            ]);
+        
+        $courseItem = CourseItem::findOrFail($request->course_item_id);
+        $classDate = $request->class_date;
+        $status = $request->status;
+        
+        // Lấy tất cả ghi danh cho khóa học
+        $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+            ->where('status', 'enrolled')
+            ->get();
+        
+        DB::beginTransaction();
+        try {
+            foreach ($enrollments as $enrollment) {
+                Attendance::updateOrCreate(
+                    [
+                        'enrollment_id' => $enrollment->id,
+                        'class_date' => $classDate,
+                    ],
+                    [
+                        'status' => $status,
+                        'notes' => $request->notes ?? null,
+                    ]
+                );
+            }
+            
+            DB::commit();
+            return redirect()->route('course-items.attendance.by-date', [
+                'courseItem' => $courseItem->id, 
+                'date' => $classDate
+            ])->with('success', 'Điểm danh nhanh đã được áp dụng thành công!');
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Có lỗi xảy ra khi áp dụng điểm danh nhanh: ' . $e->getMessage()]);
         }
-
-        Attendance::create($validatedData);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Điểm danh thành công!'
-        ]);
     }
 
     /**
@@ -334,7 +255,177 @@ class AttendanceController extends Controller
      */
     public function exportReport(Request $request)
     {
-        // Logic xuất Excel sẽ được implement sau
-        return response()->json(['message' => 'Chức năng xuất báo cáo đang được phát triển']);
+        // Triển khai xuất báo cáo điểm danh theo yêu cầu
+        // (Có thể sử dụng package maatwebsite/excel để xuất Excel)
+    }
+
+    /**
+     * Hiển thị báo cáo điểm danh của học viên
+     */
+    public function studentReport(Student $student)
+    {
+        // Lấy tất cả ghi danh của học viên
+        $enrollments = $student->enrollments()->where('status', 'enrolled')->with('courseItem')->get();
+        
+        // Lấy tất cả điểm danh của học viên
+        $attendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
+            ->orderBy('class_date', 'desc')
+            ->get();
+        
+        // Nhóm điểm danh theo khóa học
+        $attendancesByEnrollment = [];
+        foreach ($enrollments as $enrollment) {
+            $courseAttendances = $attendances->where('enrollment_id', $enrollment->id);
+            
+            // Tính thống kê
+            $stats = [
+                'total' => $courseAttendances->count(),
+                'present' => $courseAttendances->where('status', 'present')->count(),
+                'absent' => $courseAttendances->where('status', 'absent')->count(),
+                'late' => $courseAttendances->where('status', 'late')->count(),
+                'excused' => $courseAttendances->where('status', 'excused')->count(),
+            ];
+            
+            // Tính tỷ lệ đi học
+            $stats['attendance_rate'] = $stats['total'] > 0 
+                ? round((($stats['present'] + $stats['late'] + $stats['excused']) / $stats['total']) * 100, 1) 
+                : 0;
+            
+            $attendancesByEnrollment[] = [
+                'enrollment' => $enrollment,
+                'course_name' => $enrollment->courseItem->name,
+                'attendances' => $courseAttendances,
+                'stats' => $stats
+            ];
+        }
+        
+        // Thống kê tổng thể
+        $overallStats = [
+            'total' => $attendances->count(),
+            'present' => $attendances->where('status', 'present')->count(),
+            'absent' => $attendances->where('status', 'absent')->count(),
+            'late' => $attendances->where('status', 'late')->count(),
+            'excused' => $attendances->where('status', 'excused')->count(),
+        ];
+        
+        // Tính tỷ lệ đi học tổng thể
+        $overallStats['attendance_rate'] = $overallStats['total'] > 0 
+            ? round((($overallStats['present'] + $overallStats['late'] + $overallStats['excused']) / $overallStats['total']) * 100, 1) 
+            : 0;
+        
+        return view('attendance.student-report', compact('student', 'attendancesByEnrollment', 'overallStats'));
+    }
+
+    /**
+     * Lấy tất cả các khóa học con là nút lá từ một khóa học
+     */
+    private function getAllChildrenLeafItems(CourseItem $courseItem): Collection
+    {
+        $leafItems = collect();
+        
+        // Nếu là nút lá, trả về chính nó
+        if ($courseItem->is_leaf) {
+            return collect([$courseItem]);
+        }
+        
+        // Lặp qua tất cả con trực tiếp
+        foreach ($courseItem->children as $child) {
+            if ($child->is_leaf) {
+                $leafItems->push($child);
+            } else {
+                // Nếu không phải nút lá, gọi đệ quy để lấy các nút lá con
+                $leafItems = $leafItems->merge($this->getAllChildrenLeafItems($child));
+            }
+        }
+        
+        return $leafItems;
+    }
+    
+    /**
+     * Tạo lịch tháng cho trang điểm danh
+     */
+    private function generateCalendar(Carbon $month, $courseItemId)
+    {
+        $calendar = [];
+        
+        // Clone để tránh thay đổi ngày ban đầu
+        $start = $month->copy()->startOfMonth()->startOfWeek();
+        $end = $month->copy()->endOfMonth()->endOfWeek();
+        
+        $currentDay = $start->copy();
+        while ($currentDay->lte($end)) {
+            $week = [];
+            
+            for ($i = 0; $i < 7; $i++) {
+                $date = $currentDay->copy();
+                $week[] = [
+                    'date' => $date,
+                    'is_current_month' => $date->month == $month->month,
+                    'is_today' => $date->isToday(),
+                    'url' => route('course-items.attendance.by-date', ['courseItem' => $courseItemId, 'date' => $date->format('Y-m-d')])
+                ];
+                $currentDay->addDay();
+            }
+            
+            $calendar[] = $week;
+        }
+        
+        return $calendar;
+    }
+    
+    /**
+     * Lấy thống kê điểm danh theo tháng
+     */
+    private function getMonthlyAttendanceStats(array $courseItemIds, Carbon $startDate, Carbon $endDate)
+    {
+        // Lấy tất cả ghi danh
+        $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->where('status', 'enrolled')
+            ->get();
+        
+        // Lấy tất cả điểm danh trong tháng
+        $attendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
+            ->whereDate('class_date', '>=', $startDate)
+            ->whereDate('class_date', '<=', $endDate)
+            ->get();
+        
+        // Nhóm theo ngày
+        $attendancesByDate = $attendances->groupBy(function ($attendance) {
+            return Carbon::parse($attendance->class_date)->toDateString();
+        });
+        
+        // Tạo thống kê
+        $stats = [];
+        $startCopy = $startDate->copy();
+        while ($startCopy <= $endDate) {
+            $dateStr = $startCopy->toDateString();
+            $dayAttendances = $attendancesByDate->get($dateStr, collect());
+            
+            $stats[$dateStr] = [
+                'total' => $dayAttendances->count(),
+                'present' => $dayAttendances->where('status', 'present')->count(),
+                'absent' => $dayAttendances->where('status', 'absent')->count(),
+                'late' => $dayAttendances->where('status', 'late')->count(),
+                'excused' => $dayAttendances->where('status', 'excused')->count(),
+            ];
+            
+            $startCopy->addDay();
+        }
+        
+        return $stats;
+    }
+
+    /**
+     * Tạo mô hình dữ liệu Attendance nếu chưa có
+     */
+    private function createAttendanceModel()
+    {
+        // Kiểm tra xem bảng migrations có tồn tại đủ trường không
+        $migration = "2025_07_12_042502_create_attendances_for_new_structure.php";
+        
+        // Nếu migration này đã tồn tại nhưng chưa đầy đủ, tạo một migration mới
+        $newMigration = "2025_07_25_000000_update_attendances_table.php";
+        
+        // TODO: Tạo migration cập nhật bảng attendances nếu cần
     }
 }

@@ -171,6 +171,9 @@
                                                 <a href="{{ route('course-items.students', $rootItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
                                                     <i class="fas fa-user-graduate"></i>
                                                 </a>
+                                                <a href="{{ route('course-items.attendance', $rootItem->id) }}" class="btn btn-sm btn-warning" title="Điểm danh">
+                                                    <i class="fas fa-clipboard-check"></i>
+                                                </a>
                                                 <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
                                                     onclick="setupEditModal({{ $rootItem->id }})">
                                                     <i class="fas fa-edit"></i>

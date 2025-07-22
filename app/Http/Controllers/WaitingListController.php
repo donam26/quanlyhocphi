@@ -4,46 +4,113 @@ namespace App\Http\Controllers;
 
 use App\Models\WaitingList;
 use App\Models\Student;
-use App\Models\Course;
+use App\Models\CourseItem;
+use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class WaitingListController extends Controller
 {
     /**
-     * Hiển thị danh sách chờ
+     * Hiển thị danh sách chờ theo cấu trúc cây
      */
     public function index(Request $request)
     {
-        $query = WaitingList::with(['student', 'course.major']);
+        // Lấy các khóa học gốc (không có parent) để hiển thị dạng cây
+        $rootCourseItems = CourseItem::whereNull('parent_id')
+                            ->where('active', true)
+                            ->with(['children' => function($query) {
+                                $query->where('active', true);
+                            }])
+                            ->orderBy('order_index')
+                            ->get();
+        
+        // Đếm số lượng học viên trong danh sách chờ cho mỗi khóa học
+        $waitingCountsByItem = WaitingList::selectRaw('course_item_id, COUNT(*) as count')
+                                ->where('status', 'waiting')
+                                ->groupBy('course_item_id')
+                                ->pluck('count', 'course_item_id')
+                                ->toArray();
 
-        // Lọc theo khóa học
-        if ($request->filled('course_id')) {
-            $query->where('course_id', $request->course_id);
+        return view('waiting-lists.index', compact('rootCourseItems', 'waitingCountsByItem'));
+    }
+    
+    /**
+     * Hiển thị học viên chờ cho một khóa học cụ thể
+     */
+    public function showByCourseItem(CourseItem $courseItem)
+    {
+        // Lấy tất cả các ID khóa này và các khóa con
+        $courseItemIds = [$courseItem->id];
+        
+        if (!$courseItem->is_leaf) {
+            // Thêm ID của tất cả khóa con (recursive)
+            $descendantIds = $courseItem->descendants()->pluck('id')->toArray();
+            $courseItemIds = array_merge($courseItemIds, $descendantIds);
         }
-
-        // Lọc theo trạng thái
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Lọc theo mức độ quan tâm
-        if ($request->filled('interest_level')) {
-            $query->where('interest_level', $request->interest_level);
-        }
-
-        // Lọc học viên cần liên hệ
-        if ($request->filled('needs_contact') && $request->needs_contact) {
-            $query->where(function($q) {
-                $q->whereNull('last_contact_date')
-                  ->orWhere('last_contact_date', '<', now()->subDays(7));
-            });
-        }
-
-        $waitingLists = $query->orderBy('added_date', 'desc')->paginate(20);
-        $courses = Course::all();
-
-        return view('waiting-lists.index', compact('waitingLists', 'courses'));
+        
+        // Lấy danh sách chờ từ khóa học này và tất cả khóa con
+        $waitingLists = WaitingList::with(['student', 'courseItem'])
+                                ->whereIn('course_item_id', $courseItemIds)
+                                ->where('status', 'waiting')
+                                ->orderBy('added_date', 'desc')
+                                ->paginate(20);
+        
+        // Lấy đường dẫn breadcrumb của khóa học
+        $breadcrumbs = $courseItem->ancestors()->toArray();
+        array_push($breadcrumbs, $courseItem);
+        
+        // Tổng hợp thống kê
+        $stats = [
+            'total_waiting' => $waitingLists->total(),
+            'high_interest' => WaitingList::whereIn('course_item_id', $courseItemIds)
+                                          ->where('status', 'waiting')
+                                          ->where('interest_level', 'high')
+                                          ->count(),
+            'medium_interest' => WaitingList::whereIn('course_item_id', $courseItemIds)
+                                          ->where('status', 'waiting')
+                                          ->where('interest_level', 'medium')
+                                          ->count(),
+            'low_interest' => WaitingList::whereIn('course_item_id', $courseItemIds)
+                                          ->where('status', 'waiting')
+                                          ->where('interest_level', 'low')
+                                          ->count(),
+            'needs_contact' => WaitingList::whereIn('course_item_id', $courseItemIds)
+                                          ->where('status', 'waiting')
+                                          ->where(function($query) {
+                                              $query->whereNull('last_contact_date')
+                                                    ->orWhere('last_contact_date', '<', now()->subDays(7));
+                                          })->count(),
+            'converted' => WaitingList::whereIn('course_item_id', $courseItemIds)
+                                     ->where('status', 'enrolled')
+                                     ->count()
+        ];
+        
+        // Lấy các khóa con trực tiếp để hiển thị trong tab
+        $childItems = $courseItem->children()->orderBy('order_index')->get();
+        
+        // Chuẩn bị các tab
+        $tabs = [
+            'waiting' => [
+                'title' => 'Đang chờ',
+                'count' => $stats['total_waiting'],
+                'url' => route('course-items.waiting-lists', $courseItem->id)
+            ],
+            'enrolled' => [
+                'title' => 'Đã ghi danh',
+                'count' => $stats['converted'],
+                'url' => route('course-items.students', $courseItem->id)
+            ]
+        ];
+        
+        return view('waiting-lists.by-course', compact(
+            'waitingLists', 
+            'courseItem', 
+            'breadcrumbs', 
+            'stats', 
+            'childItems',
+            'tabs'
+        ));
     }
 
     /**
@@ -56,9 +123,25 @@ class WaitingListController extends Controller
             $student = Student::findOrFail($request->student_id);
         }
 
-        $courses = Course::with('major')->where('active', true)->get();
+        // Lấy tất cả khóa học leaf (không có con) và active
+        $courseItems = CourseItem::where('is_leaf', true)
+                               ->where('active', true)
+                               ->get();
+        
+        // Nhóm theo cấu trúc cây để hiển thị trong dropdown
+        $groupedCourseItems = [];
+        foreach ($courseItems as $item) {
+            $path = $item->getPathAttribute();
+            $groupedCourseItems[$item->id] = $path;
+        }
+        
+        // Nếu có course_item_id trong request, load thông tin
+        $selectedCourseItem = null;
+        if ($request->filled('course_item_id')) {
+            $selectedCourseItem = CourseItem::findOrFail($request->course_item_id);
+        }
 
-        return view('waiting-lists.create', compact('student', 'courses'));
+        return view('waiting-lists.create', compact('student', 'groupedCourseItems', 'selectedCourseItem'));
     }
 
     /**
@@ -68,7 +151,7 @@ class WaitingListController extends Controller
     {
         $validatedData = $request->validate([
             'student_id' => 'required|exists:students,id',
-            'course_id' => 'required|exists:courses,id',
+            'course_item_id' => 'required|exists:course_items,id',
             'added_date' => 'required|date',
             'interest_level' => 'required|in:low,medium,high',
             'contact_notes' => 'nullable|string',
@@ -76,12 +159,22 @@ class WaitingListController extends Controller
 
         // Kiểm tra học viên đã có trong danh sách chờ khóa này chưa
         $existingWaiting = WaitingList::where('student_id', $validatedData['student_id'])
-                                    ->where('course_id', $validatedData['course_id'])
+                                    ->where('course_item_id', $validatedData['course_item_id'])
                                     ->where('status', 'waiting')
                                     ->first();
 
         if ($existingWaiting) {
             return back()->withErrors(['error' => 'Học viên đã có trong danh sách chờ khóa học này rồi!']);
+        }
+        
+        // Kiểm tra xem học viên đã ghi danh khóa này chưa
+        $existingEnrollment = Enrollment::where('student_id', $validatedData['student_id'])
+                                       ->where('course_item_id', $validatedData['course_item_id'])
+                                       ->where('status', 'enrolled')
+                                       ->first();
+                                       
+        if ($existingEnrollment) {
+            return back()->withErrors(['error' => 'Học viên đã ghi danh khóa học này rồi!']);
         }
 
         $validatedData['status'] = 'waiting';
@@ -96,7 +189,7 @@ class WaitingListController extends Controller
      */
     public function show(WaitingList $waitingList)
     {
-        $waitingList->load(['student', 'course.major']);
+        $waitingList->load(['student', 'courseItem']);
 
         return view('waiting-lists.show', compact('waitingList'));
     }
@@ -106,9 +199,19 @@ class WaitingListController extends Controller
      */
     public function edit(WaitingList $waitingList)
     {
-        $courses = Course::with('major')->where('active', true)->get();
-
-        return view('waiting-lists.edit', compact('waitingList', 'courses'));
+        // Lấy tất cả khóa học leaf (không có con) và active
+        $courseItems = CourseItem::where('is_leaf', true)
+                               ->where('active', true)
+                               ->get();
+        
+        // Nhóm theo cấu trúc cây để hiển thị trong dropdown
+        $groupedCourseItems = [];
+        foreach ($courseItems as $item) {
+            $path = $item->getPathAttribute();
+            $groupedCourseItems[$item->id] = $path;
+        }
+        
+        return view('waiting-lists.edit', compact('waitingList', 'groupedCourseItems'));
     }
 
     /**
@@ -117,6 +220,7 @@ class WaitingListController extends Controller
     public function update(Request $request, WaitingList $waitingList)
     {
         $validatedData = $request->validate([
+            'course_item_id' => 'required|exists:course_items,id',
             'interest_level' => 'required|in:low,medium,high',
             'status' => 'required|in:waiting,contacted,enrolled,not_interested',
             'last_contact_date' => 'nullable|date',
@@ -174,8 +278,12 @@ class WaitingListController extends Controller
      */
     public function needsContact()
     {
-        $waitingLists = WaitingList::with(['student', 'course'])
-                                  ->needContact()
+        $waitingLists = WaitingList::with(['student', 'courseItem'])
+                                  ->where(function($query) {
+                                      $query->whereNull('last_contact_date')
+                                            ->orWhere('last_contact_date', '<', now()->subDays(7));
+                                  })
+                                  ->where('status', 'waiting')
                                   ->orderBy('interest_level', 'desc')
                                   ->orderBy('added_date', 'asc')
                                   ->get()
@@ -234,15 +342,68 @@ class WaitingListController extends Controller
     }
 
     /**
-     * Chuyển sang ghi danh (redirect to enrollment controller)
+     * Chuyển học viên từ danh sách chờ sang ghi danh
      */
     public function moveToEnrollment(WaitingList $waitingList)
     {
+        // Kiểm tra xem học viên đã ghi danh khóa này chưa
+        $existingEnrollment = Enrollment::where('student_id', $waitingList->student_id)
+                                       ->where('course_item_id', $waitingList->course_item_id)
+                                       ->where('status', 'enrolled')
+                                       ->first();
+                                       
+        if ($existingEnrollment) {
+            return back()->withErrors(['error' => 'Học viên đã ghi danh khóa học này rồi!']);
+        }
+        
+        // Chuyển hướng đến trang tạo ghi danh mới với thông tin từ danh sách chờ
         return redirect()->route('enrollments.create', [
             'student_id' => $waitingList->student_id,
-            'course_id' => $waitingList->course_id,
+            'course_item_id' => $waitingList->course_item_id,
             'waiting_list_id' => $waitingList->id
         ]);
+    }
+
+    /**
+     * Chuyển học viên từ khóa học chính về danh sách chờ
+     */
+    public function moveFromEnrollment(Request $request)
+    {
+        $request->validate([
+            'enrollment_id' => 'required|exists:enrollments,id',
+            'reason' => 'required|string|max:500'
+        ]);
+        
+        $enrollment = Enrollment::with(['student', 'courseItem'])->findOrFail($request->enrollment_id);
+        
+        // Kiểm tra học viên đã có trong danh sách chờ khóa này chưa
+        $existingWaiting = WaitingList::where('student_id', $enrollment->student_id)
+                                    ->where('course_item_id', $enrollment->course_item_id)
+                                    ->where('status', 'waiting')
+                                    ->first();
+
+        if ($existingWaiting) {
+            return back()->withErrors(['error' => 'Học viên đã có trong danh sách chờ khóa học này rồi!']);
+        }
+        
+        // Tạo bản ghi danh sách chờ mới
+        $waitingList = WaitingList::create([
+            'student_id' => $enrollment->student_id,
+            'course_item_id' => $enrollment->course_item_id,
+            'added_date' => now(),
+            'interest_level' => 'medium',
+            'status' => 'waiting',
+            'contact_notes' => 'Chuyển từ danh sách chính sang danh sách chờ. Lý do: ' . $request->reason
+        ]);
+        
+        // Cập nhật trạng thái ghi danh
+        $enrollment->update([
+            'status' => 'cancelled',
+            'notes' => $enrollment->notes . "\n[" . now()->format('d/m/Y H:i') . "] Chuyển sang danh sách chờ. Lý do: " . $request->reason
+        ]);
+        
+        return redirect()->route('waiting-lists.show', $waitingList)
+                        ->with('success', 'Đã chuyển học viên sang danh sách chờ thành công!');
     }
 
     /**
@@ -255,16 +416,21 @@ class WaitingListController extends Controller
             'high_interest' => WaitingList::where('status', 'waiting')
                                          ->where('interest_level', 'high')
                                          ->count(),
-            'needs_contact' => WaitingList::needContact()->count(),
+            'needs_contact' => WaitingList::where(function($query) {
+                                      $query->whereNull('last_contact_date')
+                                            ->orWhere('last_contact_date', '<', now()->subDays(7));
+                                  })->where('status', 'waiting')->count(),
             'converted_this_month' => WaitingList::where('status', 'enrolled')
                                                 ->whereMonth('updated_at', now()->month)
                                                 ->count(),
         ];
 
         $waitingByCourse = WaitingList::where('status', 'waiting')
-                                     ->with('course')
+                                     ->with('courseItem')
                                      ->get()
-                                     ->groupBy('course.name')
+                                     ->groupBy(function($item) {
+                                         return $item->courseItem->getPathAttribute();
+                                     })
                                      ->map(function($group) {
                                          return [
                                              'count' => $group->count(),

@@ -31,6 +31,12 @@
                     <a href="{{ route('course-items.students', $courseItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
                         <i class="fas fa-user-graduate"></i>
                     </a>
+                    <a href="{{ route('payments.by-course', $courseItem->id) }}" class="btn btn-sm btn-success" title="Thanh toán">
+                        <i class="fas fa-money-bill"></i>
+                    </a>
+                    <a href="{{ route('course-items.attendance', $courseItem->id) }}" class="btn btn-sm btn-warning" title="Điểm danh">
+                        <i class="fas fa-clipboard-check"></i>
+                    </a>
                     <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa" onclick="setupEditModal({{ $courseItem->id }})">
                         <i class="fas fa-edit"></i>
                     </button>

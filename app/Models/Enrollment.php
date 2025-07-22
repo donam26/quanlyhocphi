@@ -58,6 +58,14 @@ class Enrollment extends Model
     {
         return $this->hasMany(Attendance::class);
     }
+    
+    /**
+     * Quan hệ với tiến độ lộ trình học tập
+     */
+    public function learningPathProgress()
+    {
+        return $this->hasMany(LearningPathProgress::class);
+    }
 
     /**
      * Tổng số tiền đã thanh toán
@@ -89,5 +97,23 @@ class Enrollment extends Model
     public function getHasPendingPaymentAttribute()
     {
         return $this->payments()->where('status', 'pending')->exists();
+    }
+    
+    /**
+     * Lấy tiến độ của lộ trình học tập
+     */
+    public function getPathProgressPercentageAttribute()
+    {
+        $paths = $this->courseItem->learningPaths;
+        
+        if ($paths->count() === 0) {
+            return 100;
+        }
+        
+        $completedPaths = $this->learningPathProgress()
+            ->where('is_completed', true)
+            ->count();
+            
+        return round(($completedPaths / $paths->count()) * 100);
     }
 }

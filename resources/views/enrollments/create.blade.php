@@ -65,24 +65,28 @@
 
                     <!-- Chọn Lớp học -->
                     <div class="row mb-4">
-                        <div class="col-12">
-                            <h6 class="border-bottom pb-2 mb-3">
-                                <i class="fas fa-chalkboard-teacher me-2"></i>Thông tin lớp học
-                            </h6>
+                        <div class="col-md-12">
+                            <h5 class="border-bottom pb-2 mb-3">2. Thông tin khóa học</h5>
                         </div>
-                        <div class="col-12">
-                            <div class="mb-3">
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
                                 <label for="courseClassSelect" class="form-label">Chọn lớp học <span class="text-danger">*</span></label>
-                                <select name="course_class_id" id="courseClassSelect" class="form-select" required>
-                                    <option value="">Chọn lớp học</option>
-                                    @foreach($courseClasses as $class)
+                                <select name="course_item_id" id="courseClassSelect" class="form-select select2" required>
+                                    <option value="">-- Chọn lớp học --</option>
+                                    @foreach ($courseItems as $class)
                                         <option value="{{ $class->id }}" 
-                                                data-fee="{{ $class->course->fee }}" 
-                                                {{ old('course_class_id', request('course_class_id')) == $class->id ? 'selected' : '' }}>
-                                            {{ $class->name }} - {{ $class->course->name }} (Khai giảng: {{ $class->start_date->format('d/m/Y') }}) - {{number_format($class->course->fee)}}đ
+                                            data-fee="{{ $class->fee }}"
+                                            {{ request('course_item_id') == $class->id ? 'selected' : '' }}>
+                                            {{ $class->name }}
                                         </option>
                                     @endforeach
                                 </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="enrollment_date" class="form-label">Ngày ghi danh <span class="text-danger">*</span></label>
+                                <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" value="{{ date('Y-m-d') }}" required>
                             </div>
                         </div>
                     </div>
@@ -96,12 +100,6 @@
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label for="enrollment_date" class="form-label">Ngày ghi danh <span class="text-danger">*</span></label>
-                                <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" value="{{ old('enrollment_date', date('Y-m-d')) }}" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                             <div class="mb-3">
                                 <label for="final_fee" class="form-label">Học phí cuối cùng</label>
                                 <input type="text" id="final_fee_display" class="form-control" readonly>
                                 <input type="hidden" name="final_fee" id="final_fee">

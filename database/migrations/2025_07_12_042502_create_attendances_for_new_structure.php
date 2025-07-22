@@ -14,15 +14,19 @@ return new class extends Migration
         // Tạo bảng attendances mới
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('enrollment_id')->constrained('enrollments')->onDelete('cascade'); // Liên kết với bảng enrollments
+            $table->foreignId('enrollment_id')->constrained('enrollments')->onDelete('cascade');
             $table->date('class_date'); // Ngày học
-            $table->time('start_time')->nullable(); // Giờ bắt đầu
-            $table->time('end_time')->nullable(); // Giờ kết thúc
             $table->enum('status', ['present', 'absent', 'late', 'excused'])->default('present'); // Trạng thái điểm danh
+            $table->time('start_time')->nullable(); // Thời gian bắt đầu (tùy chọn)
+            $table->time('end_time')->nullable(); // Thời gian kết thúc (tùy chọn)
             $table->text('notes')->nullable(); // Ghi chú
             $table->timestamps();
             
-            // Đảm bảo một học viên chỉ có một bản ghi điểm danh cho một ngày học
+            // Index để tối ưu truy vấn
+            $table->index('class_date');
+            $table->index('status');
+            
+            // Đảm bảo mỗi học viên chỉ được điểm danh một lần trong ngày cho mỗi ghi danh
             $table->unique(['enrollment_id', 'class_date']);
         });
     }

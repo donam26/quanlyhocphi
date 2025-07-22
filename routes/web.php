@@ -13,6 +13,7 @@ use App\Http\Controllers\PaymentGatewayController;
 use App\Http\Controllers\CoursePackageController;
 use App\Http\Controllers\CourseItemController;
 use App\Http\Controllers\ClassesController;
+use App\Http\Controllers\LearningPathController;
 
 // Trang chủ chuyển hướng đến dashboard
 Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
@@ -31,8 +32,23 @@ Route::get('course-items/{id}/students', [CourseItemController::class, 'showStud
 Route::post('course-items/{id}/students/import', [CourseItemController::class, 'importStudents'])->name('course-items.students.import');
 Route::get('course-items/students/download-template', [CourseItemController::class, 'downloadImportTemplate'])->name('course-items.students.download-template');
 
+// Chức năng điểm danh theo khóa học
+Route::get('course-items/{courseItem}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
+Route::post('course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
+Route::get('course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
+
+// Lộ trình học tập
+Route::get('course-items/{courseItem}/learning-paths/create', [LearningPathController::class, 'create'])->name('learning-paths.create');
+Route::post('course-items/{courseItem}/learning-paths', [LearningPathController::class, 'store'])->name('learning-paths.store');
+Route::get('course-items/{courseItem}/learning-paths/edit', [LearningPathController::class, 'edit'])->name('learning-paths.edit');
+Route::put('course-items/{courseItem}/learning-paths', [LearningPathController::class, 'update'])->name('learning-paths.update');
+Route::post('enrollments/{enrollment}/learning-paths/{learningPath}/toggle', [LearningPathController::class, 'toggleCompletion'])->name('learning-paths.toggle-completion');
+// Thêm route cập nhật trạng thái lộ trình trực tiếp từ trang khóa học
+Route::post('course-items/{courseItem}/learning-paths/{learningPath}/toggle', [LearningPathController::class, 'toggleCompletionFromCourse'])->name('learning-paths.toggle-from-course');
+
 // Enrollments
 Route::resource('enrollments', EnrollmentController::class);
+Route::put('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])->name('enrollments.update-fee');
 Route::post('enrollments/{enrollment}/confirm', [EnrollmentController::class, 'confirm'])->name('enrollments.confirm');
 Route::delete('enrollments/{enrollment}/cancel', [EnrollmentController::class, 'cancel'])->name('enrollments.cancel');
 Route::get('enrollments/waiting-list/{waitingList}', [EnrollmentController::class, 'createFromWaitingList'])->name('enrollments.from-waiting-list');
@@ -45,6 +61,8 @@ Route::post('waiting-lists/{waitingList}/mark-not-interested', [WaitingListContr
 Route::post('waiting-lists/{waitingList}/move-to-enrollment', [WaitingListController::class, 'moveToEnrollment'])->name('waiting-lists.move-to-enrollment');
 Route::get('waiting-lists-needs-contact', [WaitingListController::class, 'needsContact'])->name('waiting-lists.needs-contact');
 Route::get('waiting-lists-statistics', [WaitingListController::class, 'statistics'])->name('waiting-lists.statistics');
+Route::get('course-items/{courseItem}/waiting-lists', [WaitingListController::class, 'showByCourseItem'])->name('course-items.waiting-lists');
+Route::post('enrollments/move-to-waiting-list', [WaitingListController::class, 'moveFromEnrollment'])->name('enrollments.move-to-waiting');
 
 // Attendance
 Route::resource('attendance', AttendanceController::class);
@@ -56,6 +74,7 @@ Route::get('attendance/export/report', [AttendanceController::class, 'exportRepo
 
 // Payments
 Route::resource('payments', PaymentController::class);
+Route::get('course-items/{courseItem}/payments', [PaymentController::class, 'coursePayments'])->name('payments.by-course');
 Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
 Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])->name('payments.reject');
 Route::get('payments/quick/{enrollment}', [PaymentController::class, 'quickPayment'])->name('payments.quick');

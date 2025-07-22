@@ -326,26 +326,6 @@
                 </a>
             </div>
 
-            <!-- Điểm danh -->
-            <div class="nav-section">
-                <div class="nav-section-title">Điểm danh</div>
-                
-                <a href="{{ route('attendance.index') }}" class="nav-link {{ request()->routeIs('attendance.index') || request()->routeIs('attendance.show') ? 'active' : '' }}">
-                    <i class="fas fa-check-square"></i>
-                    Điểm danh
-                </a>
-                
-                <a href="{{ route('attendance.create') }}" class="nav-link {{ request()->routeIs('attendance.create') ? 'active' : '' }}">
-                    <i class="fas fa-plus-square"></i>
-                    Điểm danh mới
-                </a>
-                
-                <a href="{{ route('attendance.show-class') }}" class="nav-link {{ request()->routeIs('attendance.show-class') ? 'active' : '' }}">
-                    <i class="fas fa-clipboard-list"></i>
-                    Điểm danh lớp
-                </a>
-            </div>
-
             <!-- Tìm kiếm & Báo cáo -->
             <div class="nav-section">
                 <div class="nav-section-title">Tìm kiếm & Báo cáo</div>

@@ -69,6 +69,14 @@ class CourseItem extends Model
     {
         return $this->hasMany(WaitingList::class, 'course_item_id');
     }
+    
+    /**
+     * Lấy danh sách lộ trình học tập của khóa học
+     */
+    public function learningPaths()
+    {
+        return $this->hasMany(LearningPath::class)->orderBy('order');
+    }
 
     /**
      * Kiểm tra xem item có phải là nút gốc không

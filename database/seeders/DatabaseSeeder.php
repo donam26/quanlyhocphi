@@ -21,7 +21,6 @@ class DatabaseSeeder extends Seeder
         
         // Chạy các seeder theo thứ tự phụ thuộc
         $this->call([
-            MajorSeeder::class,
             CourseSeeder::class,
             SubCourseSeeder::class,
             StudentSeeder::class,

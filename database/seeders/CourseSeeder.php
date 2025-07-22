@@ -14,10 +14,6 @@ class CourseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Lấy các ngành học
-        $accounting = Major::where('name', 'Kế toán')->first();
-        $marketing = Major::where('name', 'Marketing')->first();
-        $management = Major::where('name', 'Quản trị - Tài chính')->first();
 
         // Khóa học ngành Kế toán
         $accountingCourses = [

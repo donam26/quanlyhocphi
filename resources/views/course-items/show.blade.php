@@ -47,6 +47,36 @@
         background-color: transparent;
         padding: 0;
     }
+    .learning-path-item {
+        padding: 1rem;
+        border-bottom: 1px solid #eee;
+        transition: all 0.2s;
+    }
+    .learning-path-item:hover {
+        background-color: #f8f9fa;
+    }
+    .learning-path-item.completed {
+        background-color: #e8f5e9;
+    }
+    .progress-bar {
+        height: 10px;
+        border-radius: 5px;
+        background-color: #e9ecef;
+        margin-bottom: 1rem;
+        overflow: hidden;
+    }
+    .progress-bar .progress {
+        height: 100%;
+        background-color: #28a745;
+        transition: width 0.3s ease;
+    }
+    .path-checkbox {
+        margin-right: 1rem;
+    }
+    .path-checkbox input[type="checkbox"] {
+        width: 20px;
+        height: 20px;
+    }
 </style>
 <div class="container">
     <div class="row mb-3">
@@ -92,6 +122,9 @@
                 <a href="{{ route('course-items.students', $courseItem->id) }}" class="btn btn-info">
                     <i class="fas fa-user-graduate"></i> Học viên
                 </a>
+                <a href="{{ route('course-items.attendance', $courseItem->id) }}" class="btn btn-warning">
+                    <i class="fas fa-clipboard-check"></i> Điểm danh
+                </a>
             </div>
         </div>
     </div>
@@ -123,6 +156,134 @@
                         </p>
                     </div>
                 </div>
+            </div>
+        </div>
+        
+        <!-- Lộ trình học tập cho khóa học lá -->
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4>Lộ trình học tập</h4>
+                <div>
+                    @if($courseItem->learningPaths->count() > 0)
+                        <a href="{{ route('learning-paths.edit', $courseItem->id) }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-edit"></i> Chỉnh sửa lộ trình
+                        </a>
+                    @else
+                        <a href="{{ route('learning-paths.create', $courseItem->id) }}" class="btn btn-sm btn-success">
+                            <i class="fas fa-plus"></i> Thêm lộ trình
+                        </a>
+                    @endif
+                </div>
+            </div>
+            <div class="card-body">
+                @if($courseItem->learningPaths->isEmpty())
+                    <div class="alert alert-info">
+                        Chưa có lộ trình học tập nào được tạo cho khóa học này.
+                    </div>
+                @else
+                    <div class="learning-paths">
+                        <div class="mb-4">
+                            <p><strong>Tổng số lộ trình:</strong> {{ $courseItem->learningPaths->count() }}</p>
+                        </div>
+
+                        <div class="learning-path-list">
+                            @foreach($courseItem->learningPaths as $path)
+                                @php
+                                    $isCompleted = session("learning_path_{$path->id}_completed", false);
+                                @endphp
+                                <div class="learning-path-item {{ $isCompleted ? 'completed' : '' }}">
+                                    <div class="d-flex align-items-center">
+                                        <div class="path-checkbox me-3">
+                                            <input type="checkbox" class="form-check-input path-complete-checkbox" 
+                                                   data-course-id="{{ $courseItem->id }}"
+                                                   data-path-id="{{ $path->id }}" 
+                                                   style="width: 20px; height: 20px;"
+                                                   {{ $isCompleted ? 'checked' : '' }}>
+                                        </div>
+                                        <div class="path-content">
+                                            <h5 class="mb-1">{{ $path->title }}</h5>
+                                            <p class="text-muted mb-0">{{ $path->description }}</p>
+                                            @if($isCompleted)
+                                                <small class="text-success">
+                                                    <i class="fas fa-check-circle"></i> Đã hoàn thành
+                                                </small>
+                                            @endif
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                    
+                    <script>
+                        document.addEventListener('DOMContentLoaded', function() {
+                            // Xử lý sự kiện khi click vào checkbox
+                            document.querySelectorAll('.path-complete-checkbox').forEach(function(checkbox) {
+                                checkbox.addEventListener('change', function() {
+                                    const pathItem = this.closest('.learning-path-item');
+                                    const courseId = this.getAttribute('data-course-id');
+                                    const pathId = this.getAttribute('data-path-id');
+                                    const isChecked = this.checked;
+                                    
+                                    // Thay đổi giao diện ngay lập tức
+                                    if (isChecked) {
+                                        pathItem.classList.add('completed');
+                                        // Thêm text đã hoàn thành nếu chưa có
+                                        if (!pathItem.querySelector('.text-success')) {
+                                            const successText = document.createElement('small');
+                                            successText.className = 'text-success';
+                                            successText.innerHTML = '<i class="fas fa-check-circle"></i> Đã hoàn thành';
+                                            pathItem.querySelector('.path-content').appendChild(successText);
+                                        }
+                                    } else {
+                                        pathItem.classList.remove('completed');
+                                        // Xóa text đã hoàn thành nếu có
+                                        const successText = pathItem.querySelector('.text-success');
+                                        if (successText) {
+                                            successText.remove();
+                                        }
+                                    }
+                                    
+                                    // Gửi AJAX để cập nhật trạng thái
+                                    fetch(`/course-items/${courseId}/learning-paths/${pathId}/toggle`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                                            'Accept': 'application/json'
+                                        },
+                                        body: JSON.stringify({})
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        if (data.status === 'success') {
+                                            console.log('Đã cập nhật trạng thái lộ trình thành công');
+                                        } else {
+                                            console.error('Có lỗi xảy ra khi cập nhật trạng thái');
+                                            // Đảo ngược trạng thái checkbox nếu lỗi
+                                            this.checked = !this.checked;
+                                            if (this.checked) {
+                                                pathItem.classList.add('completed');
+                                            } else {
+                                                pathItem.classList.remove('completed');
+                                            }
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Lỗi:', error);
+                                        // Đảo ngược trạng thái checkbox nếu lỗi
+                                        this.checked = !this.checked;
+                                        if (this.checked) {
+                                            pathItem.classList.add('completed');
+                                        } else {
+                                            pathItem.classList.remove('completed');
+                                        }
+                                    });
+                                });
+                            });
+                        });
+                    </script>
+                @endif
             </div>
         </div>
     @else
