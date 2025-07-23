@@ -24,13 +24,13 @@ Route::get('students/{student}/enrollments', [StudentController::class, 'enrollm
 Route::get('students/{student}/payments', [StudentController::class, 'payments'])->name('students.payments');
 
 // Cấu trúc cây khóa học mới
-Route::resource('course-items', CourseItemController::class);
 Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
+Route::get('course-items/download-template', [CourseItemController::class, 'exportTemplate'])->name('course-items.download-template');
 Route::post('course-items/{courseItem}/toggle-active', [CourseItemController::class, 'toggleActive'])->name('course-items.toggle-active');
 Route::get('tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
 Route::get('course-items/{id}/students', [CourseItemController::class, 'showStudents'])->name('course-items.students');
-Route::post('course-items/{id}/students/import', [CourseItemController::class, 'importStudents'])->name('course-items.students.import');
-Route::get('course-items/students/download-template', [CourseItemController::class, 'downloadImportTemplate'])->name('course-items.students.download-template');
+Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
+Route::resource('course-items', CourseItemController::class);
 
 // Chức năng điểm danh theo khóa học
 Route::get('course-items/{courseItem}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
@@ -52,6 +52,7 @@ Route::put('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])
 Route::post('enrollments/{enrollment}/confirm', [EnrollmentController::class, 'confirm'])->name('enrollments.confirm');
 Route::delete('enrollments/{enrollment}/cancel', [EnrollmentController::class, 'cancel'])->name('enrollments.cancel');
 Route::get('enrollments/waiting-list/{waitingList}', [EnrollmentController::class, 'createFromWaitingList'])->name('enrollments.from-waiting-list');
+Route::post('enrollments/from-waiting-list', [EnrollmentController::class, 'storeFromWaitingList'])->name('enrollments.store-from-waiting');
 Route::get('unpaid-enrollments', [EnrollmentController::class, 'unpaidList'])->name('enrollments.unpaid');
 
 // Waiting Lists

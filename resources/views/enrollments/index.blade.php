@@ -111,8 +111,7 @@
                                     <div class="small text-muted">{{ $enrollment->student->phone }}</div>
                                 </td>
                                 <td>
-                                    <div>{{ $enrollment->courseClass->name }}</div>
-                                    <div class="small text-muted">{{ $enrollment->courseClass->course->name }}</div>
+                                    <div>{{ $enrollment->courseItem->name }}</div>
                                 </td>
                                 <td>{{ $enrollment->enrollment_date->format('d/m/Y') }}</td>
                                 <td>{{ number_format($enrollment->final_fee) }} VND</td>

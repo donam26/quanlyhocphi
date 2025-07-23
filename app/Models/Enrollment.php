@@ -70,7 +70,7 @@ class Enrollment extends Model
     /**
      * Tổng số tiền đã thanh toán
      */
-    public function getPaidAmountAttribute()
+    public function getTotalPaidAmount()
     {
         return $this->payments()->where('status', 'confirmed')->sum('amount');
     }
@@ -78,17 +78,17 @@ class Enrollment extends Model
     /**
      * Số tiền còn thiếu
      */
-    public function getRemainingAmountAttribute()
+    public function getRemainingAmount()
     {
-        return max(0, $this->final_fee - $this->paid_amount);
+        return max(0, $this->final_fee - $this->getTotalPaidAmount());
     }
 
     /**
      * Kiểm tra xem đã thanh toán đủ chưa
      */
-    public function getIsFullyPaidAttribute()
+    public function isFullyPaid()
     {
-        return $this->remaining_amount <= 0;
+        return $this->getRemainingAmount() <= 0;
     }
 
     /**

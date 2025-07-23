@@ -359,12 +359,9 @@
                                                     <i class="fas fa-phone"></i>
                                                 </button>
                                             </form>
-                                            <form action="{{ route('waiting-lists.move-to-enrollment', $waitingList->id) }}" method="POST" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-sm btn-success" title="Ghi danh">
-                                                    <i class="fas fa-user-plus"></i>
-                                                </button>
-                                            </form>
+                                            <a href="{{ route('enrollments.from-waiting-list', $waitingList->id) }}" class="btn btn-sm btn-success" title="Ghi danh vào khóa học">
+                                                <i class="fas fa-user-plus"></i>
+                                            </a>
                                         </div>
                                     </td>
                                 </tr>

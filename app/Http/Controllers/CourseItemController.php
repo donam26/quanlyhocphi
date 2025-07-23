@@ -7,6 +7,12 @@ use App\Models\Enrollment;
 use App\Models\LearningPath;
 use App\Models\LearningPathProgress;
 use Illuminate\Http\Request;
+use App\Imports\StudentImport;
+use Maatwebsite\Excel\Facades\Excel;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use Illuminate\Support\Facades\Log;
 
 class CourseItemController extends Controller
 {
@@ -357,15 +363,60 @@ class CourseItemController extends Controller
         
         // Lấy tất cả học viên đã đăng ký các khóa học này
         $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->with('student', 'courseItem')
+            ->with(['student', 'courseItem', 'payments' => function($query) {
+                $query->orderBy('payment_date', 'desc');
+            }])
             ->get();
         
         $students = $enrollments->map(function($enrollment) {
+            // Lấy thông tin thanh toán mới nhất
+            $latestPayment = $enrollment->payments->where('status', 'confirmed')->first();
+            
+            // Xác định trạng thái thanh toán
+            $paymentStatus = $enrollment->getIsFullyPaidAttribute() ? 'Đã đóng đủ' : 'Chưa đóng đủ';
+            
+            // Xác định phương thức thanh toán và người thu
+            $paymentMethod = 'Chưa thanh toán';
+            $collector = 'N/A';
+            $paymentNotes = [];
+            
+            // Lấy tất cả ghi chú từ các khoản thanh toán
+            foreach ($enrollment->payments as $payment) {
+                if ($payment->notes) {
+                    $paymentNotes[] = [
+                        'date' => $payment->payment_date->format('d/m/Y'),
+                        'amount' => $payment->amount,
+                        'method' => $this->getPaymentMethodText($payment->payment_method),
+                        'status' => $payment->status,
+                        'notes' => $payment->notes
+                    ];
+                }
+            }
+            
+            if ($latestPayment) {
+                // Nếu có thanh toán, lấy thông tin phương thức
+                $paymentMethod = $this->getPaymentMethodText($latestPayment->payment_method);
+                
+                // Xác định người thu tiền
+                $collector = $latestPayment->payment_method == 'sepay' ? 'SEPAY' : 
+                           ($latestPayment->notes && str_contains($latestPayment->notes, 'Người thu:') ? 
+                             substr($latestPayment->notes, strpos($latestPayment->notes, 'Người thu:') + 11) : 'N/A');
+            }
+            
             return [
                 'student' => $enrollment->student,
                 'course_item' => $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A',
                 'enrollment_date' => $enrollment->enrollment_date,
-                'status' => $enrollment->status
+                'status' => $enrollment->status,
+                'enrollment_id' => $enrollment->id,
+                'payment_status' => $paymentStatus,
+                'payment_method' => $paymentMethod,
+                'collector' => $collector,
+                'final_fee' => $enrollment->final_fee,
+                'paid_amount' => $enrollment->getPaidAmountAttribute(),
+                'remaining_amount' => $enrollment->getRemainingAmountAttribute(),
+                'payment_notes' => $paymentNotes,
+                'has_notes' => count($paymentNotes) > 0
             ];
         });
         
@@ -376,113 +427,129 @@ class CourseItemController extends Controller
             'studentCount' => $enrollments->pluck('student_id')->unique()->count()
         ]);
     }
-
+    
     /**
-     * Import học viên từ file Excel/CSV
+     * Chuyển đổi mã phương thức thanh toán thành text hiển thị
      */
-    public function importStudents(Request $request, $id)
+    private function getPaymentMethodText($method)
     {
-        $courseItem = CourseItem::findOrFail($id);
-        
-        $request->validate([
-            'import_file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
-            'auto_enroll' => 'boolean'
-        ]);
-
-        $autoEnroll = $request->has('auto_enroll');
-        
-        // Import dữ liệu từ file
-        try {
-            // Sử dụng Queue nếu cần xử lý batch import lớn
-            // (new \App\Imports\StudentImport($id, $autoEnroll))->queue($request->file('import_file'));
-            
-            // Sử dụng cách import đồng bộ cho import nhỏ
-            $import = new \App\Imports\StudentImport($id, $autoEnroll);
-            $import->import($request->file('import_file'));
-            
-            $summary = $import->getSummary();
-            $message = "Import thành công {$summary['imported']} học viên mới, {$summary['existing']} học viên đã tồn tại, {$summary['enrolled']} được đăng ký vào khóa học.";
-            
-            if ($summary['failures'] > 0) {
-                $message .= " Có {$summary['failures']} dòng không hợp lệ, kiểm tra lại định dạng dữ liệu.";
-            }
-            
-            return redirect()->route('course-items.students', $id)->with('success', $message);
-        } catch (\Illuminate\Database\QueryException $e) {
-            // Xử lý lỗi cơ sở dữ liệu cụ thể
-            if ($e->getCode() === '23000') {  // Mã lỗi Integrity constraint violation
-                return redirect()->route('course-items.students', $id)
-                    ->with('error', 'Lỗi khi import: Xung đột dữ liệu trong cơ sở dữ liệu. Có thể do ID trùng lặp hoặc vi phạm ràng buộc unique.');
-            }
-            
-            return redirect()->route('course-items.students', $id)
-                ->with('error', 'Lỗi cơ sở dữ liệu: ' . $e->getMessage());
-        } catch (\Exception $e) {
-            // Xử lý các lỗi khác
-            return redirect()->route('course-items.students', $id)
-                ->with('error', 'Lỗi khi import: ' . $e->getMessage());
+        switch ($method) {
+            case 'cash':
+                return 'Tiền mặt';
+            case 'bank_transfer':
+                return 'Chuyển khoản';
+            case 'card':
+                return 'Thẻ tín dụng';
+            case 'qr_code':
+                return 'Quét QR';
+            case 'sepay':
+                return 'SEPAY';
+            default:
+                return 'Không xác định';
         }
     }
 
     /**
-     * Tải mẫu file import học viên
+     * Import học viên từ file Excel
      */
-    public function downloadImportTemplate()
+    public function importStudents(Request $request, $id)
     {
-        // Tạo file Excel mẫu
-        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-        $sheet = $spreadsheet->getActiveSheet();
+        $request->validate([
+            'excel_file' => 'required|file|mimes:xlsx,xls,csv',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100'
+        ]);
         
-        // Thiết lập tiêu đề
-        $headers = ['TT', 'Họ', 'Tên', 'Ng.sinh', 'Giới', 'Ghi chú'];
-        $sheet->fromArray([$headers], NULL, 'A1');
+        // Lấy thông tin khóa học
+        $courseItem = CourseItem::findOrFail($id);
         
-        // Thêm một số dữ liệu mẫu
-        $sampleData = [
-            [1, 'Nguyễn Văn', 'An', '15/05/2000', 'Nam', 'ON'],
-            [2, 'Trần Thị', 'Bình', '20/06/2001', 'Nữ', 'OFF'],
-        ];
-        $sheet->fromArray($sampleData, NULL, 'A2');
+        // Lấy phần trăm giảm giá (nếu có)
+        $discountPercentage = $request->discount_percentage ?? 0;
         
-        // Định dạng cột cho đẹp
-        $sheet->getColumnDimension('A')->setWidth(5);
-        $sheet->getColumnDimension('B')->setWidth(20);
-        $sheet->getColumnDimension('C')->setWidth(10);
-        $sheet->getColumnDimension('D')->setWidth(12);
-        $sheet->getColumnDimension('E')->setWidth(10);
-        $sheet->getColumnDimension('F')->setWidth(10);
-        
-        // Tạo style cho header
-        $headerStyle = [
-            'font' => [
-                'bold' => true,
-            ],
-            'fill' => [
-                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
-                'startColor' => [
-                    'rgb' => 'E0E0E0',
-                ],
-            ],
-        ];
-        $sheet->getStyle('A1:F1')->applyFromArray($headerStyle);
-        
-        // Tạo Writer để xuất file
-        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-        
-        // Xuất file
-        $filename = 'mau_import_hoc_vien_' . date('Ymd_His') . '.xlsx';
-        $path = storage_path('app/public/' . $filename);
-        
-        // Đảm bảo thư mục tồn tại
-        if (!file_exists(storage_path('app/public'))) {
-            mkdir(storage_path('app/public'), 0755, true);
+        try {
+            // Import từ Excel
+            Excel::import(new StudentImport($id, $discountPercentage), $request->file('excel_file'));
+            
+            return redirect()->route('course-items.students', $id)
+                    ->with('success', 'Đã import học viên thành công!');
+        } catch (\Exception $e) {
+            return back()->withErrors(['excel_file' => 'Có lỗi khi import: ' . $e->getMessage()]);
         }
-        
-        $writer->save($path);
-        
-        return response()->download($path, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Xuất file template Excel mẫu cho import học viên
+     */
+    public function exportTemplate()
+    {
+        try {
+            // Log để debug
+            Log::info('Đang tạo template Excel');
+            
+            // Tạo file Excel mới
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            
+            // Đặt tiêu đề cột
+            $sheet->setCellValue('A1', 'ho_ten');
+            $sheet->setCellValue('B1', 'so_dien_thoai');
+            $sheet->setCellValue('C1', 'email');
+            $sheet->setCellValue('D1', 'ngay_sinh');
+            $sheet->setCellValue('E1', 'gioi_tinh');
+            $sheet->setCellValue('F1', 'dia_chi');
+            $sheet->setCellValue('G1', 'noi_cong_tac');
+            $sheet->setCellValue('H1', 'kinh_nghiem');
+            $sheet->setCellValue('I1', 'ghi_chu');
+            
+            // Thêm dữ liệu mẫu dòng đầu tiên
+            $sheet->setCellValue('A2', 'Nguyễn Văn A');
+            $sheet->setCellValue('B2', '0901234567');
+            $sheet->setCellValue('C2', 'nguyenvana@example.com');
+            $sheet->setCellValue('D2', '01/01/1990');
+            $sheet->setCellValue('E2', 'nam');
+            $sheet->setCellValue('F2', 'Hà Nội');
+            $sheet->setCellValue('G2', 'Công ty ABC');
+            $sheet->setCellValue('H2', '5');
+            $sheet->setCellValue('I2', 'Học viên VIP');
+            
+            // Thêm dữ liệu mẫu dòng thứ hai
+            $sheet->setCellValue('A3', 'Trần Thị B');
+            $sheet->setCellValue('B3', '0909876543');
+            $sheet->setCellValue('C3', 'tranthib@example.com');
+            $sheet->setCellValue('D3', '15/05/1995');
+            $sheet->setCellValue('E3', 'nữ');
+            $sheet->setCellValue('F3', 'TP. Hồ Chí Minh');
+            $sheet->setCellValue('G3', 'Công ty XYZ');
+            $sheet->setCellValue('H3', '3');
+            $sheet->setCellValue('I3', 'Học viên mới');
+            
+            // Định dạng tiêu đề
+            $sheet->getStyle('A1:I1')->getFont()->setBold(true);
+            $sheet->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DDDDDD');
+            
+            // Tự động điều chỉnh độ rộng cột
+            foreach(range('A','I') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+            
+            // Log kết quả
+            Log::info('Đã tạo xong template Excel, đang gửi về client');
+            
+            // Tạo đối tượng Writer
+            $writer = new Xlsx($spreadsheet);
+            
+            // Đặt header để tải xuống
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            header('Content-Disposition: attachment;filename="template_import_hoc_vien.xlsx"');
+            header('Cache-Control: max-age=0');
+            
+            // Gửi file
+            $writer->save('php://output');
+            exit;
+        } catch (\Exception $e) {
+            Log::error('Lỗi khi tạo template Excel: ' . $e->getMessage());
+            Log::error($e->getTraceAsString());
+            return back()->withErrors(['download' => 'Có lỗi khi tạo template Excel: ' . $e->getMessage()]);
+        }
     }
 
     /**
