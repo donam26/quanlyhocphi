@@ -1,161 +1,416 @@
 @extends('layouts.app')
 
-@section('title', 'Trang chủ')
-
 @section('content')
-<div class="container-fluid">
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <h1 class="h3 mb-0 text-gray-800">Tổng quan</h1>
-        </div>
-    </div>
-
-    <!-- Thống kê nhanh -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card stats-card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ number_format($stats['total_students']) }}</p>
-                    <p class="stats-label">Tổng học viên</p>
+<div class="container-fluid px-4">
+    <h1 class="mt-4 mb-4">Dashboard</h1>
+    
+    <!-- Thống kê tổng quan -->
+    <div class="row">
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-primary text-white mb-4">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="h5 mb-0">{{ number_format($stats['students_count']) }}</div>
+                        <div class="small text-white">Học viên</div>
+                    </div>
                     <i class="fas fa-users fa-2x opacity-75"></i>
                 </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card warning">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ $stats['unpaid_count'] ?? 0 }}</p>
-                    <p class="stats-label">Chưa thanh toán</p>
-                    <i class="fas fa-clock fa-2x opacity-75"></i>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ route('students.index') }}">Xem chi tiết</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                 </div>
             </div>
         </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card danger">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ number_format($totalRevenue) }}</p>
-                    <p class="stats-label">Doanh thu (VND)</p>
-                    <i class="fas fa-money-bill-wave fa-2x opacity-75"></i>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-success text-white mb-4">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="h5 mb-0">{{ number_format($stats['courses_count']) }}</div>
+                        <div class="small text-white">Khóa học</div>
+                    </div>
+                    <i class="fas fa-graduation-cap fa-2x opacity-75"></i>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ route('course-items.tree') }}">Xem chi tiết</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                 </div>
             </div>
         </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ $stats['total_classes'] }}</p>
-                    <p class="stats-label">Tổng lớp học</p>
-                    <i class="fas fa-chalkboard-teacher fa-2x opacity-75"></i>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-info text-white mb-4">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="h5 mb-0">{{ number_format($stats['enrollments_count']) }}</div>
+                        <div class="small text-white">Lượt ghi danh</div>
+                    </div>
+                    <i class="fas fa-user-graduate fa-2x opacity-75"></i>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ route('enrollments.index') }}">Xem chi tiết</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-warning text-white mb-4">
+                <div class="card-body d-flex align-items-center justify-content-between">
+                    <div>
+                        <div class="h5 mb-0">{{ number_format($stats['waitings_count']) }}</div>
+                        <div class="small text-white">Đang chờ</div>
+                    </div>
+                    <i class="fas fa-user-clock fa-2x opacity-75"></i>
+                </div>
+                <div class="card-footer d-flex align-items-center justify-content-between">
+                    <a class="small text-white stretched-link" href="{{ route('waiting-lists.index') }}">Xem chi tiết</a>
+                    <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="row">
-        <!-- Biểu đồ doanh thu -->
-        <div class="col-md-8">
+    <!-- Biểu đồ chính -->
+    <div class="row mb-4">
+        <div class="col-xl-8">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">Doanh thu theo tháng</h6>
+                    <div>
+                        <i class="fas fa-chart-line me-1"></i>
+                        Doanh thu 7 ngày gần đây
+                    </div>
+                    <div class="small text-muted">Đơn vị: VNĐ</div>
                 </div>
                 <div class="card-body">
-                    <canvas id="revenueChart" height="300"></canvas>
+                    <canvas id="revenueByDayChart" width="100%" height="40"></canvas>
                 </div>
             </div>
         </div>
-
-        <!-- Học viên chưa thanh toán -->
-        <div class="col-md-4">
+        <div class="col-xl-4">
             <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">Học viên chưa đóng phí</h6>
-                    <a href="{{ route('enrollments.unpaid') }}" class="btn btn-sm btn-outline-primary">Xem tất cả</a>
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-1"></i>
+                    Phân bố thanh toán
                 </div>
-                <div class="card-body p-0">
-                    @if(isset($unpaidStudents) && $unpaidStudents->count() > 0)
-                        <div class="list-group list-group-flush">
-                            @foreach($unpaidStudents as $enrollment)
-                                <div class="list-group-item d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <div class="fw-medium">{{ $enrollment->student->full_name }}</div>
-                                        <small class="text-muted">{{ $enrollment->class->name }}</small>
+                <div class="card-body">
+                    <canvas id="paymentStatusChart" width="100%" height="40"></canvas>
+                </div>
+                <div class="card-footer small text-muted">
+                                                Tỉ lệ thanh toán đầy đủ: {{ array_sum($paymentStatusData['data']) > 0 ? number_format($paymentStatusData['data'][0] / array_sum($paymentStatusData['data']) * 100, 1) : 0 }}%
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Biểu đồ thứ hai -->
+    <div class="row mb-4">
+        <div class="col-xl-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-1"></i>
+                    Phương thức thanh toán
+                </div>
+                <div class="card-body">
+                    <canvas id="paymentMethodChart" width="100%" height="40"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-pie me-1"></i>
+                    Học viên theo giới tính
+                </div>
+                <div class="card-body">
+                    <canvas id="genderChart" width="100%" height="40"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-xl-4">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-bar me-1"></i>
+                    Ghi danh theo tháng
+                </div>
+                <div class="card-body">
+                    <canvas id="enrollmentChart" width="100%" height="40"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Thông tin tài chính chi tiết -->
+    <div class="row">
+        <div class="col-xl-5">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-money-bill-wave me-1"></i>
+                    Tài chính tổng quan
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-primary h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                                Tổng học phí</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ number_format($financialStats['total_fee']) }} VND
+                                            </div>
+                                        </div>
                                     </div>
-                                    <a href="{{ route('payments.create', $enrollment) }}" class="btn btn-sm btn-outline-primary">Thu phí</a>
                                 </div>
-                            @endforeach
+                            </div>
                         </div>
-                    @else
-                        <div class="text-center p-3">
-                            <p class="text-muted">Không có học viên chưa thanh toán</p>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-success h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                                Đã thanh toán</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ number_format($financialStats['total_paid']) }} VND
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    @endif
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-warning h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                                Chờ thanh toán</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ number_format($financialStats['total_pending']) }} VND
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <div class="card border-left-danger h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
+                                                Còn thiếu</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                                {{ number_format($financialStats['total_remaining']) }} VND
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <h5 class="mb-2">Tỉ lệ thanh toán</h5>
+                        <div class="progress" style="height: 25px;">
+                            <div class="progress-bar bg-success" role="progressbar" style="width: {{ $financialStats['payment_rate'] }}%;" 
+                                 aria-valuenow="{{ $financialStats['payment_rate'] }}" aria-valuemin="0" aria-valuemax="100">
+                                {{ $financialStats['payment_rate'] }}%
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <h5 class="mb-0">Học viên chưa thanh toán đủ</h5>
+                            <a href="{{ route('enrollments.unpaid') }}" class="btn btn-sm btn-warning">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                {{ $unPaidCount }} học viên
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="row">
-        <!-- Thanh toán gần đây -->
-        <div class="col-md-12">
+        
+        <div class="col-xl-7">
             <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">Thanh toán gần đây</h6>
-                    <a href="{{ route('payments.index') }}" class="btn btn-sm btn-outline-primary">Xem tất cả</a>
-                </div>
-                <div class="card-body p-0">
-                    @if(isset($recentPayments) && $recentPayments->count() > 0)
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Học viên</th>
-                                        <th>Khóa học</th>
-                                        <th>Số tiền</th>
-                                        <th>Ngày thanh toán</th>
-                                        <th>Phương thức</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach($recentPayments as $payment)
-                                        <tr>
-                                            <td>{{ $payment->enrollment->student->full_name }}</td>
-                                            <td>{{ $payment->enrollment->class->name }}</td>
-                                            <td>{{ number_format($payment->amount) }} VND</td>
-                                            <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
-                                            <td>{{ $payment->payment_method }}</td>
-                                            <td>
-                                                <a href="{{ route('payments.show', $payment) }}" class="btn btn-sm btn-outline-info">
-                                                    <i class="fas fa-eye"></i>
-                                                </a>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    @else
-                        <div class="text-center p-3">
-                            <p class="text-muted">Không có thanh toán gần đây</p>
-                        </div>
-                    @endif
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h6 class="m-0 font-weight-bold">Cây khóa học</h6>
-                    <a href="{{ route('course-items.index') }}" class="btn btn-primary btn-sm">Quản lý cây khóa học</a>
+                <div class="card-header">
+                    <i class="fas fa-chart-bar me-1"></i>
+                    Top khóa học được đăng ký nhiều nhất
                 </div>
                 <div class="card-body">
-                    <div id="treeContent">
-                        <div class="text-center text-muted">Đang tải dữ liệu...</div>
+                    <canvas id="topCoursesChart" width="100%" height="50"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Doanh thu và Thanh toán gần đây -->
+    <div class="row">
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-chart-area me-1"></i>
+                    Doanh thu 6 tháng gần đây
+                </div>
+                <div class="card-body">
+                    <canvas id="revenueChart" width="100%" height="40"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-table me-1"></i>
+                    Thanh toán gần đây
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Ngày</th>
+                                    <th>Học viên</th>
+                                    <th>Khóa học</th>
+                                    <th class="text-end">Số tiền</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($financialStats['recent_payments'] as $payment)
+                                <tr>
+                                    <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
+                                    <td>{{ $payment->enrollment->student->full_name }}</td>
+                                    <td>{{ $payment->enrollment->courseItem->name }}</td>
+                                    <td class="text-end text-success">{{ number_format($payment->amount) }} VND</td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">Chưa có thanh toán nào</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-3">
+                        <a href="{{ route('payments.index') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-list me-1"></i>
+                            Xem tất cả thanh toán
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Học viên mới -->
+    <div class="row">
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header">
+                    <i class="fas fa-user-plus me-1"></i>
+                    Học viên mới đăng ký
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Họ tên</th>
+                                    <th>Số điện thoại</th>
+                                    <th>Email</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($newStudents as $student)
+                                <tr>
+                                    <td>{{ $student->full_name }}</td>
+                                    <td>{{ $student->phone }}</td>
+                                    <td>{{ $student->email }}</td>
+                                    <td class="text-center">
+                                        <a href="{{ route('students.show', $student->id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">Chưa có học viên mới</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-3">
+                        <a href="{{ route('students.index') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-list me-1"></i>
+                            Xem tất cả học viên
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-xl-6">
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <i class="fas fa-phone-alt me-1"></i>
+                    Học viên cần liên hệ
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Họ tên</th>
+                                    <th>Số điện thoại</th>
+                                    <th>Khóa học</th>
+                                    <th>Thời gian chờ</th>
+                                    <th class="text-center">Thao tác</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @forelse($waitingContact as $waiting)
+                                <tr>
+                                    <td>{{ $waiting->student->full_name }}</td>
+                                    <td>{{ $waiting->student->phone }}</td>
+                                    <td>{{ $waiting->courseItem->name }}</td>
+                                    <td>
+                                        @if($waiting->last_contact_date)
+                                            {{ $waiting->last_contact_date->diffForHumans() }}
+                                        @else
+                                            <span class="text-danger">Chưa liên hệ</span>
+                                        @endif
+                                    </td>
+                                    <td class="text-center">
+                                        <form action="{{ route('waiting-lists.mark-contacted', $waiting->id) }}" method="POST" class="d-inline">
+                                            @csrf
+                                            <button type="submit" class="btn btn-sm btn-primary" title="Đánh dấu đã liên hệ">
+                                                <i class="fas fa-phone"></i>
+                                            </button>
+                                        </form>
+                                        <a href="{{ route('enrollments.from-waiting-list', $waiting->id) }}" class="btn btn-sm btn-success">
+                                            <i class="fas fa-user-plus"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="5" class="text-center">Không có học viên nào cần liên hệ</td>
+                                </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="text-end mt-3">
+                        <a href="{{ route('waiting-lists.needs-contact') }}" class="btn btn-warning btn-sm">
+                            <i class="fas fa-list me-1"></i>
+                            Xem tất cả học viên cần liên hệ
+                        </a>
                     </div>
                 </div>
             </div>
@@ -165,99 +420,231 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
 <script>
-$(document).ready(function() {
-    // Biểu đồ doanh thu
-    const ctx = document.getElementById('revenueChart').getContext('2d');
-    const chartData = @json($chartData);
-    const labels = [];
-    const data = [];
-    for (let i = 1; i <= 12; i++) {
-        const monthName = new Date(2023, i-1, 1).toLocaleString('vi', { month: 'long' });
-        labels.push(monthName);
-        data.push(chartData[i] || 0);
-    }
-    new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Doanh thu (VND)',
-                data: data,
-                backgroundColor: 'rgba(54, 162, 235, 0.5)',
-                borderColor: 'rgba(54, 162, 235, 1)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return value.toLocaleString('vi-VN');
-                        }
+// Set new default font family and font color to mimic Bootstrap's default styling
+Chart.defaults.font.family = '-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
+Chart.defaults.color = '#858796';
+
+// Doanh thu theo ngày (7 ngày gần đây)
+var revenueByDayCtx = document.getElementById("revenueByDayChart");
+var revenueByDayChart = new Chart(revenueByDayCtx, {
+    type: 'line',
+    data: {
+        labels: {!! json_encode($revenueByDay['labels']) !!},
+        datasets: [{
+            label: "Doanh thu",
+            lineTension: 0.3,
+            backgroundColor: "rgba(78, 115, 223, 0.05)",
+            borderColor: "rgba(78, 115, 223, 1)",
+            pointRadius: 3,
+            pointBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointBorderColor: "rgba(78, 115, 223, 1)",
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+            pointHitRadius: 10,
+            pointBorderWidth: 2,
+            data: {!! json_encode($revenueByDay['data']) !!},
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        var value = context.raw;
+                        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
                     }
                 }
-            },
-            plugins: {
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            return context.raw.toLocaleString('vi-VN') + ' VND';
-                        }
+            }
+        },
+        scales: {
+            y: {
+                ticks: {
+                    callback: function(value) {
+                        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', 
+                            notation: 'compact', compactDisplay: 'short' }).format(value);
                     }
                 }
             }
         }
-    });
-
-    // Fetch tree data
-    fetch('/tree')
-        .then(res => res.json())
-        .then(data => {
-            if (!data || data.length === 0) {
-                $('#treeContent').html('<div class="text-center text-muted">Không có dữ liệu cây khóa học</div>');
-                return;
-            }
-            
-            // Render cây khóa học
-            let html = renderTree(data);
-            $('#treeContent').html(html);
-        });
+    }
 });
 
-function renderTree(items) {
-    if (!items || items.length === 0) return '<div class="text-muted">Không có dữ liệu</div>';
-    
-    let html = '<ul class="tree-list">';
-    items.forEach(function(item) {
-        html += '<li>' +
-            '<b>' + item.name + '</b> ' +
-            '<a href="' + item.url + '" class="btn btn-xs btn-outline-primary">Chi tiết</a>';
-        
-        if (item.is_leaf) {
-            if (item.has_online) html += ' <span class="badge bg-info">Online</span>';
-            if (item.has_offline) html += ' <span class="badge bg-secondary">Offline</span>';
-            if (item.fee > 0) html += ' <span class="badge bg-success">' + formatFee(item.fee) + '</span>';
+// Doanh thu 6 tháng
+var revenueCtx = document.getElementById("revenueChart");
+var revenueChart = new Chart(revenueCtx, {
+    type: 'line',
+    data: {
+        labels: {!! json_encode($revenueChartData['labels']) !!},
+        datasets: [{
+            label: "Doanh thu",
+            lineTension: 0.3,
+            backgroundColor: "rgba(78, 115, 223, 0.05)",
+            borderColor: "rgba(78, 115, 223, 1)",
+            pointRadius: 3,
+            pointBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointBorderColor: "rgba(78, 115, 223, 1)",
+            pointHoverRadius: 5,
+            pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
+            pointHoverBorderColor: "rgba(78, 115, 223, 1)",
+            pointHitRadius: 10,
+            pointBorderWidth: 2,
+            data: {!! json_encode($revenueChartData['data']) !!},
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        var value = context.raw;
+                        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value);
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                ticks: {
+                    callback: function(value) {
+                        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', 
+                            notation: 'compact', compactDisplay: 'short' }).format(value);
+                    }
+                }
+            }
         }
-        
-        if (item.children && item.children.length > 0) {
-            html += renderTree(item.children);
-        }
-        
-        html += '</li>';
-    });
-    html += '</ul>';
-    return html;
-}
+    }
+});
 
-function formatFee(fee) {
-    if (!fee || fee == 0) return '';
-    return Number(fee).toLocaleString('vi-VN') + 'đ';
-}
+// Enrollment Chart
+var enrollmentCtx = document.getElementById("enrollmentChart");
+var enrollmentChart = new Chart(enrollmentCtx, {
+    type: 'bar',
+    data: {
+        labels: {!! json_encode($enrollmentChartData['labels']) !!},
+        datasets: [{
+            label: "Số lượt ghi danh",
+            backgroundColor: "#4e73df",
+            hoverBackgroundColor: "#2e59d9",
+            borderColor: "#4e73df",
+            data: {!! json_encode($enrollmentChartData['data']) !!},
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+    }
+});
+
+// Payment Method Chart
+var paymentMethodCtx = document.getElementById("paymentMethodChart");
+var paymentMethodChart = new Chart(paymentMethodCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {!! json_encode($paymentMethodData['labels']) !!},
+        datasets: [{
+            data: {!! json_encode($paymentMethodData['data']) !!},
+            backgroundColor: {!! json_encode($paymentMethodData['backgroundColor']) !!},
+            hoverBackgroundColor: {!! json_encode($paymentMethodData['backgroundColor']) !!},
+            hoverBorderColor: "rgba(234, 236, 244, 1)",
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        var label = context.label || '';
+                        var value = context.raw;
+                        var total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        var percentage = Math.round((value / total) * 100);
+                        return label + ': ' + new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value) + ' (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Gender Chart
+var genderCtx = document.getElementById("genderChart");
+var genderChart = new Chart(genderCtx, {
+    type: 'pie',
+    data: {
+        labels: {!! json_encode($genderData['labels']) !!},
+        datasets: [{
+            data: {!! json_encode($genderData['data']) !!},
+            backgroundColor: {!! json_encode($genderData['backgroundColor']) !!},
+            hoverBackgroundColor: {!! json_encode($genderData['backgroundColor']) !!},
+            hoverBorderColor: "rgba(234, 236, 244, 1)",
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+    }
+});
+
+// Payment Status Chart
+var paymentStatusCtx = document.getElementById("paymentStatusChart");
+var paymentStatusChart = new Chart(paymentStatusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: {!! json_encode($paymentStatusData['labels']) !!},
+        datasets: [{
+            data: {!! json_encode($paymentStatusData['data']) !!},
+            backgroundColor: {!! json_encode($paymentStatusData['backgroundColor']) !!},
+            hoverBackgroundColor: {!! json_encode($paymentStatusData['backgroundColor']) !!},
+            hoverBorderColor: "rgba(234, 236, 244, 1)",
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        var label = context.label || '';
+                        var value = context.raw;
+                        var total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        var percentage = Math.round((value / total) * 100);
+                        return label + ': ' + value + ' học viên (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Top Courses Chart
+var topCoursesCtx = document.getElementById("topCoursesChart");
+var topCoursesChart = new Chart(topCoursesCtx, {
+    type: 'bar',
+    data: {
+        labels: {!! json_encode($enrollmentsByCourse['labels']) !!},
+        datasets: [{
+            label: "Số lượt ghi danh",
+            backgroundColor: "#36b9cc",
+            hoverBackgroundColor: "#2c9faf",
+            borderColor: "#36b9cc",
+            data: {!! json_encode($enrollmentsByCourse['data']) !!},
+        }],
+    },
+    options: {
+        maintainAspectRatio: false,
+        indexAxis: 'y',
+        scales: {
+            x: {
+                beginAtZero: true,
+                ticks: {
+                    precision: 0
+                }
+            }
+        }
+    }
+});
 </script>
-@endpush 
- 
+@endpush

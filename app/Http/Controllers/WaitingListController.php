@@ -276,69 +276,105 @@ class WaitingListController extends Controller
     /**
      * Danh sách học viên cần liên hệ
      */
-    public function needsContact()
+    public function needsContact(Request $request)
     {
-        $waitingLists = WaitingList::with(['student', 'courseItem'])
+        $query = WaitingList::with(['student', 'courseItem'])
+                ->where('status', 'waiting')
                                   ->where(function($query) {
                                       $query->whereNull('last_contact_date')
                                             ->orWhere('last_contact_date', '<', now()->subDays(7));
-                                  })
-                                  ->where('status', 'waiting')
-                                  ->orderBy('interest_level', 'desc')
-                                  ->orderBy('added_date', 'asc')
-                                  ->get()
-                                  ->map(function($waiting) {
-                                      $daysSinceAdded = $waiting->added_date->diffInDays(now());
-                                      $daysSinceLastContact = $waiting->last_contact_date 
-                                                            ? $waiting->last_contact_date->diffInDays(now())
-                                                            : null;
-                                      
-                                      return [
-                                          'waiting' => $waiting,
-                                          'days_since_added' => $daysSinceAdded,
-                                          'days_since_last_contact' => $daysSinceLastContact,
-                                          'priority' => $this->calculateContactPriority($waiting)
-                                      ];
-                                  })
-                                  ->sortByDesc('priority');
-
-        return view('waiting-lists.needs-contact', compact('waitingLists'));
-    }
-
-    /**
-     * Tính độ ưu tiên liên hệ
-     */
-    private function calculateContactPriority($waiting)
-    {
-        $priority = 0;
-        
-        // Mức độ quan tâm
-        switch ($waiting->interest_level) {
-            case 'high':
-                $priority += 3;
-                break;
-            case 'medium':
-                $priority += 2;
-                break;
-            case 'low':
-                $priority += 1;
-                break;
+                });
+                
+        // Lọc theo khóa học nếu có
+        if ($request->filled('course_item_id')) {
+            $query->where('course_item_id', $request->course_item_id);
         }
+        
+        // Lọc theo mức độ ưu tiên nếu có
+        if ($request->filled('priority')) {
+            $query->where('interest_level', $request->priority);
+        }
+        
+        // Lọc theo từ khóa nếu có
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('student', function($q) use ($search) {
+                $q->where('full_name', 'like', "%{$search}%")
+                  ->orWhere('phone', 'like', "%{$search}%")
+                  ->orWhere('email', 'like', "%{$search}%");
+            });
+        }
+        
+        // Sắp xếp
+        $query->orderBy('interest_level', 'desc')  // High -> Medium -> Low
+              ->orderBy('last_contact_date', 'asc') // Lâu nhất lên đầu
+              ->orderBy('added_date', 'asc');      // Thêm lâu nhất lên đầu
+        
+        // Phân trang
+        $waitingListsPaginated = $query->paginate(20);
+        
+        // Chuẩn bị dữ liệu để hiển thị
+        $days_since_added = [];
+        $days_since_last_contact = [];
+        $priority = [];
+        
+        foreach ($waitingListsPaginated as $waiting) {
+            $days_since_added[$waiting->id] = $waiting->added_date->diffInDays(now());
+            
+            if ($waiting->last_contact_date) {
+                $days_since_last_contact[$waiting->id] = $waiting->last_contact_date->diffInDays(now());
+            } else {
+                $days_since_last_contact[$waiting->id] = null;
+            }
+            
+            $priority[$waiting->id] = $this->getPriorityLevel($waiting);
+        }
+        
+        // Lấy các khóa học gốc (không có parent) để hiển thị trong bộ lọc
+        $rootCourseItems = CourseItem::whereNull('parent_id')
+                            ->where('active', true)
+                            ->with(['children' => function($query) {
+                                $query->where('active', true);
+                            }])
+                            ->orderBy('order_index')
+                            ->get();
 
+        return view('waiting-lists.needs-contact', [
+            'waitingLists' => $waitingListsPaginated,
+            'rootCourseItems' => $rootCourseItems,
+            'days_since_added' => $days_since_added,
+            'days_since_last_contact' => $days_since_last_contact,
+            'priority' => $priority
+        ]);
+    }
+    
+    /**
+     * Xác định mức độ ưu tiên dựa trên thông tin của waiting list
+     */
+    private function getPriorityLevel($waiting)
+    {
         // Thời gian chưa liên hệ
         $daysSinceLastContact = $waiting->last_contact_date 
                               ? $waiting->last_contact_date->diffInDays(now())
                               : $waiting->added_date->diffInDays(now());
         
-        if ($daysSinceLastContact >= 14) {
-            $priority += 3;
-        } elseif ($daysSinceLastContact >= 7) {
-            $priority += 2;
-        } elseif ($daysSinceLastContact >= 3) {
-            $priority += 1;
+        // Ưu tiên cao nhất cho học viên quan tâm cao và lâu chưa liên hệ
+        if ($waiting->interest_level == 'high' && $daysSinceLastContact >= 7) {
+            return 'high';
+        }
+        
+        // Ưu tiên cao cho học viên quan tâm cao hoặc lâu chưa liên hệ
+        if ($waiting->interest_level == 'high' || $daysSinceLastContact >= 14) {
+            return 'high';
+        }
+        
+        // Ưu tiên trung bình
+        if ($waiting->interest_level == 'medium' || $daysSinceLastContact >= 7) {
+            return 'medium';
         }
 
-        return $priority;
+        // Ưu tiên thấp
+        return 'low';
     }
 
     /**

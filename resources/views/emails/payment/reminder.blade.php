@@ -3,7 +3,7 @@
 
 Xin chào **{{ $payment->enrollment->student->full_name }}**,
 
-Hệ thống ghi nhận bạn có một khoản thanh toán học phí chưa hoàn tất cho khóa học **{{ $payment->enrollment->courseClass->course->name }}**.
+Hệ thống ghi nhận bạn có một khoản thanh toán học phí chưa hoàn tất cho khóa học **{{ $payment->enrollment->courseItem->name }}**.
 
 **Chi tiết thanh toán:**
 - **Số tiền:** {{ number_format($payment->amount, 0, ',', '.') }} VND

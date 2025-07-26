@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->boolean('is_admin')->default(true); // Mặc định là admin vì hệ thống chỉ có admin
             $table->rememberToken();
             $table->timestamps();
         });

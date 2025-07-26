@@ -16,12 +16,12 @@
                 <span class="item-icon"><i class="fas fa-book"></i></span>
                 <a href="{{ route('course-items.show', $courseItem->id) }}">{{ $courseItem->name }}</a>
                 <div class="item-actions">
-                    <form action="{{ route('course-items.toggle-active', $courseItem->id) }}" method="POST" class="d-inline">
+                    {{-- <form action="{{ route('course-items.toggle-active', $courseItem->id) }}" method="POST" class="d-inline">
                         @csrf
                         <button type="submit" class="btn btn-sm {{ $courseItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $courseItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
                             <i class="fas {{ $courseItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
                         </button>
-                    </form>
+                    </form> --}}
                     @if(!$courseItem->is_leaf)
                         <button type="button" class="btn btn-sm btn-success" title="Thêm khóa con" 
                             onclick="setupAddModal({{ $courseItem->id }}, '{{ $courseItem->name }}')">

@@ -107,7 +107,8 @@
                 {{-- Nút tìm kiếm --}}
             </div>
         </div>
-        <form id="main-form" action="" method="POST">
+        {{-- Bỏ form này vì không cần thiết và đang gây lỗi--}}
+        <div>
              @csrf
             <div class="table-responsive">
                 <table class="table table-hover table-striped">
@@ -134,21 +135,19 @@
                             @foreach($studentData['enrollments'] as $index => $enrollmentData)
                                 @php
                                     $enrollment = $enrollmentData['enrollment'];
-                                    $payment = $enrollment->payments->first() ?? new \App\Models\Payment([
-                                        'amount' => 0, 
-                                        'enrollment_id' => $enrollment->id,
-                                        'payment_date' => now(),
-                                        'payment_method' => 'bank_transfer',
-                                        'status' => 'pending'
-                                    ]);
                                     
-                                    if(!$payment->id) {
-                                        $payment->amount = $enrollmentData['remaining'];
-                                        $payment->save();
-                                    }
+                                    // Sử dụng thanh toán hiện có nếu có, nếu không thì chỉ để trống
+                                    $existingPayment = $enrollment->payments->first();
+                                    $remainingAmount = $enrollmentData['remaining'];
                                 @endphp
                                 <tr>
-                                    <td><input type="checkbox" class="check-item" value="{{ $payment->id }}"></td>
+                                    <td>
+                                        @if($existingPayment)
+                                            <input type="checkbox" class="check-item" value="{{ $existingPayment->id }}">
+                                        @else
+                                            <i class="fas fa-exclamation-circle text-warning" title="Chưa có thanh toán"></i>
+                                        @endif
+                                    </td>
                                     <td>
                                         <small class="text-muted">{{ $studentData['student']->email }}</small>
                                     </td>
@@ -157,21 +156,27 @@
                                     </td>
                                     <td class="text-end">{{ number_format($enrollmentData['fee']) }}đ</td>
                                     <td class="text-end">{{ number_format($enrollmentData['paid']) }}đ</td>
-                                    <td class="text-end text-danger fw-bold">{{ number_format($enrollmentData['remaining']) }}đ</td>
+                                    <td class="text-end text-danger fw-bold">{{ number_format($remainingAmount) }}đ</td>
                                     <td>
-                                        <a href="{{ route('payment.gateway.show', $payment) }}" class="btn btn-success btn-sm" title="Trang thanh toán">
+                                        @if($existingPayment)
+                                            <a href="{{ route('payment.gateway.show', $existingPayment) }}" class="btn btn-success btn-sm" title="Trang thanh toán">
                                             <i class="fas fa-dollar-sign"></i>
-                                        </a>
-                                        <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-primary btn-sm" title="Xem chi tiết">
-                                            <i class="fas fa-eye"></i>
                                         </a>
                                         <form action="{{ route('payments.send-reminder') }}" method="POST" class="d-inline" onsubmit="return confirm('Gửi email nhắc nhở cho học viên này?')">
                                             @csrf
-                                            <input type="hidden" name="payment_ids[]" value="{{ $payment->id }}">
+                                                <input type="hidden" name="payment_ids[]" value="{{ $existingPayment->id }}">
                                             <button type="submit" class="btn btn-warning btn-sm" title="Gửi nhắc nhở">
                                                 <i class="fas fa-bell"></i>
                                             </button>
                                         </form>
+                                        @else
+                                            <a href="{{ route('payments.create', ['enrollment_id' => $enrollment->id]) }}" class="btn btn-primary btn-sm" title="Tạo thanh toán mới">
+                                                <i class="fas fa-plus"></i> Tạo thanh toán
+                                            </a>
+                                        @endif
+                                        <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-info btn-sm" title="Xem chi tiết">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
                                     </td>
                                 </tr>
                             @endforeach
@@ -183,7 +188,7 @@
                     </tbody>
                 </table>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 @endsection
@@ -220,6 +225,11 @@ $(document).ready(function() {
         $('.check-item:checked').each(function() {
             paymentIds.push($(this).val());
         });
+
+        if (paymentIds.length === 0) {
+            alert('Vui lòng chọn ít nhất một thanh toán để gửi nhắc nhở');
+            return;
+        }
 
         // Xóa các input cũ và thêm input mới
         form.find('input[name="payment_ids[]"]').remove();

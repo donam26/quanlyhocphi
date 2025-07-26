@@ -18,8 +18,6 @@ class Student extends Model
         'address',
         'current_workplace',
         'accounting_experience_years',
-        'education_level',
-        'major_studied',
         'status',
         'notes'
     ];

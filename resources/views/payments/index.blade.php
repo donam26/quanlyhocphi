@@ -7,6 +7,25 @@
 @endsection
 
 @section('content')
+<!-- Custom CSS for dropdown menu fix -->
+<style>
+    .dropdown-menu {
+        z-index: 1050;
+        position: absolute !important;
+    }
+    
+    .table .dropdown {
+        position: relative;
+    }
+    
+    /* Đảm bảo dropdown menu hiển thị bên phải khi gần biên phải */
+    .table tr:last-child .dropdown-menu,
+    .table tr:nth-last-child(2) .dropdown-menu {
+        right: 0;
+        left: auto !important;
+    }
+</style>
+
 <!-- Filter & Search -->
 <div class="card mb-4">
     <div class="card-body">
@@ -23,21 +42,20 @@
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <select name="method" class="form-select">
+                    <select name="payment_method" class="form-select">
                         <option value="">Tất cả phương thức</option>
-                        <option value="cash" {{ request('method') == 'cash' ? 'selected' : '' }}>Tiền mặt</option>
-                        <option value="bank_transfer" {{ request('method') == 'bank_transfer' ? 'selected' : '' }}>Chuyển khoản</option>
-                        <option value="card" {{ request('method') == 'card' ? 'selected' : '' }}>Thẻ</option>
-                        <option value="other" {{ request('method') == 'other' ? 'selected' : '' }}>Khác</option>
+                        <option value="cash" {{ request('payment_method') == 'cash' ? 'selected' : '' }}>Tiền mặt</option>
+                        <option value="bank_transfer" {{ request('payment_method') == 'bank_transfer' ? 'selected' : '' }}>Chuyển khoản</option>
+                        <option value="card" {{ request('payment_method') == 'card' ? 'selected' : '' }}>Thẻ</option>
+                        <option value="other" {{ request('payment_method') == 'other' ? 'selected' : '' }}>Khác</option>
                     </select>
                 </div>
                 <div class="col-md-2">
                     <select name="status" class="form-select">
                         <option value="">Tất cả trạng thái</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
+                        <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xác nhận</option>
-                        <option value="failed" {{ request('status') == 'failed' ? 'selected' : '' }}>Thất bại</option>
-                        <option value="refunded" {{ request('status') == 'refunded' ? 'selected' : '' }}>Đã hoàn</option>
+                        <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -137,7 +155,7 @@
                             </th>
                             <th width="15%">Mã GD</th>
                             <th width="25%">Học viên</th>
-                            <th width="20%">Lớp học</th>
+                            <th width="20%">Khóa học</th>
                             <th width="12%">Số tiền</th>
                             <th width="10%">Phương thức</th>
                             <th width="10%">Trạng thái</th>
@@ -168,8 +186,7 @@
                             </td>
                             <td>
                                 <div>
-                                    <div class="fw-medium">{{ $payment->enrollment->courseClass->name }}</div>
-                                    <small class="text-muted">{{ $payment->enrollment->courseClass->course->name }}</small>
+                                    <div class="fw-medium">{{ $payment->enrollment->courseItem->name ?? 'N/A' }}</div>
                                 </div>
                             </td>
                             <td>
@@ -181,15 +198,15 @@
                                 @endif
                             </td>
                             <td>
-                                @if($payment->method == 'cash')
+                                @if($payment->payment_method == 'cash')
                                     <span class="badge bg-success">
                                         <i class="fas fa-money-bill me-1"></i>Tiền mặt
                                     </span>
-                                @elseif($payment->method == 'bank_transfer')
+                                @elseif($payment->payment_method == 'bank_transfer')
                                     <span class="badge bg-primary">
                                         <i class="fas fa-university me-1"></i>Chuyển khoản
                                     </span>
-                                @elseif($payment->method == 'card')
+                                @elseif($payment->payment_method == 'card')
                                     <span class="badge bg-info">
                                         <i class="fas fa-credit-card me-1"></i>Thẻ
                                     </span>
@@ -200,12 +217,12 @@
                                 @endif
                             </td>
                             <td>
-                                @if($payment->status == 'completed')
-                                    <span class="badge bg-success">Hoàn thành</span>
+                                @if($payment->status == 'confirmed')
+                                    <span class="badge bg-success">Đã xác nhận</span>
                                 @elseif($payment->status == 'pending')
                                     <span class="badge bg-warning">Chờ xác nhận</span>
-                                @elseif($payment->status == 'failed')
-                                    <span class="badge bg-danger">Thất bại</span>
+                                @elseif($payment->status == 'cancelled')
+                                    <span class="badge bg-danger">Đã hủy</span>
                                 @else
                                     <span class="badge bg-info">Đã hoàn</span>
                                 @endif
@@ -213,10 +230,10 @@
                             <td>
                                 <div class="dropdown">
                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" 
-                                            type="button" data-bs-toggle="dropdown">
+                                            type="button" data-bs-toggle="dropdown" data-bs-boundary="viewport">
                                         <i class="fas fa-cog"></i>
                                     </button>
-                                    <ul class="dropdown-menu">
+                                    <ul class="dropdown-menu dropdown-menu-end">
                                         <li>
                                             <a class="dropdown-item" href="{{ route('payments.show', $payment) }}">
                                                 <i class="fas fa-eye me-2"></i>Chi tiết
@@ -470,7 +487,7 @@ function printReceipts() {
 }
 
 // Auto-submit form when filters change
-$('select[name="method"], select[name="status"], input[name="date_from"], input[name="date_to"]').change(function() {
+$('select[name="payment_method"], select[name="status"], input[name="date_from"], input[name="date_to"]').change(function() {
     $(this).closest('form').submit();
 });
 

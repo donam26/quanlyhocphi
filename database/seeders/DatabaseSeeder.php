@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
         
         // Chạy các seeder theo thứ tự phụ thuộc
         $this->call([
+            AdminUserSeeder::class, // Thêm admin user seeder đầu tiên
             CourseSeeder::class,
             SubCourseSeeder::class,
             StudentSeeder::class,

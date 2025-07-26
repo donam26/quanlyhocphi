@@ -48,7 +48,7 @@ class EnrollmentController extends Controller
                   ->orWhere('email', 'like', '%' . $search . '%');
             });
         }
-        
+
         // Lọc theo trạng thái thanh toán
         if ($request->filled('payment_status')) {
             $status = $request->payment_status;
@@ -69,7 +69,7 @@ class EnrollmentController extends Controller
         }
 
         $enrollments = $query->latest()->paginate(15);
-        
+
         // Tính toán thống kê
         $totalPaid = Enrollment::join('payments', 'enrollments.id', '=', 'payments.enrollment_id')
                               ->where('payments.status', 'confirmed')
@@ -168,6 +168,18 @@ class EnrollmentController extends Controller
             'discount_amount' => 'nullable|numeric|min:0'
         ]);
         
+        // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
+        $existingEnrollment = Enrollment::where('student_id', $request->student_id)
+                                       ->where('course_item_id', $request->course_item_id)
+                                       ->first();
+                                       
+        if ($existingEnrollment) {
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
+        }
+        
+        try {
         $enrollment = Enrollment::create([
             'student_id' => $request->student_id,
             'course_item_id' => $request->course_item_id,
@@ -193,6 +205,12 @@ class EnrollmentController extends Controller
         
         return redirect()->route('enrollments.show', $enrollment)
             ->with('success', 'Ghi danh mới đã được tạo thành công.');
+        } catch (\Exception $e) {
+            // Xử lý lỗi, bao gồm cả lỗi vi phạm ràng buộc duy nhất
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Không thể ghi danh: ' . $e->getMessage()]);
+        }
     }
 
     /**
@@ -358,21 +376,29 @@ class EnrollmentController extends Controller
     public function storeFromWaitingList(Request $request)
     {
         $request->validate([
-            'waiting_list_id' => 'required|exists:waiting_lists,id',
             'student_id' => 'required|exists:students,id',
             'course_item_id' => 'required|exists:course_items,id',
+            'waiting_list_id' => 'required|exists:waiting_lists,id',
             'enrollment_date' => 'required|date',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0',
             'final_fee' => 'required|numeric|min:0',
-            'initial_payment' => 'nullable|numeric|min:0',
-            'payment_method' => 'required_with:initial_payment|in:cash,bank_transfer,card,qr_code,sepay',
-            'payment_notes' => 'nullable|string'
+            'status' => 'required|in:enrolled,cancelled',
+            'notes' => 'nullable|string',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0'
         ]);
         
-        DB::beginTransaction();
+        // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
+        $existingEnrollment = Enrollment::where('student_id', $request->student_id)
+                                       ->where('course_item_id', $request->course_item_id)
+                                       ->first();
+                                       
+        if ($existingEnrollment) {
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
+        }
+        
         try {
-            // Tạo ghi danh mới
             $enrollment = Enrollment::create([
                 'student_id' => $request->student_id,
                 'course_item_id' => $request->course_item_id,
@@ -380,25 +406,19 @@ class EnrollmentController extends Controller
                 'discount_percentage' => $request->discount_percentage ?? 0,
                 'discount_amount' => $request->discount_amount ?? 0,
                 'final_fee' => $request->final_fee,
-                'status' => 'enrolled',
-                'notes' => 'Chuyển từ danh sách chờ. ' . ($request->notes ?? '')
+                'status' => $request->status,
+                'notes' => $request->notes
             ]);
             
-            // Tạo thanh toán ban đầu nếu có
-            if ($request->filled('initial_payment') && $request->initial_payment > 0) {
-                $paymentNote = $request->payment_notes ?? 'Thanh toán ban đầu khi ghi danh';
-                if ($request->payment_method == 'cash' && $request->filled('collector')) {
-                    $paymentNote .= "\nNgười thu: " . $request->collector;
-                }
-                
+            // Nếu có thanh toán ban đầu
+            if ($request->has('has_payment') && $request->has('initial_payment') && $request->initial_payment > 0) {
                 Payment::create([
                     'enrollment_id' => $enrollment->id,
                     'amount' => $request->initial_payment,
-                    'payment_date' => $request->enrollment_date ?? now(),
-                    'payment_method' => $request->payment_method,
-                    'transaction_reference' => $request->transaction_reference ?? null,
+                    'payment_date' => $request->payment_date ?? now(),
+                    'payment_method' => $request->payment_method ?? 'cash',
                     'status' => 'confirmed',
-                    'notes' => $paymentNote
+                    'notes' => 'Thanh toán ban đầu'
                 ]);
             }
             
@@ -409,16 +429,13 @@ class EnrollmentController extends Controller
                 'contact_notes' => ($waitingList->contact_notes ?? '') . "\n[" . now()->format('d/m/Y H:i') . "] Đã ghi danh vào khóa học."
             ]);
             
-            DB::commit();
-            
             return redirect()->route('enrollments.show', $enrollment)
                 ->with('success', 'Đã ghi danh học viên từ danh sách chờ thành công!');
                 
         } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
+            return back()
                 ->withInput()
-                ->with('error', 'Có lỗi xảy ra: ' . $e->getMessage());
+                ->withErrors(['error' => 'Không thể ghi danh: ' . $e->getMessage()]);
         }
     }
 }

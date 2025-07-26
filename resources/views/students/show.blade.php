@@ -88,46 +88,6 @@
                     @endif
                 </div>
 
-                <!-- Thông tin nghề nghiệp (nếu có) -->
-                @if($student->current_workplace || $student->accounting_experience_years || $student->education_level || $student->study_major)
-                <hr>
-                <h6 class="mb-3">
-                    <i class="fas fa-briefcase me-2"></i>Thông tin nghề nghiệp
-                </h6>
-                <div class="info-list">
-                    @if($student->current_workplace)
-                    <div class="info-item">
-                        <i class="fas fa-building text-muted"></i>
-                        <span class="label">Nơi công tác:</span>
-                        <span class="value">{{ $student->current_workplace }}</span>
-                    </div>
-                    @endif
-
-                    @if($student->accounting_experience_years)
-                    <div class="info-item">
-                        <i class="fas fa-clock text-muted"></i>
-                        <span class="label">Kinh nghiệm KT:</span>
-                        <span class="value">{{ $student->accounting_experience_years }} năm</span>
-                    </div>
-                    @endif
-
-                    @if($student->education_level)
-                    <div class="info-item">
-                        <i class="fas fa-graduation-cap text-muted"></i>
-                        <span class="label">Bằng cấp:</span>
-                        <span class="value">{{ ucfirst(str_replace('_', ' ', $student->education_level)) }}</span>
-                    </div>
-                    @endif
-
-                    @if($student->study_major)
-                    <div class="info-item">
-                        <i class="fas fa-book text-muted"></i>
-                        <span class="label">Ngành học:</span>
-                        <span class="value">{{ $student->study_major }}</span>
-                    </div>
-                    @endif
-                </div>
-                @endif
 
                 <!-- Actions -->
                 <div class="d-grid gap-2 mt-3">
@@ -200,7 +160,6 @@
                             <thead>
                                 <tr>
                                     <th>Khóa học</th>
-                                    <th>Lớp</th>
                                     <th>Ngày ghi danh</th>
                                     <th>Trạng thái</th>
                                     <th>Học phí</th>
@@ -211,16 +170,9 @@
                                 @foreach($student->enrollments as $enrollment)
                                 <tr>
                                     <td>
-                                        <div class="fw-medium">{{ $enrollment->courseClass->course->name }}</div>
-                                        <small class="text-muted">{{ $enrollment->courseClass->course->major->name }}</small>
+                                        <div class="fw-medium">{{ $enrollment->courseItem->name }}</div>
                                     </td>
-                                    <td>
-                                        <div>{{ $enrollment->courseClass->name }}</div>
-                                        <small class="text-muted">
-                                            {{ $enrollment->courseClass->type == 'online' ? 'Online' : 'Offline' }}
-                                        </small>
-                                    </td>
-                                    <td>{{ $enrollment->enrolled_at->format('d/m/Y') }}</td>
+                                    <td>{{ $enrollment->enrollment_date->format('d/m/Y') }}</td>
                                     <td>
                                         @if($enrollment->status == 'enrolled')
                                             <span class="badge bg-success">Đang học</span>
@@ -232,16 +184,16 @@
                                             <span class="badge bg-secondary">{{ $enrollment->status }}</span>
                                         @endif
 
-                                        @if($enrollment->payment_status == 'paid')
+                                        @if($enrollment->isFullyPaid())
                                             <br><span class="badge bg-success mt-1">Đã TT</span>
-                                        @elseif($enrollment->payment_status == 'partial')
+                                        @elseif($enrollment->getTotalPaidAmount() > 0)
                                             <br><span class="badge bg-warning mt-1">TT 1 phần</span>
                                         @else
                                             <br><span class="badge bg-danger mt-1">Chưa TT</span>
                                         @endif
                                     </td>
                                     <td>
-                                        <div class="fw-medium">{{ number_format($enrollment->total_fee) }}đ</div>
+                                        <div class="fw-medium">{{ number_format($enrollment->final_fee) }}đ</div>
                                         @if($enrollment->discount_amount > 0)
                                             <small class="text-success">
                                                 Giảm: {{ number_format($enrollment->discount_amount) }}đ
@@ -254,7 +206,7 @@
                                                class="btn btn-sm btn-outline-primary" title="Chi tiết">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            @if($enrollment->payment_status != 'paid')
+                                            @if(!$enrollment->isFullyPaid())
                                                 <a href="{{ route('payments.create', ['enrollment_id' => $enrollment->id]) }}" 
                                                    class="btn btn-sm btn-outline-success" title="Thu học phí">
                                                     <i class="fas fa-money-bill"></i>
@@ -309,8 +261,7 @@
                                     <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
                                     <td>
                                         @if($payment->enrollment)
-                                            <div class="fw-medium">{{ $payment->enrollment->courseClass->course->name }}</div>
-                                            <small class="text-muted">{{ $payment->enrollment->courseClass->name }}</small>
+                                            <div class="fw-medium">{{ $payment->enrollment->courseItem->name }}</div>
                                         @else
                                             <span class="text-muted">N/A</span>
                                         @endif
@@ -323,12 +274,12 @@
                                             <span class="badge bg-info">Chuyển khoản</span>
                                         @elseif($payment->payment_method == 'card')
                                             <span class="badge bg-warning">Thẻ</span>
-                                        @elseif($payment->payment_method == 'qr')
+                                        @elseif($payment->payment_method == 'qr_code')
                                             <span class="badge bg-primary">QR Code</span>
                                         @endif
                                     </td>
                                     <td>
-                                        @if($payment->status == 'paid')
+                                        @if($payment->status == 'confirmed')
                                             <span class="badge bg-success">Đã thanh toán</span>
                                         @elseif($payment->status == 'pending')
                                             <span class="badge bg-warning">Chờ xử lý</span>

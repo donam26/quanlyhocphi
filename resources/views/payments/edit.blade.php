@@ -25,7 +25,7 @@
                     <div class="mb-4 p-3 border rounded bg-light">
                         <h6>Thông tin ghi danh</h6>
                         <p><strong>Học viên:</strong> {{ $payment->enrollment->student->full_name }}</p>
-                        <p><strong>Khóa học:</strong> {{ $payment->enrollment->courseClass->course->name }} - Lớp {{ $payment->enrollment->courseClass->name }}</p>
+                        <p><strong>Khóa học:</strong> {{ $payment->enrollment->courseItem->name }}</p>
                         <p><strong>Học phí:</strong> {{ number_format($payment->enrollment->final_fee) }} VNĐ</p>
                     </div>
 
@@ -63,7 +63,7 @@
                             <select name="status" id="status" class="form-select @error('status') is-invalid @enderror" required>
                                 <option value="pending" {{ old('status', $payment->status) == 'pending' ? 'selected' : '' }}>Chờ xác nhận</option>
                                 <option value="confirmed" {{ old('status', $payment->status) == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
-                                <option value="cancelled" {{ old('status', 'cancelled') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                                <option value="cancelled" {{ old('status', $payment->status) == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
                             </select>
                             @error('status')
                                 <div class="invalid-feedback">{{ $message }}</div>

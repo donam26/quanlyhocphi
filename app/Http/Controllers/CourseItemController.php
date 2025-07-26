@@ -336,7 +336,7 @@ class CourseItemController extends Controller
     /**
      * Hiển thị cấu trúc cây khóa học
      */
-    public function tree()
+    public function tree(Request $request)
     {
         // Lấy tất cả các ngành học (cấp 1)
         $rootItems = CourseItem::whereNull('parent_id')
@@ -347,7 +347,14 @@ class CourseItemController extends Controller
                             }])
                             ->get();
         
-        return view('course-items.tree', compact('rootItems'));
+        // Kiểm tra xem có đang xem một tab cụ thể không
+        $currentRootItem = null;
+        $rootId = $request->query('root_id');
+        if ($rootId) {
+            $currentRootItem = $rootItems->where('id', $rootId)->first();
+        }
+        
+        return view('course-items.tree', compact('rootItems', 'currentRootItem'));
     }
 
     /**
@@ -373,7 +380,7 @@ class CourseItemController extends Controller
             $latestPayment = $enrollment->payments->where('status', 'confirmed')->first();
             
             // Xác định trạng thái thanh toán
-            $paymentStatus = $enrollment->getIsFullyPaidAttribute() ? 'Đã đóng đủ' : 'Chưa đóng đủ';
+            $paymentStatus = $enrollment->isFullyPaid() ? 'Đã đóng đủ' : 'Chưa đóng đủ';
             
             // Xác định phương thức thanh toán và người thu
             $paymentMethod = 'Chưa thanh toán';
@@ -413,8 +420,8 @@ class CourseItemController extends Controller
                 'payment_method' => $paymentMethod,
                 'collector' => $collector,
                 'final_fee' => $enrollment->final_fee,
-                'paid_amount' => $enrollment->getPaidAmountAttribute(),
-                'remaining_amount' => $enrollment->getRemainingAmountAttribute(),
+                'paid_amount' => $enrollment->getTotalPaidAmount(),
+                'remaining_amount' => $enrollment->getRemainingAmount(),
                 'payment_notes' => $paymentNotes,
                 'has_notes' => count($paymentNotes) > 0
             ];

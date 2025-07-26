@@ -41,19 +41,11 @@ class Payment extends Model
     }
 
     /**
-     * Lấy lớp học từ quan hệ ghi danh
-     */
-    public function class()
-    {
-        return $this->enrollment->class();
-    }
-
-    /**
-     * Lấy khóa học từ quan hệ lớp học và ghi danh
+     * Lấy khóa học từ quan hệ ghi danh
      */
     public function courseItem()
     {
-        return $this->enrollment->class->courseItem();
+        return $this->enrollment->courseItem();
     }
 
     /**

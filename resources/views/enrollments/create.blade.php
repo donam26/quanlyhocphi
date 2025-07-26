@@ -45,12 +45,13 @@
                         </div>
                         <div class="col-12">
                             <div class="mb-3">
-                                <label for="studentSelect" class="form-label">Chọn học viên (có thể chọn nhiều) <span class="text-danger">*</span></label>
+                                <label for="studentSelect" class="form-label">Chọn học viên <span class="text-danger">*</span></label>
                                 <div class="d-flex gap-2">
-                                    <select name="student_ids[]" id="studentSelect" class="form-select" required multiple="multiple">
+                                    <select name="student_id" id="studentSelect" class="form-select" required>
+                                        <option value="">-- Chọn học viên --</option>
                                         @foreach($students as $s)
                                             <option value="{{ $s->id }}" 
-                                                    {{ (collect(old('student_ids'))->contains($s->id)) ? 'selected' : '' }}>
+                                                    {{ (old('student_id') == $s->id || request('student_id') == $s->id) ? 'selected' : '' }}>
                                                 {{ $s->full_name }} ({{ $s->phone }})
                                             </option>
                                         @endforeach
@@ -76,7 +77,7 @@
                                     @foreach ($courseItems as $class)
                                         <option value="{{ $class->id }}" 
                                             data-fee="{{ $class->fee }}"
-                                            {{ request('course_item_id') == $class->id ? 'selected' : '' }}>
+                                            {{ request('course_item_id') == $class->id || old('course_item_id') == $class->id ? 'selected' : '' }}>
                                             {{ $class->name }}
                                         </option>
                                     @endforeach
@@ -86,7 +87,7 @@
                         <div class="col-md-6">
                             <div class="form-group mb-3">
                                 <label for="enrollment_date" class="form-label">Ngày ghi danh <span class="text-danger">*</span></label>
-                                <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" value="{{ date('Y-m-d') }}" required>
+                                <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" value="{{ old('enrollment_date') ?? date('Y-m-d') }}" required>
                             </div>
                         </div>
                     </div>
@@ -103,6 +104,15 @@
                                 <label for="final_fee" class="form-label">Học phí cuối cùng</label>
                                 <input type="text" id="final_fee_display" class="form-control" readonly>
                                 <input type="hidden" name="final_fee" id="final_fee">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="status" class="form-label">Trạng thái <span class="text-danger">*</span></label>
+                                <select name="status" id="status" class="form-control" required>
+                                    <option value="enrolled" {{ old('status') == 'enrolled' ? 'selected' : '' }}>Đã ghi danh</option>
+                                    <option value="cancelled" {{ old('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -147,12 +157,11 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        // Khởi tạo Select2 cho ô chọn nhiều học viên
+        // Khởi tạo Select2 cho ô chọn học viên
         $('#studentSelect').select2({
             theme: 'bootstrap-5',
             width: '100%',
-            placeholder: 'Gõ để tìm kiếm và chọn học viên...',
-            closeOnSelect: false, // Giữ dropdown mở để chọn nhiều
+            placeholder: 'Gõ để tìm kiếm học viên...',
         });
 
         // Khởi tạo Select2 cho ô chọn lớp học

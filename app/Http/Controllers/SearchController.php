@@ -3,202 +3,172 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
-use App\Models\Course;
+use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\WaitingList;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
 {
     /**
-     * Trang tìm kiếm chính
+     * Hiển thị trang tìm kiếm
      */
     public function index()
     {
-        $majors = \App\Models\Major::all();
-        return view('search.index', compact('majors'));
+        return view('search.index');
     }
-
+    
     /**
-     * Tìm kiếm học viên theo SĐT hoặc họ tên
+     * Xử lý tìm kiếm và hiển thị kết quả
      */
-    public function searchStudents(Request $request)
+    public function search(Request $request)
     {
+        // Validate dữ liệu
         $request->validate([
-            'term' => 'required|string|min:2'
+            'term' => 'required|min:2',
         ]);
-
-        $term = $request->term;
         
-        $students = Student::search($term)
-                          ->with([
-                              'enrollments.courseClass.course',
-                              'enrollments.payments',
-                              'waitingLists.course'
-                          ])
-                          ->get();
-
-        return view('search.results', compact('students', 'term'));
-    }
-
-    /**
-     * API tìm kiếm học viên cho autocomplete
-     */
-    public function apiSearchStudents(Request $request)
-    {
-        $term = $request->get('q', '');
+        $term = $request->input('term');
         
-        if (strlen($term) < 2) {
-            return response()->json([]);
-        }
-
+        // Tìm kiếm học viên theo tên hoặc số điện thoại
         $students = Student::search($term)
-                          ->with(['enrollments.courseClass.course', 'waitingLists.course'])
-                          ->limit(10)
-                          ->get();
-
-        return response()->json($students->map(function($student) {
-            return [
-                'id' => $student->id,
-                'text' => $student->full_name . ' - ' . $student->phone,
-                'full_name' => $student->full_name,
-                'phone' => $student->phone,
-                'email' => $student->email,
-                'status' => $student->status,
-                'current_classes' => $student->enrollments->where('status', 'enrolled')->map(function($enrollment) {
-                    return [
-                        'id' => $enrollment->courseClass->id,
-                        'name' => $enrollment->courseClass->name,
-                        'course' => $enrollment->courseClass->course->name,
-                        'payment_status' => $enrollment->hasFullyPaid() ? 'paid' : 'unpaid',
-                        'remaining_amount' => $enrollment->getRemainingAmount()
-                    ];
-                })->values(),
-                'waiting_courses' => $student->waitingLists->where('status', 'waiting')->map(function($waiting) {
-                    return [
-                        'id' => $waiting->course->id,
-                        'name' => $waiting->course->name,
-                        'interest_level' => $waiting->interest_level,
-                        'added_date' => $waiting->added_date->format('d/m/Y')
-                    ];
-                })->values(),
-                'history' => $this->getStudentHistory($student)
-            ];
-        }));
-    }
-
-    /**
-     * Lấy lịch sử học viên (đã hoàn thành hoặc đã bỏ học)
-     */
-    private function getStudentHistory($student)
-    {
-        $completedEnrollments = $student->enrollments()
-                                       ->whereIn('status', ['completed', 'dropped'])
-                                       ->with('courseClass.course')
-                                       ->get();
-
-        $previousWaitingLists = $student->waitingLists()
-                                       ->whereIn('status', ['enrolled', 'not_interested'])
-                                       ->with('course')
-                                       ->get();
-
-        return [
-            'completed_courses' => $completedEnrollments->map(function($enrollment) {
-                return [
-                    'course_name' => $enrollment->courseClass->course->name,
-                    'class_name' => $enrollment->courseClass->name,
-                    'status' => $enrollment->status,
-                    'enrollment_date' => $enrollment->enrollment_date->format('d/m/Y')
+            ->with(['enrollments' => function($query) {
+                $query->with(['courseItem', 'payments' => function($query) {
+                    $query->where('status', 'confirmed')->orderBy('payment_date', 'desc');
+                }]);
+            }])
+            ->paginate(10);
+            
+        // Lấy thông tin chi tiết của mỗi học viên
+        $studentsDetails = [];
+        foreach ($students as $student) {
+            $enrollmentsData = [];
+            
+            foreach ($student->enrollments as $enrollment) {
+                // Bỏ qua các ghi danh đã hủy
+                if ($enrollment->status === 'cancelled') {
+                    continue;
+                }
+                
+                $totalPaid = $enrollment->getTotalPaidAmount();
+                $remainingAmount = $enrollment->getRemainingAmount();
+                $paymentStatus = $enrollment->isFullyPaid() ? 'Đã thanh toán đủ' : 'Còn thiếu';
+                
+                // Lấy thông tin thanh toán gần nhất
+                $latestPayment = $enrollment->payments->first();
+                $paymentMethod = $latestPayment ? $this->getPaymentMethodText($latestPayment->payment_method) : 'Chưa thanh toán';
+                
+                $enrollmentsData[] = [
+                    'id' => $enrollment->id,
+                    'course_item' => $enrollment->courseItem,
+                    'enrollment_date' => $enrollment->enrollment_date->format('d/m/Y'),
+                    'status' => $this->getEnrollmentStatusText($enrollment->status),
+                    'final_fee' => $enrollment->final_fee,
+                    'total_paid' => $totalPaid,
+                    'remaining_amount' => $remainingAmount,
+                    'payment_status' => $paymentStatus,
+                    'payment_method' => $paymentMethod,
+                    'payments' => $enrollment->payments
                 ];
-            }),
-            'previous_interests' => $previousWaitingLists->map(function($waiting) {
-                return [
-                    'course_name' => $waiting->course->name,
-                    'status' => $waiting->status,
-                    'added_date' => $waiting->added_date->format('d/m/Y')
-                ];
-            })
-        ];
-    }
-
-    /**
-     * Tìm kiếm nâng cao
-     */
-    public function advancedSearch(Request $request)
-    {
-        $query = Student::query();
-
-        // Tìm theo tên
-        if ($request->filled('name')) {
-            $query->where('full_name', 'like', '%' . $request->name . '%');
-        }
-
-        // Tìm theo SĐT
-        if ($request->filled('phone')) {
-            $query->where('phone', 'like', '%' . $request->phone . '%');
-        }
-
-        // Tìm theo CCCD
-        if ($request->filled('citizen_id')) {
-            $query->where('citizen_id', 'like', '%' . $request->citizen_id . '%');
-        }
-
-        // Lọc theo trạng thái
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        // Lọc theo khóa học đang theo học
-        if ($request->filled('current_course')) {
-            $query->whereHas('enrollments', function($q) use ($request) {
-                $q->where('status', 'enrolled')
-                  ->whereHas('courseClass', function($q2) use ($request) {
-                      $q2->where('course_id', $request->current_course);
-                  });
-            });
-        }
-
-        // Lọc theo khóa học quan tâm
-        if ($request->filled('interested_course')) {
-            $query->whereHas('waitingLists', function($q) use ($request) {
-                $q->where('status', 'waiting')
-                  ->where('course_id', $request->interested_course);
-            });
-        }
-
-        // Lọc theo trạng thái thanh toán
-        if ($request->filled('payment_status')) {
-            if ($request->payment_status === 'unpaid') {
-                $query->whereHas('enrollments', function($q) {
-                    $q->where('status', 'enrolled')
-                      ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enrollment_id = enrollments.id AND status = "confirmed") < final_fee');
-                });
-            } elseif ($request->payment_status === 'paid') {
-                $query->whereHas('enrollments', function($q) {
-                    $q->where('status', 'enrolled')
-                      ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enrollment_id = enrollments.id AND status = "confirmed") >= final_fee');
-                });
             }
+            
+            // Lấy danh sách chờ của học viên
+            $waitingLists = WaitingList::where('student_id', $student->id)
+                ->with('courseItem')
+                ->where('status', 'waiting')
+                ->get();
+                
+            $waitingListData = [];
+            foreach ($waitingLists as $waitingList) {
+                $waitingListData[] = [
+                    'id' => $waitingList->id,
+                    'course_item' => $waitingList->courseItem,
+                    'registration_date' => $waitingList->registration_date->format('d/m/Y'),
+                    'status' => $waitingList->status,
+                    'notes' => $waitingList->notes
+                ];
+            }
+            
+            $studentsDetails[] = [
+                'student' => $student,
+                'enrollments' => $enrollmentsData,
+                'waiting_lists' => $waitingListData,
+                'total_courses' => count($enrollmentsData),
+                'total_paid' => $student->getTotalPaidAmount(),
+                'total_fee' => $student->getTotalFeeAmount(),
+                'remaining' => $student->getRemainingAmount()
+            ];
         }
-
-        $students = $query->with([
-                            'enrollments.courseClass.course',
-                            'enrollments.payments',
-                            'waitingLists.course'
-                         ])
-                         ->paginate(20);
-
-        $courses = Course::all();
-
-        return view('search.advanced', compact('students', 'courses'));
+        
+        return view('search.index', [
+            'searchTerm' => $term,
+            'studentsDetails' => $studentsDetails,
+            'students' => $students
+        ]);
     }
-
+    
     /**
-     * Xuất kết quả tìm kiếm ra Excel
+     * Hiển thị lịch sử của học viên
      */
-    public function exportSearch(Request $request)
+    public function studentHistory($studentId)
     {
-        // Logic xuất Excel sẽ được implement sau
-        return response()->json(['message' => 'Chức năng xuất Excel đang được phát triển']);
+        $student = Student::with(['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem'])->findOrFail($studentId);
+        
+        // Lấy lịch sử thanh toán
+        $payments = Payment::whereHas('enrollment', function($query) use ($studentId) {
+                $query->where('student_id', $studentId);
+            })
+            ->with(['enrollment.courseItem'])
+            ->orderBy('payment_date', 'desc')
+            ->get();
+        
+        // Lấy lịch sử điểm danh
+        $attendances = $student->attendances()
+            ->with(['courseItem'])
+            ->orderBy('attendance_date', 'desc')
+            ->get();
+            
+        return view('search.student-history', [
+            'student' => $student,
+            'payments' => $payments,
+            'attendances' => $attendances
+        ]);
+    }
+    
+    /**
+     * Lấy tên trạng thái ghi danh
+     */
+    private function getEnrollmentStatusText($status)
+    {
+        switch ($status) {
+            case 'enrolled':
+                return 'Đang học';
+            case 'completed':
+                return 'Đã hoàn thành';
+            case 'on_hold':
+                return 'Tạm dừng';
+            case 'cancelled':
+                return 'Đã hủy';
+            default:
+                return $status;
+        }
+    }
+    
+    /**
+     * Lấy tên phương thức thanh toán
+     */
+    private function getPaymentMethodText($method)
+    {
+        switch ($method) {
+            case 'cash':
+                return 'Tiền mặt';
+            case 'bank_transfer':
+                return 'Chuyển khoản';
+            case 'sepay':
+                return 'SEPAY';
+            default:
+                return $method;
+        }
     }
 }

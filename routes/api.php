@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\CourseItemController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\Api\SearchController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -12,6 +13,13 @@ Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
 Route::get('/healthy', function () {
     return response()->json(['message' => 'API is running']);
 });
+
+// API tìm kiếm học viên (không yêu cầu xác thực)
+Route::get('/search/autocomplete', [SearchController::class, 'autocomplete'])->name('api.search.autocomplete');
+
+// API học viên
+Route::get('/students/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getInfo']);
+Route::get('/enrollments/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getEnrollmentInfo']);
 
 // API cho cấu trúc cây khóa học mới
 Route::get('/course-items', [CourseItemController::class, 'index']);

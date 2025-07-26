@@ -52,22 +52,20 @@
                     <thead>
                         <tr>
                             <th>Khóa học</th>
-                            <th>Lớp</th>
                             <th>Phương thức</th>
                             <th class="text-end">Số tiền</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr>
-                            <td>{{ $payment->enrollment->courseClass->course->name }}</td>
-                            <td>{{ $payment->enrollment->courseClass->name }}</td>
+                            <td>{{ $payment->enrollment->courseItem->name }}</td>
                             <td>{{ $payment->payment_method }}</td>
                             <td class="text-end">{{ number_format($payment->amount) }} VNĐ</td>
                         </tr>
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td colspan="3" class="text-end fw-bold">Tổng cộng</td>
+                            <td colspan="2" class="text-end fw-bold">Tổng cộng</td>
                             <td class="text-end fw-bold">{{ number_format($payment->amount) }} VNĐ</td>
                         </tr>
                     </tfoot>

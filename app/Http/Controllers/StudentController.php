@@ -60,8 +60,6 @@ class StudentController extends Controller
             'address' => 'nullable|string',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
-            'education_level' => 'nullable|in:trung_cap,cao_dang,dai_hoc,thac_si,vb2',
-            'major_studied' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
         ]);
 
@@ -77,12 +75,12 @@ class StudentController extends Controller
     public function show(Student $student)
     {
         $student->load([
-            'enrollments.courseClass.course',
+            'enrollments.courseItem',
             'enrollments.payments',
             'waitingLists.course',
             'attendances'
         ]);
-
+        
         return view('students.show', compact('student'));
     }
 
@@ -107,8 +105,6 @@ class StudentController extends Controller
             'address' => 'nullable|string',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
-            'education_level' => 'nullable|in:trung_cap,cao_dang,dai_hoc,thac_si,vb2',
-            'major_studied' => 'nullable|string|max:255',
             'status' => 'required|in:active,inactive,potential',
             'notes' => 'nullable|string',
         ]);

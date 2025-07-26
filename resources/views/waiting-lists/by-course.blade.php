@@ -272,6 +272,8 @@
                 <form id="bulk-action-form" action="{{ route('enrollments.move-to-waiting') }}" method="POST" class="d-inline">
                     @csrf
                     <input type="hidden" id="selected-ids" name="selected_ids">
+                    <input type="hidden" id="enrollment_id" name="enrollment_id" value="">
+                    <input type="hidden" id="reason" name="reason" value="Chuyển từ ghi danh sang danh sách chờ">
                     <button type="button" class="btn btn-sm btn-success" id="bulk-enroll-btn" disabled>
                         <i class="fas fa-user-plus me-1"></i>Ghi danh học viên đã chọn
                     </button>
@@ -360,7 +362,7 @@
                                                 </button>
                                             </form>
                                             <a href="{{ route('enrollments.from-waiting-list', $waitingList->id) }}" class="btn btn-sm btn-success" title="Ghi danh vào khóa học">
-                                                <i class="fas fa-user-plus"></i>
+                                                    <i class="fas fa-user-plus"></i>
                                             </a>
                                         </div>
                                     </td>

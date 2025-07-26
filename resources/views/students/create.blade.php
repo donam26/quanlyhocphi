@@ -116,21 +116,6 @@
                         </div>
                         
                         <div class="col-md-6">
-                            <label class="form-label">Bằng cấp</label>
-                            <select name="education_level" class="form-select @error('education_level') is-invalid @enderror">
-                                <option value="">Chọn bằng cấp</option>
-                                <option value="trung_cap" {{ old('education_level') == 'trung_cap' ? 'selected' : '' }}>Trung cấp</option>
-                                <option value="cao_dang" {{ old('education_level') == 'cao_dang' ? 'selected' : '' }}>Cao đẳng</option>
-                                <option value="dai_hoc" {{ old('education_level') == 'dai_hoc' ? 'selected' : '' }}>Đại học</option>
-                                <option value="thac_si" {{ old('education_level') == 'thac_si' ? 'selected' : '' }}>Thạc sĩ</option>
-                                <option value="vb2" {{ old('education_level') == 'vb2' ? 'selected' : '' }}>VB2</option>
-                            </select>
-                            @error('education_level')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-                        
-                        <div class="col-md-6">
                             <label class="form-label">Ngành học</label>
                             <input type="text" name="major_studied" class="form-control @error('major_studied') is-invalid @enderror" 
                                    value="{{ old('major_studied') }}">

@@ -14,7 +14,7 @@
                     <div class="text-center mb-4">
                         <p>Xin chào <strong>{{ $payment->enrollment->student->full_name }}</strong>,</p>
                         <p>Vui lòng quét mã QR dưới đây để hoàn tất thanh toán cho khóa học:</p>
-                        <h5 class="text-info">{{ $payment->enrollment->courseClass->course->name }}</h5>
+                        <h5 class="text-info">{{ $payment->enrollment->courseItem->name }}</h5>
                     </div>
 
                     <ul class="list-group list-group-flush mb-4">

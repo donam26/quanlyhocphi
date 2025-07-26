@@ -99,6 +99,16 @@
 
                     <div class="col-md-6">
                         <div class="form-group">
+                            <label for="status">Trạng thái <span class="text-danger">*</span></label>
+                            <select class="form-control" id="status" name="status" required>
+                                <option value="enrolled" selected>Đã ghi danh</option>
+                                <option value="cancelled">Đã hủy</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="form-group">
                             <label for="discount_type">Loại chiết khấu</label>
                             <select class="form-control" id="discount_type" name="discount_type">
                                 <option value="none">Không có chiết khấu</option>
@@ -323,8 +333,13 @@
         $('#has_payment').change(function() {
             if ($(this).is(':checked')) {
                 $('#payment_fields').removeClass('d-none');
+                // Đặt lại giá trị mặc định cho initial_payment bằng với học phí cuối cùng
+                const finalFee = parseFloat($('input[name="final_fee"]').val()) || 0;
+                $('#initial_payment').val(finalFee);
             } else {
                 $('#payment_fields').addClass('d-none');
+                // Xóa giá trị initial_payment để tránh gửi dữ liệu khi không chọn tạo thanh toán
+                $('#initial_payment').val('');
             }
         });
         

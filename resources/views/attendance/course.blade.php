@@ -150,7 +150,7 @@
                                         <td>{{ $index + 1 }}</td>
                                         <td>
                                             <input type="hidden" name="attendances[{{ $index }}][enrollment_id]" value="{{ $enrollment->id }}">
-                                            <strong>{{ $enrollment->student->name }}</strong>
+                                            <strong>{{ $enrollment->student->full_name }}</strong>
                                             <br>
                                             <small class="text-muted">{{ $enrollment->student->phone }}</small>
                                         </td>
@@ -158,12 +158,20 @@
                                             <span class="badge bg-info">{{ $enrollment->courseItem->name }}</span>
                                         </td>
                                         <td>
-                                            <select name="attendances[{{ $index }}][status]" class="form-select attendance-status">
-                                                <option value="present" {{ $status === 'present' ? 'selected' : '' }}>Có mặt</option>
-                                                <option value="absent" {{ $status === 'absent' ? 'selected' : '' }}>Vắng mặt</option>
-                                                <option value="late" {{ $status === 'late' ? 'selected' : '' }}>Đi muộn</option>
-                                                <option value="excused" {{ $status === 'excused' ? 'selected' : '' }}>Có phép</option>
-                                            </select>
+                                            <div class="form-check">
+                                                <input class="form-check-input attendance-checkbox" type="checkbox" 
+                                                    id="attendance-{{ $index }}" 
+                                                    name="attendances[{{ $index }}][status]" 
+                                                    value="present" 
+                                                    {{ $status === 'present' ? 'checked' : '' }}
+                                                    data-index="{{ $index }}">
+                                                <label class="form-check-label" for="attendance-{{ $index }}">
+                                                    <span class="attendance-status-text {{ $status === 'present' ? 'text-success' : 'text-danger' }}">
+                                                        {{ $status === 'present' ? 'Có mặt' : 'Vắng mặt' }}
+                                                    </span>
+                                                </label>
+                                                <input type="hidden" name="attendances[{{ $index }}][status]" value="{{ $status }}" class="attendance-status-input">
+                                            </div>
                                         </td>
                                         <td>
                                             <input type="text" name="attendances[{{ $index }}][notes]" class="form-control" placeholder="Ghi chú" value="{{ $notes }}">
@@ -203,14 +211,30 @@
 @push('scripts')
 <script>
     $(document).ready(function() {
+        // Xử lý khi nhấp vào checkbox điểm danh
+        $('.attendance-checkbox').change(function() {
+            const index = $(this).data('index');
+            const isChecked = $(this).prop('checked');
+            
+            // Cập nhật giá trị status input
+            const statusInput = $(this).closest('td').find('.attendance-status-input');
+            statusInput.val(isChecked ? 'present' : 'absent');
+            
+            // Cập nhật text hiển thị
+            const statusText = $(this).closest('td').find('.attendance-status-text');
+            statusText.text(isChecked ? 'Có mặt' : 'Vắng mặt');
+            statusText.removeClass('text-success text-danger');
+            statusText.addClass(isChecked ? 'text-success' : 'text-danger');
+        });
+        
         // Đánh dấu tất cả có mặt
         $('#markAllPresent').click(function() {
-            $('.attendance-status').val('present');
+            $('.attendance-checkbox').prop('checked', true).trigger('change');
         });
         
         // Đánh dấu tất cả vắng mặt
         $('#markAllAbsent').click(function() {
-            $('.attendance-status').val('absent');
+            $('.attendance-checkbox').prop('checked', false).trigger('change');
         });
     });
 </script>
