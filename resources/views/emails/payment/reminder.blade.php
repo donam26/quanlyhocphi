@@ -1,23 +1,25 @@
-<x-mail::message>
-# Thông báo nhắc nhở thanh toán học phí
+@component('mail::message')
+# Nhắc nhở thanh toán học phí
 
-Xin chào **{{ $payment->enrollment->student->full_name }}**,
+**Kính gửi: {{ $student->full_name }}**
 
-Hệ thống ghi nhận bạn có một khoản thanh toán học phí chưa hoàn tất cho khóa học **{{ $payment->enrollment->courseItem->name }}**.
+Chúng tôi gửi email này để nhắc nhở bạn về khoản học phí còn thiếu cho khóa học **{{ $courseItem->name }}**.
 
-**Chi tiết thanh toán:**
-- **Số tiền:** {{ number_format($payment->amount, 0, ',', '.') }} VND
-- **Mã thanh toán:** {{ config('sepay.pattern') . $payment->id }}
-- **Hạn thanh toán:** (Bạn có thể thêm thông tin hạn nếu có)
+Chi tiết:
+- Học viên: {{ $student->full_name }}
+- Khóa học: {{ $courseItem->name }}
+- Số tiền còn phải thanh toán: {{ number_format($amount) }} VNĐ
 
-Để hoàn tất thanh toán, vui lòng nhấn vào nút bên dưới để tới trang thanh toán an toàn của chúng tôi.
+Bạn có thể thanh toán bằng cách quét mã QR hoặc chuyển khoản theo thông tin bên dưới.
 
-<x-mail::button :url="$paymentUrl">
-Thanh toán ngay
-</x-mail::button>
+@component('mail::button', ['url' => $payment_url])
+Quét mã QR để thanh toán ngay
+@endcomponent
 
-Nếu bạn đã thanh toán, vui lòng bỏ qua email này. Nếu có bất kỳ thắc mắc nào, xin đừng ngần ngại liên hệ với chúng tôi.
+Nếu bạn đã thanh toán, vui lòng bỏ qua email này.
+
+Cảm ơn bạn!
 
 Trân trọng,<br>
 {{ config('app.name') }}
-</x-mail::message>
+@endcomponent

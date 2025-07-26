@@ -15,22 +15,33 @@ use App\Models\CourseItem; // Added this import
 class PaymentController extends Controller
 {
     /**
+     * Khởi tạo controller
+     */
+    public function __construct()
+    {
+        // Trang thanh toán trực tiếp không yêu cầu đăng nhập
+        $this->middleware('auth')->except(['showDirectPaymentGateway']);
+    }
+
+    /**
      * Hiển thị danh sách thanh toán
      */
     public function index(Request $request)
     {
         $query = Payment::with(['enrollment.student', 'enrollment.courseItem']);
 
+        // Chỉ hiển thị các thanh toán đã xác nhận, trừ khi có yêu cầu lọc cụ thể
+        if (!$request->filled('status')) {
+            $query->where('status', 'confirmed');
+        } else {
+            $query->where('status', $request->status);
+        }
+
         // Lọc theo học viên
         if ($request->filled('student_id')) {
             $query->whereHas('enrollment', function($q) use ($request) {
                 $q->where('student_id', $request->student_id);
             });
-        }
-
-        // Lọc theo trạng thái
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
         }
 
         // Lọc theo phương thức thanh toán
@@ -86,6 +97,7 @@ class PaymentController extends Controller
             'payment_date' => 'required|date',
             'payment_method' => 'required|in:cash,bank_transfer,other',
             'notes' => 'nullable|string',
+            'status' => 'required|in:pending,confirmed',
         ]);
 
         $enrollment = Enrollment::findOrFail($validatedData['enrollment_id']);
@@ -101,12 +113,23 @@ class PaymentController extends Controller
             'amount' => $validatedData['amount'],
             'payment_date' => $validatedData['payment_date'],
             'payment_method' => $validatedData['payment_method'],
-            'notes' => $validatedData['notes'],
-            'status' => 'confirmed', // Tự động xác nhận thanh toán mới
+            'status' => $validatedData['status'] ?? 'pending', // Sử dụng trạng thái từ form hoặc mặc định 'pending'
+            'notes' => $validatedData['notes']
         ]);
 
+        $successMessage = 'Đã tạo thanh toán thành công!';
+        $infoMessage = null;
+
+        // Thêm thông báo hướng dẫn theo trạng thái
+        if ($payment->status === 'pending') {
+            $infoMessage = 'Thanh toán đang ở trạng thái chờ xác nhận. Học viên cần thanh toán qua mã QR hoặc bạn cần xác nhận khi nhận được tiền.';
+            return redirect()->route('payment.gateway.show', $payment)
+                ->with('success', $successMessage)
+                ->with('info', $infoMessage);
+        }
+
         return redirect()->route('payments.show', $payment)
-                        ->with('success', 'Ghi nhận thanh toán thành công!');
+            ->with('success', $successMessage);
     }
 
     /**
@@ -288,6 +311,149 @@ class PaymentController extends Controller
         }
 
         return redirect()->back()->with('success', $message);
+    }
+    
+    /**
+     * Gửi email nhắc nhở trực tiếp từ enrollment (không cần payment_id)
+     */
+    public function sendDirectReminder(Request $request)
+    {
+        $request->validate([
+            'enrollment_ids' => 'required|array|min:1',
+            'enrollment_ids.*' => 'exists:enrollments,id'
+        ]);
+        
+        $enrollmentIds = $request->enrollment_ids;
+        $sentCount = 0;
+        $errors = [];
+        
+        foreach($enrollmentIds as $enrollmentId) {
+            try {
+                $enrollment = Enrollment::with('student', 'courseItem')->find($enrollmentId);
+                
+                // Chỉ gửi nếu có email và học phí còn thiếu
+                if ($enrollment && $enrollment->student->email && $enrollment->getRemainingAmount() > 0) {
+                    // Tạo dữ liệu tạm thời cho email (không lưu vào DB)
+                    $tempPaymentData = [
+                        'enrollment' => $enrollment,
+                        'amount' => $enrollment->getRemainingAmount(),
+                        'id' => 'temp_' . $enrollmentId . '_' . time(),
+                    ];
+                    
+                    Mail::to($enrollment->student->email)->send(new PaymentReminderMail((object)$tempPaymentData));
+                    $sentCount++;
+                }
+            } catch (\Exception $e) {
+                $errors[] = "Lỗi khi gửi email cho ghi danh ID: {$enrollmentId}. " . $e->getMessage();
+                Log::error("Send Direct Reminder Error for Enrollment ID {$enrollmentId}: " . $e->getMessage());
+            }
+        }
+        
+        $message = "Đã gửi thành công {$sentCount} email nhắc nhở.";
+        if (!empty($errors)) {
+            return redirect()->back()->with('success', $message)->withErrors($errors);
+        }
+        
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Gửi email nhắc nhở cho cả payment_ids và enrollment_ids
+     */
+    public function sendCombinedReminder(Request $request)
+    {
+        $validated = $request->validate([
+            'payment_ids' => 'nullable|array',
+            'payment_ids.*' => 'exists:payments,id',
+            'enrollment_ids' => 'nullable|array',
+            'enrollment_ids.*' => 'exists:enrollments,id',
+        ]);
+        
+        $paymentIds = $request->payment_ids ?? [];
+        $enrollmentIds = $request->enrollment_ids ?? [];
+        
+        $sentCount = 0;
+        $errors = [];
+        
+        // Xử lý payment_ids
+        if (!empty($paymentIds)) {
+            foreach($paymentIds as $paymentId) {
+                try {
+                    $payment = Payment::with('enrollment.student')->find($paymentId);
+                    
+                    // Chỉ gửi nếu có email và khoản thanh toán chưa được xác nhận
+                    if ($payment && $payment->enrollment->student->email && $payment->status !== 'confirmed') {
+                        Mail::to($payment->enrollment->student->email)->send(new PaymentReminderMail($payment));
+                        $sentCount++;
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Lỗi khi gửi email cho thanh toán ID: {$paymentId}. " . $e->getMessage();
+                    Log::error("Send Combined Reminder Error for Payment ID {$paymentId}: " . $e->getMessage());
+                }
+            }
+        }
+        
+        // Xử lý enrollment_ids
+        if (!empty($enrollmentIds)) {
+            foreach($enrollmentIds as $enrollmentId) {
+                try {
+                    $enrollment = Enrollment::with('student', 'courseItem')->find($enrollmentId);
+                    
+                    // Chỉ gửi nếu có email và học phí còn thiếu
+                    if ($enrollment && $enrollment->student->email && $enrollment->getRemainingAmount() > 0) {
+                        // Tạo dữ liệu tạm thời cho email (không lưu vào DB)
+                        $tempPaymentData = [
+                            'enrollment' => $enrollment,
+                            'amount' => $enrollment->getRemainingAmount(),
+                            'id' => 'temp_' . $enrollmentId . '_' . time(),
+                        ];
+                        
+                        Mail::to($enrollment->student->email)->send(new PaymentReminderMail((object)$tempPaymentData));
+                        $sentCount++;
+                    }
+                } catch (\Exception $e) {
+                    $errors[] = "Lỗi khi gửi email cho ghi danh ID: {$enrollmentId}. " . $e->getMessage();
+                    Log::error("Send Combined Reminder Error for Enrollment ID {$enrollmentId}: " . $e->getMessage());
+                }
+            }
+        }
+        
+        $message = "Đã gửi thành công {$sentCount} email nhắc nhở.";
+        if (!empty($errors)) {
+            return redirect()->back()->with('success', $message)->withErrors($errors);
+        }
+        
+        return redirect()->back()->with('success', $message);
+    }
+
+    /**
+     * Hiển thị trang thanh toán QR mà không cần payment_id
+     */
+    public function showDirectPaymentGateway(Request $request, Enrollment $enrollment)
+    {
+        // Kiểm tra xem học viên có còn nợ học phí không
+        $remainingAmount = $enrollment->getRemainingAmount();
+        if ($remainingAmount <= 0) {
+            return redirect()->route('enrollments.show', $enrollment)
+                ->with('info', 'Học viên đã thanh toán đủ học phí.');
+        }
+        
+        // Lấy thông tin học viên và khóa học
+        $enrollment->load('student', 'courseItem');
+        
+        // Tạo dữ liệu tạm thời cho trang thanh toán (không lưu vào DB)
+        $tempPayment = [
+            'id' => 'direct_' . $enrollment->id . '_' . time(),
+            'enrollment' => $enrollment,
+            'amount' => $remainingAmount,
+            'status' => 'pending',
+            'created_at' => now(),
+        ];
+        
+        return view('payments.gateway.direct', [
+            'payment' => (object)$tempPayment,
+            'enrollment' => $enrollment
+        ]);
     }
 
     /**

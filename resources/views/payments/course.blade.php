@@ -268,7 +268,6 @@
             </div>
             <form id="editFeeForm" action="{{ route('enrollments.update-fee') }}" method="POST">
                 @csrf
-                @method('PUT')
                 <div class="modal-body">
                     <input type="hidden" id="enrollment_id" name="enrollment_id">
                     
@@ -361,6 +360,46 @@
         // Show modal
         new bootstrap.Modal(document.getElementById('editFeeModal')).show();
     }
+    
+    // Xử lý form submit bằng AJAX
+    document.getElementById('editFeeForm').addEventListener('submit', function(e) {
+        e.preventDefault(); // Ngăn không cho form chuyển trang
+        
+        // Lấy CSRF token từ meta tag
+        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+        
+        // Tạo FormData từ form
+        const formData = new FormData(this);
+        const url = this.getAttribute('action');
+        
+        // Gọi API
+        fetch(url, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRF-TOKEN': token,
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
+            credentials: 'same-origin'
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Lỗi khi cập nhật học phí');
+            }
+            return response.json();
+        })
+        .then(data => {
+            // Ẩn modal
+            bootstrap.Modal.getInstance(document.getElementById('editFeeModal')).hide();
+            
+            // Làm mới trang để hiển thị dữ liệu mới
+            location.reload();
+        })
+        .catch(error => {
+            alert('Lỗi: ' + error.message);
+        });
+    });
     
     document.getElementById('discount_type').addEventListener('change', function() {
         const discountType = this.value;

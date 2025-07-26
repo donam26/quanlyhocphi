@@ -58,7 +58,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // Enrollments
     Route::resource('enrollments', EnrollmentController::class);
-    Route::put('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])->name('enrollments.update-fee');
+    Route::post('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])->name('enrollments.update-fee');
     Route::post('enrollments/{enrollment}/confirm', [EnrollmentController::class, 'confirm'])->name('enrollments.confirm');
     Route::delete('enrollments/{enrollment}/cancel', [EnrollmentController::class, 'cancel'])->name('enrollments.cancel');
     Route::get('enrollments/waiting-list/{waitingList}', [EnrollmentController::class, 'createFromWaitingList'])->name('enrollments.from-waiting-list');
@@ -84,15 +84,36 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('attendance/export/report', [AttendanceController::class, 'exportReport'])->name('attendance.export');
 
     // Payments
-    Route::resource('payments', PaymentController::class);
-    Route::get('course-items/{courseItem}/payments', [PaymentController::class, 'coursePayments'])->name('payments.by-course');
-    Route::post('payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
-    Route::post('payments/{payment}/reject', [PaymentController::class, 'reject'])->name('payments.reject');
-    Route::get('payments/quick/{enrollment}', [PaymentController::class, 'quickPayment'])->name('payments.quick');
-    Route::get('payments/pending/list', [PaymentController::class, 'pendingPayments'])->name('payments.pending');
-    Route::get('payments/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('payments.bulk-receipt');
-    Route::post('payments/bulk-action', [PaymentController::class, 'bulkAction'])->name('payments.bulk-action');
-    Route::get('payments/{payment}/receipt', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
+    Route::prefix('payments')->name('payments.')->group(function () {
+        Route::get('/', [PaymentController::class, 'index'])->name('index');
+        Route::get('/create', [PaymentController::class, 'create'])->name('create');
+        Route::post('/', [PaymentController::class, 'store'])->name('store');
+        Route::get('/{payment}', [PaymentController::class, 'show'])->name('show');
+        Route::get('/{payment}/edit', [PaymentController::class, 'edit'])->name('edit');
+        Route::put('/{payment}', [PaymentController::class, 'update'])->name('update');
+        Route::delete('/{payment}', [PaymentController::class, 'destroy'])->name('destroy');
+        Route::post('/send-reminder', [PaymentController::class, 'sendReminder'])->name('send-reminder');
+        Route::post('/direct-reminder', [PaymentController::class, 'sendDirectReminder'])->name('send-direct-reminder');
+        Route::post('/combined-reminder', [PaymentController::class, 'sendCombinedReminder'])->name('send-combined-reminder');
+        Route::get('/receipt/{payment}', [PaymentController::class, 'generateReceipt'])->name('receipt');
+        Route::get('/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('bulk-receipt');
+        Route::post('/quick', [PaymentController::class, 'quickPayment'])->name('quick');
+        Route::get('/monthly-report', [PaymentController::class, 'monthlyReport'])->name('monthly-report');
+        Route::post('/bulk-action', [PaymentController::class, 'bulkAction'])->name('bulk-action');
+        Route::get('/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('course');
+        Route::post('/confirm/{payment}', [PaymentController::class, 'confirmPayment'])->name('confirm');
+        Route::post('/refund/{payment}', [PaymentController::class, 'refundPayment'])->name('refund');
+    });
+
+    // Payment Gateway
+    Route::prefix('payment-gateway')->name('payment.gateway.')->group(function () {
+        Route::get('/{payment}', [PaymentGatewayController::class, 'show'])->name('show');
+        Route::get('/direct/{enrollment}', [PaymentController::class, 'showDirectPaymentGateway'])->name('direct');
+        Route::get('/status/{payment}', [PaymentGatewayController::class, 'checkPaymentStatus'])->name('status');
+        Route::get('/check-direct', [PaymentGatewayController::class, 'checkDirectPaymentStatus'])->name('check-direct');
+        Route::post('/process', [PaymentGatewayController::class, 'process'])->name('process');
+        Route::post('/webhook', [PaymentGatewayController::class, 'webhook'])->name('webhook');
+    });
 
     // Search
     Route::get('search', [SearchController::class, 'index'])->name('search.index');
@@ -111,15 +132,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('reports/revenue/export', [ReportController::class, 'exportRevenueReport'])->name('reports.revenue.export');
     Route::get('reports/payments/export', [ReportController::class, 'exportPaymentReport'])->name('reports.payments.export');
     Route::get('reports/attendance/export', [ReportController::class, 'exportAttendanceReport'])->name('reports.attendance.export');
-
-    // Send payment reminder
-    Route::post('payments/send-reminder', [PaymentController::class, 'sendReminder'])->name('payments.send-reminder');
-
-    // Payment Gateway Routes
-    Route::get('payment-gateway/{payment}', [PaymentGatewayController::class, 'show'])->name('payment.gateway.show');
-    Route::post('payment-gateway/{payment}/generate-qr', [PaymentGatewayController::class, 'generateQrCode'])->name('payment.gateway.generate-qr');
-    Route::get('payment-gateway/{payment}/status', [PaymentGatewayController::class, 'checkPaymentStatus'])->name('payment.gateway.status');
-    Route::post('payment-gateway/webhook/{payment}', [PaymentGatewayController::class, 'updatePaymentStatus'])->name('payment.gateway.webhook');
 
     // Gói khóa học
     Route::resource('course-packages', CoursePackageController::class);

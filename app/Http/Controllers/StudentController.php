@@ -77,7 +77,7 @@ class StudentController extends Controller
         $student->load([
             'enrollments.courseItem',
             'enrollments.payments',
-            'waitingLists.course',
+            'waitingLists.courseItem',
             'attendances'
         ]);
         
@@ -138,7 +138,7 @@ class StudentController extends Controller
         $term = $request->get('term');
         
         $students = Student::search($term)
-                          ->with(['enrollments.courseClass.course', 'waitingLists.course'])
+                          ->with(['enrollments.courseClass.course', 'waitingLists.courseItem'])
                           ->limit(10)
                           ->get();
 
@@ -152,7 +152,7 @@ class StudentController extends Controller
                     return $enrollment->courseClass->name;
                 })->toArray(),
                 'waiting_courses' => $student->waitingLists->where('status', 'waiting')->map(function($waiting) {
-                    return $waiting->course->name;
+                    return $waiting->courseItem->name;
                 })->toArray()
             ];
         }));
@@ -174,5 +174,13 @@ class StudentController extends Controller
         ];
 
         return view('students.statistics', compact('stats'));
+    }
+
+    public function history($studentId)
+    {
+        $student = Student::with(['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem'])
+                        ->findOrFail($studentId);
+                        
+        return view('search.student-history', compact('student'));
     }
 }

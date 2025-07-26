@@ -9,5 +9,6 @@ return [
     'account_owner' => env('SEPAY_ACCOUNT_OWNER', 'DO HOANG NAM'),
     'api_url' => env('SEPAY_API_URL', 'https://api.sepay.vn/api/v2'),
     'qr_url' => env('QR_CODE_URL', 'https://api.sepay.vn/api/v2/payment/qr'),
-    'vietqr_url' => env('VIETQR_URL', 'https://api.vietqr.io/v2/generate'),
+    'vietqr_url' => env('VIETQR_URL', 'https://api.vietqr.io/v1/generate'),
+    'vietqr_api_key' => env('VIETQR_API_KEY', 'we-l0v3-v1et-qr'),
 ];

@@ -143,9 +143,9 @@
                                 <tr>
                                     <td>
                                         @if($existingPayment)
-                                            <input type="checkbox" class="check-item" value="{{ $existingPayment->id }}">
+                                            <input type="checkbox" class="check-item" value="{{ $existingPayment->id }}" data-type="payment">
                                         @else
-                                            <i class="fas fa-exclamation-circle text-warning" title="Chưa có thanh toán"></i>
+                                            <input type="checkbox" class="check-item" value="{{ $enrollment->id }}" data-type="enrollment">
                                         @endif
                                     </td>
                                     <td>
@@ -158,23 +158,32 @@
                                     <td class="text-end">{{ number_format($enrollmentData['paid']) }}đ</td>
                                     <td class="text-end text-danger fw-bold">{{ number_format($remainingAmount) }}đ</td>
                                     <td>
-                                        @if($existingPayment)
-                                            <a href="{{ route('payment.gateway.show', $existingPayment) }}" class="btn btn-success btn-sm" title="Trang thanh toán">
-                                            <i class="fas fa-dollar-sign"></i>
+                                        {{-- Link trang thanh toán QR - luôn hiển thị, không phụ thuộc vào existingPayment --}}
+                                        <a href="{{ $existingPayment ? route('payment.gateway.show', $existingPayment) : route('payment.gateway.direct', $enrollment) }}" class="btn btn-success btn-sm" title="Trang thanh toán">
+                                            <i class="fas fa-qrcode me-1"></i> Trang thanh toán
                                         </a>
-                                        <form action="{{ route('payments.send-reminder') }}" method="POST" class="d-inline" onsubmit="return confirm('Gửi email nhắc nhở cho học viên này?')">
-                                            @csrf
+                                        
+                                        {{-- Nút gửi nhắc nhở - luôn hiển thị, không phụ thuộc vào existingPayment --}}
+                                        @if($existingPayment)
+                                            <form action="{{ route('payments.send-reminder') }}" method="POST" class="d-inline" onsubmit="return confirm('Gửi email nhắc nhở cho học viên này?')">
+                                                @csrf
                                                 <input type="hidden" name="payment_ids[]" value="{{ $existingPayment->id }}">
-                                            <button type="submit" class="btn btn-warning btn-sm" title="Gửi nhắc nhở">
-                                                <i class="fas fa-bell"></i>
-                                            </button>
-                                        </form>
+                                                <button type="submit" class="btn btn-warning btn-sm" title="Gửi nhắc nhở">
+                                                    <i class="fas fa-bell me-1"></i> Gửi nhắc nhở
+                                                </button>
+                                            </form>
                                         @else
-                                            <a href="{{ route('payments.create', ['enrollment_id' => $enrollment->id]) }}" class="btn btn-primary btn-sm" title="Tạo thanh toán mới">
-                                                <i class="fas fa-plus"></i> Tạo thanh toán
-                                            </a>
+                                            <form action="{{ route('payments.send-direct-reminder') }}" method="POST" class="d-inline" onsubmit="return confirm('Gửi email nhắc nhở cho học viên này?')">
+                                                @csrf
+                                                <input type="hidden" name="enrollment_ids[]" value="{{ $enrollment->id }}">
+                                                <button type="submit" class="btn btn-warning btn-sm" title="Gửi nhắc nhở">
+                                                    <i class="fas fa-bell me-1"></i> Gửi nhắc nhở
+                                                </button>
+                                            </form>
                                         @endif
-                                        <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-info btn-sm" title="Xem chi tiết">
+                                        
+                                        {{-- Xem chi tiết --}}
+                                        <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-info btn-sm mt-1" title="Xem chi tiết">
                                             <i class="fas fa-eye"></i>
                                         </a>
                                     </td>
@@ -222,23 +231,71 @@ $(document).ready(function() {
         e.preventDefault();
         var form = $(this);
         var paymentIds = [];
+        var enrollmentIds = [];
+        
+        // Phân loại các checkbox theo data-type
         $('.check-item:checked').each(function() {
-            paymentIds.push($(this).val());
+            var id = $(this).val();
+            var type = $(this).data('type');
+            
+            if (type === 'payment') {
+                paymentIds.push(id);
+            } else if (type === 'enrollment') {
+                enrollmentIds.push(id);
+            }
         });
 
-        if (paymentIds.length === 0) {
-            alert('Vui lòng chọn ít nhất một thanh toán để gửi nhắc nhở');
+        if (paymentIds.length === 0 && enrollmentIds.length === 0) {
+            alert('Vui lòng chọn ít nhất một học viên để gửi nhắc nhở');
             return;
         }
-
-        // Xóa các input cũ và thêm input mới
-        form.find('input[name="payment_ids[]"]').remove();
-        paymentIds.forEach(function(id) {
-            form.append('<input type="hidden" name="payment_ids[]" value="' + id + '">');
+        
+        // Tạo form động để gửi
+        var dynamicForm = $('<form>', {
+            'method': 'post',
+            'action': paymentIds.length > 0 && enrollmentIds.length === 0 
+                ? '{{ route("payments.send-reminder") }}'
+                : enrollmentIds.length > 0 && paymentIds.length === 0
+                ? '{{ route("payments.send-direct-reminder") }}'
+                : '{{ route("payments.send-combined-reminder") }}'
         });
         
-        if(confirm('Bạn có chắc muốn gửi nhắc nhở cho ' + paymentIds.length + ' mục đã chọn?')) {
-            form.get(0).submit();
+        // Thêm CSRF token
+        dynamicForm.append($('<input>', {
+            'type': 'hidden',
+            'name': '_token',
+            'value': '{{ csrf_token() }}'
+        }));
+        
+        // Thêm các payment_ids nếu có
+        if (paymentIds.length > 0) {
+            paymentIds.forEach(function(id) {
+                dynamicForm.append($('<input>', {
+                    'type': 'hidden',
+                    'name': 'payment_ids[]',
+                    'value': id
+                }));
+            });
+        }
+        
+        // Thêm các enrollment_ids nếu có
+        if (enrollmentIds.length > 0) {
+            enrollmentIds.forEach(function(id) {
+                dynamicForm.append($('<input>', {
+                    'type': 'hidden',
+                    'name': 'enrollment_ids[]',
+                    'value': id
+                }));
+            });
+        }
+        
+        // Cần xử lý case hỗn hợp (có cả payment và enrollment)
+        var totalCount = paymentIds.length + enrollmentIds.length;
+        
+        if(confirm('Bạn có chắc muốn gửi nhắc nhở cho ' + totalCount + ' học viên đã chọn?')) {
+            // Thêm form vào body và submit
+            $('body').append(dynamicForm);
+            dynamicForm.submit();
         }
     });
 });

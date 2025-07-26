@@ -9,6 +9,7 @@ use App\Models\Payment;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use App\Models\CourseItem; // Added this import
 
 class EnrollmentController extends Controller
@@ -294,6 +295,8 @@ class EnrollmentController extends Controller
             'reason' => 'nullable|string'
         ]);
         
+        Log::info('Update Fee Request', $request->all()); // Log request data
+        
         $enrollment = Enrollment::with('courseItem')->findOrFail($request->enrollment_id);
         $originalFee = $enrollment->courseItem->fee;
         
@@ -331,6 +334,15 @@ class EnrollmentController extends Controller
             'final_fee' => $finalFee,
             'notes' => $enrollment->notes . "\n[" . now()->format('d/m/Y H:i') . "] Điều chỉnh học phí: " . $request->reason
         ]);
+        
+        // Trả về JSON nếu là AJAX request, chuyển hướng nếu là request thông thường
+        if ($request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã cập nhật học phí thành công!',
+                'enrollment' => $enrollment
+            ]);
+        }
         
         return redirect()->back()->with('success', 'Đã cập nhật học phí thành công!');
     }

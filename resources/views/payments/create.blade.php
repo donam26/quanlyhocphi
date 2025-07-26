@@ -83,6 +83,24 @@
 
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
+                                        <label for="status">Trạng thái <span class="text-danger">*</span></label>
+                                        <select class="form-control @error('status') is-invalid @enderror" 
+                                            id="status" name="status" required>
+                                            <option value="pending" {{ old('status', 'pending') == 'pending' ? 'selected' : '' }}>Chờ xác nhận</option>
+                                            <option value="confirmed" {{ old('status') == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
+                                        </select>
+                                        <small class="form-text text-muted">
+                                            <i class="fas fa-info-circle"></i> Chọn "Chờ xác nhận" để học viên thanh toán qua mã QR, hoặc "Đã xác nhận" nếu bạn đã nhận được thanh toán
+                                        </small>
+                                        @error('status')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+
+                                <div class="col-md-6">
+                                    <div class="form-group mb-3">
                                         <label for="notes">Ghi chú</label>
                                         <input type="text" class="form-control @error('notes') is-invalid @enderror" 
                                             id="notes" name="notes" value="{{ old('notes') }}">

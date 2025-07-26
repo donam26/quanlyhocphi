@@ -24,10 +24,44 @@ class PaymentReminderMail extends Mailable
 
     /**
      * Create a new message instance.
+     *
+     * @return void
      */
-    public function __construct(Payment $payment)
+    public function __construct($payment)
     {
         $this->payment = $payment;
+    }
+
+    /**
+     * Build the message.
+     *
+     * @return $this
+     */
+    public function build()
+    {
+        $subject = 'Nhắc nhở học phí - ' . $this->payment->enrollment->student->full_name;
+        
+        // Kiểm tra xem payment có phải là object tạm không (trường hợp gửi trực tiếp từ enrollment)
+        $isTemporaryPayment = is_object($this->payment) && (strpos($this->payment->id ?? '', 'temp_') === 0 || strpos($this->payment->id ?? '', 'direct_') === 0);
+        
+        // Tạo URL để học viên thanh toán
+        if ($isTemporaryPayment) {
+            // Trường hợp gửi trực tiếp từ enrollment
+            $paymentUrl = route('payment.gateway.direct', $this->payment->enrollment->id);
+        } else {
+            // Trường hợp gửi từ payment thực
+            $paymentUrl = route('payment.gateway.show', $this->payment->id);
+        }
+        
+        return $this->subject($subject)
+                    ->view('emails.payment.reminder')
+                    ->with([
+                        'payment' => $this->payment,
+                        'student' => $this->payment->enrollment->student,
+                        'courseItem' => $this->payment->enrollment->courseItem,
+                        'amount' => $this->payment->amount,
+                        'payment_url' => $paymentUrl
+                    ]);
     }
 
     /**

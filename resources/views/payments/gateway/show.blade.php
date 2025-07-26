@@ -110,12 +110,14 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js"></script>
 <script>
 $(document).ready(function() {
     let checkStatusInterval;
+    
+    // Khởi tạo clipboard.js
     new ClipboardJS('.copy-btn');
-
     $('.copy-btn').on('click', function(e) {
         e.preventDefault();
         var btn = $(this);
@@ -148,9 +150,59 @@ $(document).ready(function() {
             },
             success: function(response) {
                 if(response.success) {
-                    // Hiển thị mã QR
                     $('#qr-loading').hide();
-                    $('#qr-image').attr('src', response.data.qr_image).show();
+                    
+                    // Hiển thị mã QR
+                    if (response.data.qr_image) {
+                        // Nếu có hình ảnh QR từ API SePay
+                        $('#qr-image').attr('src', response.data.qr_image).show();
+                    } else if (response.data.qr_string) {
+                        // Nếu có chuỗi QR để tạo thủ công
+                        $('#qr-image').hide();
+                        
+                        // Tạo container cho QR code nếu chưa có
+                        if (!document.getElementById('qr-container')) {
+                            $('.qr-container').append('<div id="qr-container" class="text-center"></div>');
+                        } else {
+                            $('#qr-container').empty();
+                        }
+                        
+                        // Tạo QR code từ chuỗi
+                        new QRCode(document.getElementById('qr-container'), {
+                            text: response.data.qr_string,
+                            width: 200,
+                            height: 200,
+                            colorDark: "#000000",
+                            colorLight: "#ffffff",
+                            correctLevel: QRCode.CorrectLevel.H
+                        });
+                    } else {
+                        // Tạo QR thủ công sử dụng URL SePay
+                        $('#qr-image').hide();
+                        
+                        // Lấy thông tin từ response
+                        var bankNumber = response.data.bank_account;
+                        var bankCode = '{{ config('sepay.bank_code', 'ICB') }}';
+                        var amount = response.data.amount;
+                        var content = response.data.content;
+                        
+                        // Tạo URL QR SePay trực tiếp
+                        var qrImageUrl = 'https://qr.sepay.vn/img?acc=' + bankNumber 
+                            + '&bank=' + bankCode
+                            + '&amount=' + amount 
+                            + '&des=' + encodeURIComponent(content)
+                            + '&template=compact';
+                        
+                        // Tạo container cho QR code nếu chưa có
+                        if (!document.getElementById('qr-container')) {
+                            $('.qr-container').append('<div id="qr-container" class="text-center"></div>');
+                        } else {
+                            $('#qr-container').empty();
+                        }
+                        
+                        // Hiển thị QR image từ URL SePay
+                        document.getElementById('qr-container').innerHTML = '<img src="' + qrImageUrl + '" alt="QR Code" class="img-fluid">';
+                    }
                     
                     // Hiển thị thông tin chuyển khoản
                     $('#bank-name').text(response.data.bank_name);
@@ -168,7 +220,7 @@ $(document).ready(function() {
                     
                     // Hiển thị thông tin chi tiết về giao dịch
                     if (response.data.fallback) {
-                        $('#countdown-timer').html('<div class="alert alert-warning">Hệ thống QR bị lỗi. Đang sử dụng QR dự phòng. Vui lòng nhập thông tin chuyển khoản thủ công.</div>');
+                        $('#countdown-timer').html('<div class="alert alert-warning">Hệ thống QR bị lỗi. Đang sử dụng QR dự phòng. Vui lòng kiểm tra thông tin chuyển khoản.</div>');
                     }
 
                     // Bắt đầu kiểm tra trạng thái thanh toán
