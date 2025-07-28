@@ -101,6 +101,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/monthly-report', [PaymentController::class, 'monthlyReport'])->name('monthly-report');
         Route::post('/bulk-action', [PaymentController::class, 'bulkAction'])->name('bulk-action');
         Route::get('/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('course');
+        Route::get('/by-course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('by-course');
         Route::post('/confirm/{payment}', [PaymentController::class, 'confirmPayment'])->name('confirm');
         Route::post('/refund/{payment}', [PaymentController::class, 'refundPayment'])->name('refund');
     });
