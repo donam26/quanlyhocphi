@@ -2,12 +2,6 @@
 
 @section('page-title', 'Đăng ký học viên')
 
-@section('styles')
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
-@endsection
-
-
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('enrollments.index') }}">Đăng ký học</a></li>
     <li class="breadcrumb-item active">Đăng ký mới</li>
@@ -47,7 +41,7 @@
                             <div class="mb-3">
                                 <label for="studentSelect" class="form-label">Chọn học viên <span class="text-danger">*</span></label>
                                 <div class="d-flex gap-2">
-                                    <select name="student_id" id="studentSelect" class="form-select" required>
+                                    <select name="student_id" id="studentSelect" class="form-select select2" required>
                                         <option value="">-- Chọn học viên --</option>
                                         @foreach($students as $s)
                                             <option value="{{ $s->id }}" 
@@ -154,23 +148,8 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        // Khởi tạo Select2 cho ô chọn học viên
-        $('#studentSelect').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Gõ để tìm kiếm học viên...',
-        });
-
-        // Khởi tạo Select2 cho ô chọn lớp học
-        $('#courseClassSelect').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Chọn một lớp học',
-        });
-
         function formatCurrency(number) {
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
         }

@@ -1,118 +1,141 @@
 @extends('layouts.app')
 
+@section('page-title', 'Danh sách học viên - ' . $courseItem->name)
+
+@section('breadcrumb')
+<li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
+<li class="breadcrumb-item active">{{ $courseItem->name }}</li>
+@endsection
+
+@section('page-actions')
+<a href="{{ route('course-items.add-student', $courseItem->id) }}" class="btn btn-success me-2">
+    <i class="fas fa-user-plus"></i> Thêm học viên
+</a>
+<button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
+    <i class="fas fa-file-excel"></i> Import Excel
+</button>
+<a href="{{ route('course-items.waiting-lists', $courseItem->id) }}" class="btn btn-warning">
+    <i class="fas fa-user-clock"></i> Danh sách chờ
+</a>
+@endsection
+
 @section('content')
-<div class="container">
-    <div class="card">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h4>Danh sách học viên - {{ $courseItem->name }}</h4>
-            <div>
-                <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
-                    <i class="fas fa-file-excel"></i> Import Excel
-                </button>
-                <a href="{{ route('course-items.waiting-lists', $courseItem->id) }}" class="btn btn-warning me-2">
-                    <i class="fas fa-user-clock"></i> Danh sách chờ
-                </a>
-                <a href="{{ route('course-items.index') }}" class="btn btn-secondary">Quay lại</a>
+<div class="card">
+    <div class="card-body">
+        @if(session('success'))
+            <div class="alert alert-success alert-dismissible fade show">
+                {{ session('success') }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
+        @endif
+        
+        @if($errors->any())
+            <div class="alert alert-danger alert-dismissible fade show">
+                <ul class="mb-0">
+                    @foreach($errors->all() as $error)
+                        <li>{{ $error }}</li>
+                    @endforeach
+                </ul>
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        @endif
+        
+        <div class="alert alert-info">
+            Tổng số học viên: <strong>{{ $studentCount }}</strong> | 
+            Tổng số lượt đăng ký: <strong>{{ $enrollmentCount }}</strong>
         </div>
-        <div class="card-body">
-            <div class="alert alert-info">
-                Tổng số học viên: <strong>{{ $studentCount }}</strong> | 
-                Tổng số lượt đăng ký: <strong>{{ $enrollmentCount }}</strong>
-            </div>
-            
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>Họ tên</th>
-                            <th>Số điện thoại</th>
-                            <th>Email</th>
-                            <th>Khóa học</th>
-                            <th>Học phí</th>
-                            <th>Đã nộp</th>
-                            <th>Còn thiếu</th>
-                            <th>Trạng thái</th>
-                            <th>Thanh toán</th>
-                            <th>Người thu</th>
-                            <th>Ghi chú</th>
-                            <th>Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($students as $student)
-                        <tr>
-                            <td>{{ $student['student']->full_name }}</td>
-                            <td>{{ $student['student']->phone }}</td>
-                            <td>{{ $student['student']->email }}</td>
-                            <td>{{ $student['course_item'] }}</td>
-                            <td>{{ number_format($student['final_fee'], 0, ',', '.') }} VND</td>
-                            <td>{{ number_format($student['paid_amount'], 0, ',', '.') }} VND</td>
-                            <td>
-                                @if($student['remaining_amount'] > 0)
-                                    <span class="text-danger fw-bold">{{ number_format($student['remaining_amount'], 0, ',', '.') }} VND</span>
-                                @else
-                                    <span class="text-success">0 VND</span>
+        
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Họ tên</th>
+                        <th>Số điện thoại</th>
+                        <th>Email</th>
+                        <th>Khóa học</th>
+                        <th>Học phí</th>
+                        <th>Đã nộp</th>
+                        <th>Còn thiếu</th>
+                        <th>Trạng thái</th>
+                        <th>Thanh toán</th>
+                        <th>Người thu</th>
+                        <th>Ghi chú</th>
+                        <th>Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($students as $student)
+                    <tr>
+                        <td>{{ $student['student']->full_name }}</td>
+                        <td>{{ $student['student']->phone }}</td>
+                        <td>{{ $student['student']->email }}</td>
+                        <td>{{ $student['course_item'] }}</td>
+                        <td>{{ number_format($student['final_fee'], 0, ',', '.') }} VND</td>
+                        <td>{{ number_format($student['paid_amount'], 0, ',', '.') }} VND</td>
+                        <td>
+                            @if($student['remaining_amount'] > 0)
+                                <span class="text-danger fw-bold">{{ number_format($student['remaining_amount'], 0, ',', '.') }} VND</span>
+                            @else
+                                <span class="text-success">0 VND</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($student['status'] == 'enrolled')
+                                <span class="badge bg-primary">Đang học</span>
+                            @elseif($student['status'] == 'completed')
+                                <span class="badge bg-success">Hoàn thành</span>
+                            @elseif($student['status'] == 'dropped')
+                                <span class="badge bg-danger">Đã nghỉ</span>
+                            @else
+                                <span class="badge bg-secondary">{{ $student['status'] }}</span>
+                            @endif
+                        </td>
+                        <td>
+                            @if($student['payment_status'] == 'Đã đóng đủ')
+                                <span class="badge bg-success">{{ $student['payment_status'] }}</span>
+                            @else
+                                <span class="badge bg-warning text-dark">{{ $student['payment_status'] }}</span>
+                            @endif
+                            <div class="small text-muted mt-1">{{ $student['payment_method'] }}</div>
+                        </td>
+                        <td>{{ $student['collector'] }}</td>
+                        <td>
+                            @if($student['has_notes'])
+                            <button type="button" class="btn btn-sm btn-info" 
+                                   data-bs-toggle="modal" 
+                                   data-bs-target="#viewNotesModal"
+                                   data-student-name="{{ $student['student']->full_name }}"
+                                   data-notes="{{ json_encode($student['payment_notes']) }}">
+                                <i class="fas fa-sticky-note"></i> Xem
+                            </button>
+                            @else
+                            <span class="text-muted">Không có</span>
+                            @endif
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <a href="{{ route('students.show', $student['student']->id) }}" class="btn btn-sm btn-info" title="Xem chi tiết">
+                                    <i class="fas fa-eye"></i>
+                                </a>
+                                @if($student['payment_status'] != 'Đã đóng đủ')
+                                <a href="{{ route('payments.quick', $student['enrollment_id']) }}" class="btn btn-sm btn-success" title="Thanh toán nhanh">
+                                    <i class="fas fa-money-bill"></i>
+                                </a>
                                 @endif
-                            </td>
-                            <td>
-                                @if($student['status'] == 'enrolled')
-                                    <span class="badge bg-primary">Đang học</span>
-                                @elseif($student['status'] == 'completed')
-                                    <span class="badge bg-success">Hoàn thành</span>
-                                @elseif($student['status'] == 'dropped')
-                                    <span class="badge bg-danger">Đã nghỉ</span>
-                                @else
-                                    <span class="badge bg-secondary">{{ $student['status'] }}</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($student['payment_status'] == 'Đã đóng đủ')
-                                    <span class="badge bg-success">{{ $student['payment_status'] }}</span>
-                                @else
-                                    <span class="badge bg-warning text-dark">{{ $student['payment_status'] }}</span>
-                                @endif
-                                <div class="small text-muted mt-1">{{ $student['payment_method'] }}</div>
-                            </td>
-                            <td>{{ $student['collector'] }}</td>
-                            <td>
-                                @if($student['has_notes'])
-                                <button type="button" class="btn btn-sm btn-info" 
-                                       data-bs-toggle="modal" 
-                                       data-bs-target="#viewNotesModal"
-                                       data-student-name="{{ $student['student']->full_name }}"
-                                       data-notes="{{ json_encode($student['payment_notes']) }}">
-                                    <i class="fas fa-sticky-note"></i> Xem
+                                <button type="button" class="btn btn-sm btn-warning" 
+                                        data-bs-toggle="modal" 
+                                        data-bs-target="#moveToWaitingList" 
+                                        data-enrollment-id="{{ $student['enrollment_id'] }}"
+                                        data-student-name="{{ $student['student']->full_name }}"
+                                        title="Chuyển sang danh sách chờ">
+                                    <i class="fas fa-user-clock"></i>
                                 </button>
-                                @else
-                                <span class="text-muted">Không có</span>
-                                @endif
-                            </td>
-                            <td>
-                                <div class="btn-group">
-                                    <a href="{{ route('students.show', $student['student']->id) }}" class="btn btn-sm btn-info" title="Xem chi tiết">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    @if($student['payment_status'] != 'Đã đóng đủ')
-                                    <a href="{{ route('payments.quick', $student['enrollment_id']) }}" class="btn btn-sm btn-success" title="Thanh toán nhanh">
-                                        <i class="fas fa-money-bill"></i>
-                                    </a>
-                                    @endif
-                                    <button type="button" class="btn btn-sm btn-warning" 
-                                            data-bs-toggle="modal" 
-                                            data-bs-target="#moveToWaitingList" 
-                                            data-enrollment-id="{{ $student['enrollment_id'] }}"
-                                            data-student-name="{{ $student['student']->full_name }}"
-                                            title="Chuyển sang danh sách chờ">
-                                        <i class="fas fa-user-clock"></i>
-                                    </button>
-                                </div>
-                            </td>
-                        </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
+                            </div>
+                        </td>
+                    </tr>
+                    @endforeach
+                </tbody>
+            </table>
         </div>
     </div>
 </div>

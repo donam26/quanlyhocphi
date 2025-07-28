@@ -31,7 +31,6 @@
                             <th width="15%">Mã</th>
                             <th width="10%">Học phí</th>
                             <th width="10%">Thứ tự</th>
-                            <th width="15%">Hình thức</th>
                             <th width="10%">Trạng thái</th>
                             <th width="5%">Thao tác</th>
                         </tr>
@@ -54,17 +53,6 @@
                             </td>
                             <td>
                                 <span class="badge bg-info">{{ $subCourse->order }}</span>
-                            </td>
-                            <td>
-                                @if($subCourse->has_online && $subCourse->has_offline)
-                                    <span class="badge bg-primary">Online & Offline</span>
-                                @elseif($subCourse->has_online)
-                                    <span class="badge bg-success">Online</span>
-                                @elseif($subCourse->has_offline)
-                                    <span class="badge bg-warning">Offline</span>
-                                @else
-                                    <span class="badge bg-secondary">N/A</span>
-                                @endif
                             </td>
                             <td>
                                 @if($subCourse->active)

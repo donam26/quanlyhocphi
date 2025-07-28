@@ -24,16 +24,29 @@ class SearchController extends Controller
      */
     public function search(Request $request)
     {
-        // Validate dữ liệu
+        // Validate dữ liệu nếu không có student_id
+        if (!$request->filled('student_id') && !$request->filled('term')) {
         $request->validate([
             'term' => 'required|min:2',
         ]);
+        }
         
         $term = $request->input('term');
+        $studentId = $request->input('student_id');
         
-        // Tìm kiếm học viên theo tên hoặc số điện thoại
-        $students = Student::search($term)
-            ->with(['enrollments' => function($query) {
+        // Khởi tạo query
+        $query = Student::query();
+        
+        if ($studentId) {
+            // Tìm kiếm theo ID học viên
+            $query->where('id', $studentId);
+        } elseif ($term) {
+            // Tìm kiếm theo tên hoặc số điện thoại
+            $query->search($term);
+        }
+        
+        // Lấy kết quả với các quan hệ
+        $students = $query->with(['enrollments' => function($query) {
                 $query->with(['courseItem', 'payments' => function($query) {
                     $query->where('status', 'confirmed')->orderBy('payment_date', 'desc');
                 }]);

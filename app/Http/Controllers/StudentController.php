@@ -22,6 +22,11 @@ class StudentController extends Controller
             $query->search($request->search);
         }
 
+        // Tìm kiếm theo ID học viên
+        if ($request->filled('student_id')) {
+            $query->where('id', $request->student_id);
+        }
+
         // Lọc theo trạng thái
         if ($request->filled('status')) {
             $query->where('status', $request->status);

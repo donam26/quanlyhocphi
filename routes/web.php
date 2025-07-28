@@ -40,6 +40,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('course-items/{courseItem}/toggle-active', [CourseItemController::class, 'toggleActive'])->name('course-items.toggle-active');
     Route::get('tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
     Route::get('course-items/{id}/students', [CourseItemController::class, 'showStudents'])->name('course-items.students');
+    Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');
+    Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
     Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
     Route::resource('course-items', CourseItemController::class);
 
@@ -121,18 +123,20 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('search', [SearchController::class, 'search'])->name('search');
     Route::get('search/student/{student}/history', [SearchController::class, 'studentHistory'])->name('search.student-history');
 
-    // Reports
-    Route::get('reports', [ReportController::class, 'index'])->name('reports.index');
-    Route::get('reports/revenue', [ReportController::class, 'revenueReport'])->name('reports.revenue');
-    Route::get('reports/students', [ReportController::class, 'studentReport'])->name('reports.students');
-    Route::get('reports/enrollments', [ReportController::class, 'enrollmentReport'])->name('reports.enrollments');
-    Route::get('reports/payments', [ReportController::class, 'paymentReport'])->name('reports.payments');
-    Route::get('reports/attendance', [ReportController::class, 'attendanceReport'])->name('reports.attendance');
-    
-    // Export reports
-    Route::get('reports/revenue/export', [ReportController::class, 'exportRevenueReport'])->name('reports.revenue.export');
-    Route::get('reports/payments/export', [ReportController::class, 'exportPaymentReport'])->name('reports.payments.export');
-    Route::get('reports/attendance/export', [ReportController::class, 'exportAttendanceReport'])->name('reports.attendance.export');
+    // Các route cho báo cáo
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('/revenue', [ReportController::class, 'revenueReport'])->name('revenue');
+        Route::get('/students', [ReportController::class, 'studentReport'])->name('students');
+        Route::get('/enrollments', [ReportController::class, 'enrollmentReport'])->name('enrollments');
+        Route::get('/payments', [ReportController::class, 'paymentReport'])->name('payments');
+        Route::get('/attendance', [ReportController::class, 'attendanceReport'])->name('attendance');
+        
+        // Route xuất báo cáo
+        Route::get('/revenue/export', [ReportController::class, 'exportRevenueReport'])->name('revenue.export');
+        Route::get('/payments/export', [ReportController::class, 'exportPaymentReport'])->name('payments.export');
+        Route::get('/attendance/export', [ReportController::class, 'exportAttendanceReport'])->name('attendance.export');
+    });
 
     // Gói khóa học
     Route::resource('course-packages', CoursePackageController::class);

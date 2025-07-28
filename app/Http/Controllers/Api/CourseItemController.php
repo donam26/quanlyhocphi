@@ -45,8 +45,6 @@ class CourseItemController extends Controller
             'description' => 'nullable|string',
             'fee' => 'nullable|numeric|min:0',
             'code' => 'nullable|string|max:50',
-            'has_online' => 'boolean',
-            'has_offline' => 'boolean',
             'active' => 'boolean',
         ]);
 
@@ -83,8 +81,6 @@ class CourseItemController extends Controller
             'level' => $level,
             'is_leaf' => $isLeaf,
             'code' => $request->code,
-            'has_online' => $request->has_online ?? false,
-            'has_offline' => $request->has_offline ?? false,
             'order_index' => $maxOrder + 1,
             'active' => $request->active ?? true,
         ]);
@@ -120,8 +116,6 @@ class CourseItemController extends Controller
             'description' => 'nullable|string',
             'fee' => 'nullable|numeric|min:0',
             'code' => 'nullable|string|max:50',
-            'has_online' => 'boolean',
-            'has_offline' => 'boolean',
             'active' => 'boolean',
         ]);
 
@@ -164,8 +158,6 @@ class CourseItemController extends Controller
             'level' => $level,
             'is_leaf' => $isLeaf,
             'code' => $request->code,
-            'has_online' => $request->has_online ?? $courseItem->has_online,
-            'has_offline' => $request->has_offline ?? $courseItem->has_offline,
             'active' => $request->active ?? $courseItem->active,
         ]);
         
@@ -224,8 +216,6 @@ class CourseItemController extends Controller
             'code' => $item->code,
             'fee' => $item->fee,
             'is_leaf' => $item->is_leaf,
-            'has_online' => $item->has_online,
-            'has_offline' => $item->has_offline,
             'children' => []
         ];
         

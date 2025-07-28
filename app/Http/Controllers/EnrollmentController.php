@@ -40,6 +40,11 @@ class EnrollmentController extends Controller
             $query->where('enrollment_date', '<=', $request->date_to);
         }
 
+        // Lọc theo ID học viên
+        if ($request->filled('student_id')) {
+            $query->where('student_id', $request->student_id);
+        }
+
         // Lọc theo tìm kiếm
         if ($request->filled('search')) {
             $search = $request->search;

@@ -17,6 +17,9 @@ Route::get('/healthy', function () {
 // API tìm kiếm học viên (không yêu cầu xác thực)
 Route::get('/search/autocomplete', [SearchController::class, 'autocomplete'])->name('api.search.autocomplete');
 
+// API tìm kiếm khóa học
+Route::get('/course-items/search', [CourseItemController::class, 'search'])->name('api.course-items.search');
+
 // API học viên
 Route::get('/students/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getInfo']);
 Route::get('/enrollments/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getEnrollmentInfo']);

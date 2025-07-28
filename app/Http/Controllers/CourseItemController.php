@@ -13,6 +13,9 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
 use Illuminate\Support\Facades\Log;
+use App\Models\Student; // Added this import
+use Illuminate\Support\Facades\DB; // Added this import
+use App\Models\Payment; // Added this import
 
 class CourseItemController extends Controller
 {
@@ -62,8 +65,6 @@ class CourseItemController extends Controller
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
             'fee' => 'nullable|numeric|min:0',
-            'has_online' => 'required|boolean',
-            'has_offline' => 'required|boolean',
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
         ]);
@@ -98,8 +99,6 @@ class CourseItemController extends Controller
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $request->is_leaf,
-            'has_online' => $request->has_online,
-            'has_offline' => $request->has_offline,
             'order_index' => $maxOrder + 1,
             'active' => $request->active,
         ]);
@@ -165,8 +164,6 @@ class CourseItemController extends Controller
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
             'fee' => 'nullable|numeric|min:0',
-            'has_online' => 'required|boolean',
-            'has_offline' => 'required|boolean',
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
         ]);
@@ -213,8 +210,6 @@ class CourseItemController extends Controller
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $request->is_leaf,
-            'has_online' => $request->has_online,
-            'has_offline' => $request->has_offline,
             'active' => $request->active,
         ]);
 
@@ -560,6 +555,70 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Tìm kiếm khóa học theo từ khóa
+     */
+    public function search(Request $request)
+    {
+        $term = $request->input('q');
+        $rootId = $request->input('root_id');
+        
+        // Nếu từ khóa tìm kiếm quá ngắn, trả về mảng rỗng
+        if (strlen($term) < 2) {
+            return response()->json([]);
+        }
+        
+        $query = CourseItem::where('name', 'like', "%{$term}%")
+                          ->where('active', true);
+                          
+        // Nếu có root_id, chỉ tìm trong phạm vi của ngành đó
+        if ($rootId) {
+            // Lấy ID của root item và tất cả con cháu của nó
+            $rootItem = CourseItem::findOrFail($rootId);
+            $ids = [$rootId];
+            $this->getAllChildrenIds($rootItem, $ids);
+            
+            $query->whereIn('id', $ids);
+        }
+        
+        $courses = $query->orderBy('level')
+                        ->orderBy('order_index')
+                        ->limit(10)
+                        ->get();
+                        
+        $results = $courses->map(function($course) {
+            // Lấy đường dẫn đầy đủ của khóa học
+            $path = $this->getCoursePath($course);
+            
+            return [
+                'id' => $course->id,
+                'text' => $course->name,
+                'path' => $path,
+                'is_leaf' => $course->is_leaf,
+                'level' => $course->level,
+                'fee' => $course->fee
+            ];
+        });
+        
+        return response()->json($results);
+    }
+
+    /**
+     * Lấy đường dẫn đầy đủ của khóa học
+     */
+    private function getCoursePath($course)
+    {
+        $path = [];
+        $current = $course;
+        
+        while ($current->parent_id) {
+            $current = $current->parent;
+            $path[] = $current->name;
+        }
+        
+        return implode(' > ', array_reverse($path));
+    }
+
+    /**
      * Lấy tất cả ID của các khóa học con
      */
     private function getAllChildrenIds($courseItem, &$ids)
@@ -569,6 +628,89 @@ class CourseItemController extends Controller
             if ($child->children->count() > 0) {
                 $this->getAllChildrenIds($child, $ids);
             }
+        }
+    }
+
+    /**
+     * Hiển thị form thêm học viên vào khóa học
+     */
+    public function addStudentForm($id)
+    {
+        $courseItem = CourseItem::findOrFail($id);
+        $students = Student::orderBy('full_name')->get();
+        
+        return view('course-items.add-student', [
+            'courseItem' => $courseItem,
+            'students' => $students
+        ]);
+    }
+    
+    /**
+     * Thêm học viên vào khóa học
+     */
+    public function addStudent(Request $request, $id)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'enrollment_date' => 'required|date',
+            'final_fee' => 'required|numeric|min:0',
+            'discount_percentage' => 'nullable|numeric|min:0|max:100',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'status' => 'required|in:enrolled,completed,dropped',
+            'notes' => 'nullable|string'
+        ]);
+        
+        $courseItem = CourseItem::findOrFail($id);
+        
+        // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
+        $existingEnrollment = Enrollment::where('student_id', $request->student_id)
+                                      ->where('course_item_id', $id)
+                                      ->first();
+        
+        if ($existingEnrollment) {
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
+        }
+        
+        try {
+            DB::beginTransaction();
+            
+            // Tạo ghi danh mới
+            $enrollment = Enrollment::create([
+                'student_id' => $request->student_id,
+                'course_item_id' => $id,
+                'enrollment_date' => $request->enrollment_date,
+                'final_fee' => $request->final_fee,
+                'discount_percentage' => $request->discount_percentage ?? 0,
+                'discount_amount' => $request->discount_amount ?? 0,
+                'status' => $request->status,
+                'notes' => $request->notes
+            ]);
+            
+            // Nếu có thanh toán ban đầu
+            if ($request->filled('payment_amount') && $request->payment_amount > 0) {
+                $payment = Payment::create([
+                    'enrollment_id' => $enrollment->id,
+                    'amount' => $request->payment_amount,
+                    'payment_method' => $request->payment_method,
+                    'payment_date' => $request->payment_date ?? now(),
+                    'status' => 'confirmed',
+                    'transaction_id' => null,
+                    'notes' => $request->payment_notes ?? 'Thanh toán khi ghi danh'
+                ]);
+            }
+            
+            DB::commit();
+            
+            return redirect()->route('course-items.students', $id)
+                           ->with('success', 'Thêm học viên vào khóa học thành công!');
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Đã xảy ra lỗi: ' . $e->getMessage()]);
         }
     }
 }

@@ -322,8 +322,6 @@ function renderSubCourseTree(subCourses) {
         const isLeaf = !sub.children || sub.children.length === 0;
         html += `<li>`;
         html += `<div class='tree-leaf'><span class='tree-icon' style='color:#e67e22'>🏷️</span>${sub.name}`;
-        if (sub.has_online) html += ' <span class="badge bg-info badge-mode">Online</span>';
-        if (sub.has_offline) html += ' <span class="badge bg-secondary badge-mode">Offline</span>';
         if (sub.fee) html += ` <span class="badge-fee">${formatFee(sub.fee)}</span>`;
         // Thao tác
         html += `<span class='tree-action' onclick='openTreeModal("edit", "sub-course", ${JSON.stringify(sub)})'>✏️</span>`;

@@ -1,5 +1,21 @@
 @extends('layouts.app')
-@section('page-title', 'Khóa học')
+@section('page-title', 'Cây khóa học')
+
+@section('breadcrumb')
+<li class="breadcrumb-item active">Khóa học</li>
+@endsection
+
+@section('page-actions')
+<button class="btn btn-sm btn-info me-2" id="expand-all">
+    <i class="fas fa-expand-arrows-alt"></i> Mở rộng tất cả
+</button>
+<button class="btn btn-sm btn-secondary me-2" id="collapse-all">
+    <i class="fas fa-compress-arrows-alt"></i> Thu gọn tất cả
+</button>
+<button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addRootItemModal">
+    <i class="fas fa-plus"></i> Thêm ngành mới
+</button>
+@endsection
 
 @section('content')
 <style>
@@ -52,10 +68,11 @@
         height: 40px;
     }
     .tree-item.highlight {
-        animation: highlight 3s;
+        animation: highlight-animation 3s ease forwards;
     }
-    @keyframes highlight {
+    @keyframes highlight-animation {
         0% { background-color: #fff3cd; }
+        70% { background-color: #fff3cd; }
         100% { background-color: #f8f9fa; }
     }
     .tree-item > * {
@@ -89,191 +106,266 @@
     .sort-handle i {
         color: #6c757d;
     }
+    
+    /* CSS cho ô tìm kiếm */
+    .tab-and-search-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        width: 100%;
+        margin-bottom: 1rem;
+    }
+    .tab-container {
+        flex-grow: 1;
+    }
+    .search-container {
+        position: relative;
+        width: 300px;
+        margin-left: 15px;
+        margin-bottom: 0.5rem;
+    }
+    #course-search {
+        width: 100%;
+        padding-right: 35px;
+        transition: all 0.3s ease;
+        height: 38px;
+    }
+    .search-clear {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        cursor: pointer;
+        display: none;
+    }
+    .search-results {
+        position: absolute;
+        top: calc(100% + 5px);
+        left: 0;
+        right: 0;
+        background-color: white;
+        border-radius: 5px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        max-height: 400px;
+        overflow-y: auto;
+        z-index: 1050;
+        opacity: 0;
+        transform: translateY(-10px);
+        pointer-events: none;
+        transition: all 0.3s ease;
+    }
+    .search-results.show {
+        opacity: 1;
+        transform: translateY(0);
+        pointer-events: auto;
+    }
+    .search-result-item {
+        padding: 10px 15px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .search-result-item:hover {
+        background-color: #f8f9fa;
+    }
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+    .search-result-name {
+        font-weight: 500;
+        margin-bottom: 3px;
+        color: #212529;
+    }
+    .search-result-path {
+        font-size: 0.8rem;
+        color: #6c757d;
+    }
+    .search-result-fee {
+        font-weight: bold;
+        color: #28a745;
+    }
 </style>
-<div class="container-fluid">
 
-    <div class="card">
-        <div class="card-header">
-            <div class="d-flex justify-content-between align-items-center">
-                <h4>Cây khoá học</h4>
-                <div>
-                    <button class="btn btn-sm btn-info me-2" id="expand-all">
-                        <i class="fas fa-expand-arrows-alt"></i> Mở rộng tất cả
-                    </button>
-                    <button class="btn btn-sm btn-secondary me-2" id="collapse-all">
-                        <i class="fas fa-compress-arrows-alt"></i> Thu gọn tất cả
-                    </button>
-                    <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addRootItemModal">
-                        <i class="fas fa-plus"></i> Thêm ngành mới
-                    </button>
+<div class="card">
+    <div class="card-body">
+        @if($rootItems->isEmpty())
+            <div class="alert alert-info">
+                Chưa có ngành học nào được tạo. Hãy tạo ngành học đầu tiên.
+            </div>
+        @else
+            <div class="tab-and-search-container">
+                <!-- Tab navigation -->
+                <div class="tab-container">
+                    <ul class="nav nav-tabs course-tabs" id="courseTab" role="tablist">
+                        @foreach($rootItems as $index => $rootItem)
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) active @endif" 
+                                        id="tab-{{ $rootItem->id }}" 
+                                        data-bs-toggle="tab" 
+                                        data-bs-target="#content-{{ $rootItem->id }}" 
+                                        type="button" 
+                                        role="tab" 
+                                        aria-controls="content-{{ $rootItem->id }}" 
+                                        aria-selected="@if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) true @else false @endif">
+                                    {{ $rootItem->name }}
+                                </button>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
+                
+                <!-- Search box -->
+                <div class="search-container">
+                    <input type="text" id="course-search" class="form-control" placeholder="Tìm kiếm khóa học..." autocomplete="off">
+                    <span class="search-clear"><i class="fas fa-times-circle"></i></span>
+                    <div class="search-results">
+                        <!-- Kết quả tìm kiếm sẽ được hiển thị ở đây -->
+                    </div>
                 </div>
             </div>
-        </div>
-        <div class="card-body">
-            @if($rootItems->isEmpty())
-                <div class="alert alert-info">
-                    Chưa có ngành học nào được tạo. Hãy tạo ngành học đầu tiên.
-                </div>
-            @else
-                <!-- Tab navigation -->
-                <ul class="nav nav-tabs course-tabs mb-3" id="courseTab" role="tablist">
-                    @foreach($rootItems as $index => $rootItem)
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) active @endif" 
-                                    id="tab-{{ $rootItem->id }}" 
-                                    data-bs-toggle="tab" 
-                                    data-bs-target="#content-{{ $rootItem->id }}" 
-                                    type="button" 
-                                    role="tab" 
-                                    aria-controls="content-{{ $rootItem->id }}" 
-                                    aria-selected="@if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) true @else false @endif">
-                                {{ $rootItem->name }}
-                            </button>
-                        </li>
-                    @endforeach
-                </ul>
-                
-                <!-- Tab content -->
-                <div class="tab-content" id="courseTabContent">
-                    @foreach($rootItems as $index => $rootItem)
-                        <div class="tab-pane fade @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) show active @endif" 
-                             id="content-{{ $rootItem->id }}" 
-                             role="tabpanel" 
-                             aria-labelledby="tab-{{ $rootItem->id }}">
-                            <div class="tree-container">
-                                <ul class="course-tree sortable-tree">
-                                    @if($currentRootItem && $currentRootItem->id == $rootItem->id)
-                                        {{-- Nếu đang ở tab cụ thể, chỉ hiển thị các con trực tiếp --}}
-                                        @foreach($rootItem->children->sortBy('order_index') as $childItem)
-                                            <li>
-                                                <div class="tree-item level-2 {{ $childItem->active ? 'active' : 'inactive' }}" data-id="{{ $childItem->id }}">
-                                                    <span class="sort-handle" title="Kéo để sắp xếp">
-                                                        <i class="fas fa-arrows-alt"></i>
-                                                    </span>
-                                                    <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#children-{{ $childItem->id }}">
-                                                        <i class="fas fa-minus-circle"></i>
-                                                    </span>
-                                                    <span class="item-icon"><i class="fas fa-book"></i></span>
-                                                    <a href="{{ route('course-items.show', $childItem->id) }}">{{ $childItem->name }}</a>
-                                                    <div class="item-actions">
-                                                        {{-- <form action="{{ route('course-items.toggle-active', $childItem->id) }}" method="POST" class="d-inline">
-                                                            @csrf
-                                                            <button type="submit" class="btn btn-sm {{ $childItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $childItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
-                                                                <i class="fas {{ $childItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
-                                                            </button>
-                                                        </form> --}}
-                                                        <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                            onclick="setupAddModal({{ $childItem->id }}, '{{ $childItem->name }}')">
-                                                            <i class="fas fa-plus"></i>
-                                                        </button>
-                                                        <a href="{{ route('course-items.students', $childItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
-                                                            <i class="fas fa-user-graduate"></i>
-                                                        </a>
-                                                        <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
-                                                            onclick="setupEditModal({{ $childItem->id }})">
-                                                            <i class="fas fa-edit"></i>
-                                                        </button>
-                                                        <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $childItem->id }}, '{{ $childItem->name }}')">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                @include('course-items.partials.children-tree', ['children' => $childItem->children, 'parentId' => $childItem->id])
-                                            </li>
-                                        @endforeach
-                                    @else
-                                        {{-- Hiển thị đầy đủ cả nút gốc và con --}}
+            
+            <!-- Tab content -->
+            <div class="tab-content" id="courseTabContent">
+                @foreach($rootItems as $index => $rootItem)
+                    <div class="tab-pane fade @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) show active @endif" 
+                         id="content-{{ $rootItem->id }}" 
+                         role="tabpanel" 
+                         aria-labelledby="tab-{{ $rootItem->id }}"
+                         data-root-id="{{ $rootItem->id }}">
+                        <div class="tree-container">
+                            <ul class="course-tree sortable-tree">
+                                @if($currentRootItem && $currentRootItem->id == $rootItem->id)
+                                    {{-- Nếu đang ở tab cụ thể, chỉ hiển thị các con trực tiếp --}}
+                                    @foreach($rootItem->children->sortBy('order_index') as $childItem)
                                         <li>
-                                            <div class="tree-item level-1 {{ $rootItem->active ? 'active' : 'inactive' }}" data-id="{{ $rootItem->id }}">
+                                            <div class="tree-item level-2 {{ $childItem->active ? 'active' : 'inactive' }}" data-id="{{ $childItem->id }}">
                                                 <span class="sort-handle" title="Kéo để sắp xếp">
                                                     <i class="fas fa-arrows-alt"></i>
                                                 </span>
-                                                <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#tab-children-{{ $rootItem->id }}">
+                                                <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#children-{{ $childItem->id }}">
                                                     <i class="fas fa-minus-circle"></i>
                                                 </span>
-                                                <span class="item-icon"><i class="fas fa-graduation-cap"></i></span>
-                                                <a href="{{ route('course-items.show', $rootItem->id) }}">{{ $rootItem->name }}</a>
+                                                <span class="item-icon"><i class="fas fa-book"></i></span>
+                                                <a href="{{ route('course-items.show', $childItem->id) }}">{{ $childItem->name }}</a>
                                                 <div class="item-actions">
-                                                    {{-- <form action="{{ route('course-items.toggle-active', $rootItem->id) }}" method="POST" class="d-inline">
+                                                    {{-- <form action="{{ route('course-items.toggle-active', $childItem->id) }}" method="POST" class="d-inline">
                                                         @csrf
-                                                        <button type="submit" class="btn btn-sm {{ $rootItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $rootItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
-                                                            <i class="fas {{ $rootItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                                                        <button type="submit" class="btn btn-sm {{ $childItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $childItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
+                                                            <i class="fas {{ $childItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
                                                         </button>
                                                     </form> --}}
                                                     <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                        onclick="setupAddModal({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                        onclick="setupAddModal({{ $childItem->id }}, '{{ $childItem->name }}')">
                                                         <i class="fas fa-plus"></i>
                                                     </button>
-                                                    @if($rootItem->is_leaf)
-                                                    <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-info" title="Thêm lớp học">
-                                                        <i class="fas fa-users"></i>
-                                                    </a>
-                                                    @endif
-                                                    <a href="{{ route('course-items.students', $rootItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                    <a href="{{ route('course-items.students', $childItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
                                                         <i class="fas fa-user-graduate"></i>
                                                     </a>
-                                                    <a href="{{ route('course-items.attendance', $rootItem->id) }}" class="btn btn-sm btn-warning" title="Điểm danh">
-                                                        <i class="fas fa-clipboard-check"></i>
-                                                    </a>
                                                     <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
-                                                        onclick="setupEditModal({{ $rootItem->id }})">
+                                                        onclick="setupEditModal({{ $childItem->id }})">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                    <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $childItem->id }}, '{{ $childItem->name }}')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
                                             </div>
 
-                                            @include('course-items.partials.children-tree', ['children' => $rootItem->children, 'parentId' => $rootItem->id, 'tabPrefix' => 'tab-'])
+                                            @include('course-items.partials.children-tree', ['children' => $childItem->children, 'parentId' => $childItem->id])
                                         </li>
-                                    @endif
-                                </ul>
-                                @if($rootItem->is_leaf)
-                                <div class="mt-3">
-                                    <h5>Danh sách lớp học</h5>
-                                    <ul class="class-list">
-                                        @php
-                                            $classes = \App\Models\Classes::where('course_item_id', $rootItem->id)->orderBy('batch_number')->get();
-                                        @endphp
-                                        @forelse($classes as $class)
-                                            <li>
-                                                <div class="tree-item class-item {{ $class->status != 'cancelled' ? 'active' : 'inactive' }}">
-                                                    <span class="item-icon"><i class="fas fa-users"></i></span>
-                                                    <a href="{{ route('classes.show', $class->id) }}">{{ $class->name }}</a>
-                                                    <span class="badge {{ $class->status == 'in_progress' ? 'bg-success' : ($class->status == 'planned' ? 'bg-warning' : 'bg-secondary') }}">
-                                                        {{ $class->status }}
-                                                    </span>
-                                                    <div class="item-actions">
-                                                        <a href="{{ route('classes.edit', $class->id) }}" class="btn btn-sm btn-primary" title="Chỉnh sửa lớp">
-                                                            <i class="fas fa-edit"></i>
-                                                        </a>
-                                                        <a href="{{ route('course-items.students', $class->course_item_id) }}" class="btn btn-sm btn-info" title="Xem học viên">
-                                                            <i class="fas fa-user-graduate"></i>
-                                                        </a>
-                                                    </div>
-                                                </div>
-                                            </li>
-                                        @empty
-                                            <li>
-                                                <div class="tree-item class-empty">
-                                                    <em>Chưa có lớp học nào</em>
-                                                    <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-success">
-                                                        <i class="fas fa-plus"></i> Tạo lớp học mới
+                                    @endforeach
+                                @else
+                                    {{-- Hiển thị đầy đủ cả nút gốc và con --}}
+                                    <li>
+                                        <div class="tree-item level-1 {{ $rootItem->active ? 'active' : 'inactive' }}" data-id="{{ $rootItem->id }}">
+                                            <span class="sort-handle" title="Kéo để sắp xếp">
+                                                <i class="fas fa-arrows-alt"></i>
+                                            </span>
+                                            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#tab-children-{{ $rootItem->id }}">
+                                                <i class="fas fa-minus-circle"></i>
+                                            </span>
+                                            <span class="item-icon"><i class="fas fa-graduation-cap"></i></span>
+                                            <a href="{{ route('course-items.show', $rootItem->id) }}">{{ $rootItem->name }}</a>
+                                            <div class="item-actions">
+                                                {{-- <form action="{{ route('course-items.toggle-active', $rootItem->id) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-sm {{ $rootItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $rootItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
+                                                        <i class="fas {{ $rootItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
+                                                    </button>
+                                                </form> --}}
+                                                <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
+                                                    onclick="setupAddModal({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                    <i class="fas fa-plus"></i>
+                                                </button>
+                                                @if($rootItem->is_leaf)
+                                                <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-info" title="Thêm lớp học">
+                                                    <i class="fas fa-users"></i>
+                                                </a>
+                                                @endif
+                                                <a href="{{ route('course-items.students', $rootItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                    <i class="fas fa-user-graduate"></i>
+                                                </a>
+                                                <a href="{{ route('course-items.attendance', $rootItem->id) }}" class="btn btn-sm btn-warning" title="Điểm danh">
+                                                    <i class="fas fa-clipboard-check"></i>
+                                                </a>
+                                                <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
+                                                    onclick="setupEditModal({{ $rootItem->id }})">
+                                                    <i class="fas fa-edit"></i>
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        @include('course-items.partials.children-tree', ['children' => $rootItem->children, 'parentId' => $rootItem->id, 'tabPrefix' => 'tab-'])
+                                    </li>
+                                @endif
+                            </ul>
+                            @if($rootItem->is_leaf)
+                            <div class="mt-3">
+                                <h5>Danh sách lớp học</h5>
+                                <ul class="class-list">
+                                    @php
+                                        $classes = \App\Models\Classes::where('course_item_id', $rootItem->id)->orderBy('batch_number')->get();
+                                    @endphp
+                                    @forelse($classes as $class)
+                                        <li>
+                                            <div class="tree-item class-item {{ $class->status != 'cancelled' ? 'active' : 'inactive' }}">
+                                                <span class="item-icon"><i class="fas fa-users"></i></span>
+                                                <a href="{{ route('classes.show', $class->id) }}">{{ $class->name }}</a>
+                                                <span class="badge {{ $class->status == 'in_progress' ? 'bg-success' : ($class->status == 'planned' ? 'bg-warning' : 'bg-secondary') }}">
+                                                    {{ $class->status }}
+                                                </span>
+                                                <div class="item-actions">
+                                                    <a href="{{ route('classes.edit', $class->id) }}" class="btn btn-sm btn-primary" title="Chỉnh sửa lớp">
+                                                        <i class="fas fa-edit"></i>
+                                                    </a>
+                                                    <a href="{{ route('course-items.students', $class->course_item_id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                        <i class="fas fa-user-graduate"></i>
                                                     </a>
                                                 </div>
-                                            </li>
-                                        @endforelse
-                                    </ul>
-                                </div>
-                                @endif
+                                            </div>
+                                        </li>
+                                    @empty
+                                        <li>
+                                            <div class="tree-item class-empty">
+                                                <em>Chưa có lớp học nào</em>
+                                                <a href="{{ route('classes.create', ['course_item_id' => $rootItem->id]) }}" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-plus"></i> Tạo lớp học mới
+                                                </a>
+                                            </div>
+                                        </li>
+                                    @endforelse
+                                </ul>
                             </div>
+                            @endif
                         </div>
-                    @endforeach
-                </div>
-            @endif
-        </div>
+                    </div>
+                @endforeach
+            </div>
+        @endif
     </div>
 </div>
 
@@ -332,19 +424,7 @@
                             <label for="item-fee" class="form-label">Học phí</label>
                             <input type="number" class="form-control" id="item-fee" name="fee" min="0" value="0">
                         </div>
-                        
-                        <div class="mb-3">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="has-online" name="has_online" value="1">
-                                <input type="hidden" name="has_online" value="0">
-                                <label class="form-check-label" for="has-online">Có lớp online</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="has-offline" name="has_offline" value="1">
-                                <input type="hidden" name="has_offline" value="0">
-                                <label class="form-check-label" for="has-offline">Có lớp offline</label>
-                            </div>
-                        </div>
+                       
                     </div>
                     
                     <div class="mb-3">
@@ -386,20 +466,6 @@
                             <input class="form-check-input" type="checkbox" id="root-is-leaf" name="is_leaf" value="1">
                             <input type="hidden" name="is_leaf" value="0">
                             <label class="form-check-label" for="root-is-leaf">Là khóa học cuối (có thể tạo lớp)</label>
-                        </div>
-                    </div>
-                    
-                    <!-- Thêm trường has_online và has_offline -->
-                    <div class="mb-3">
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="root-has-online" name="has_online" value="1">
-                            <input type="hidden" name="has_online" value="0">
-                            <label class="form-check-label" for="root-has-online">Có lớp online</label>
-                        </div>
-                        <div class="form-check form-check-inline">
-                            <input class="form-check-input" type="checkbox" id="root-has-offline" name="has_offline" value="1">
-                            <input type="hidden" name="has_offline" value="0">
-                            <label class="form-check-label" for="root-has-offline">Có lớp offline</label>
                         </div>
                     </div>
                     
@@ -614,6 +680,9 @@
             const url = new URL(window.location);
             url.searchParams.set('root_id', rootId);
             window.history.pushState({}, '', url);
+            
+            // Xóa kết quả tìm kiếm khi chuyển tab
+            clearSearch();
         });
         
         // Mở rộng tất cả
@@ -738,6 +807,197 @@
         
         // Kích hoạt sự kiện change cho tất cả checkbox khi trang tải
         $('input[type=checkbox]').trigger('change');
+
+        // -----------------------------
+        // Xử lý tìm kiếm khóa học
+        // -----------------------------
+        
+        let searchTimeout;
+        let currentSearchResults = [];
+        
+        // Xử lý sự kiện nhập vào ô tìm kiếm
+        $('#course-search').on('input', function() {
+            const searchTerm = $(this).val().trim();
+            
+            if (searchTerm.length < 2) {
+                hideSearchResults();
+                $('.search-clear').hide();
+                return;
+            }
+            
+            $('.search-clear').show();
+            
+            // Tránh gửi quá nhiều request khi đang nhập
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(searchTerm);
+            }, 300);
+        });
+        
+        // Xử lý khi click nút xóa
+        $('.search-clear').on('click', function() {
+            clearSearch();
+        });
+        
+        // Xử lý click bên ngoài để đóng kết quả tìm kiếm
+        $(document).on('click', function(event) {
+            if (!$(event.target).closest('.search-container').length) {
+                hideSearchResults();
+            }
+        });
+        
+        // Hàm thực hiện tìm kiếm
+        function performSearch(term) {
+            // Lấy ID của tab đang active để chỉ tìm trong phạm vi của tab đó
+            const activeTabPane = $('.tab-pane.active');
+            const rootId = activeTabPane.data('root-id');
+            
+            $.ajax({
+                url: '{{ route("api.course-items.search") }}',
+                method: 'GET',
+                data: {
+                    q: term,
+                    root_id: rootId
+                },
+                beforeSend: function() {
+                    // Hiển thị trạng thái đang tìm kiếm
+                    const searchResults = $('.search-results');
+                    searchResults.html('<div class="p-3 text-center text-muted"><i class="fas fa-spinner fa-spin me-2"></i>Đang tìm kiếm...</div>');
+                    searchResults.addClass('show');
+                },
+                success: function(data) {
+                    currentSearchResults = data;
+                    renderSearchResults(data);
+                },
+                error: function(error) {
+                    console.error('Lỗi khi tìm kiếm:', error);
+                    $('.search-results').html('<div class="p-3 text-center text-danger">Có lỗi xảy ra khi tìm kiếm</div>');
+                }
+            });
+        }
+        
+        // Hiển thị kết quả tìm kiếm
+        function renderSearchResults(results) {
+            const searchResults = $('.search-results');
+            
+            if (results.length === 0) {
+                searchResults.html('<div class="p-3 text-center text-muted">Không tìm thấy khóa học nào</div>');
+                searchResults.addClass('show');
+                return;
+            }
+            
+            let html = '';
+            
+            results.forEach(function(item) {
+                let pathHtml = item.path ? `<div class="search-result-path">${item.path}</div>` : '';
+                let feeHtml = item.fee > 0 ? `<div class="search-result-fee">${formatCurrency(item.fee)} đ</div>` : '';
+                
+                html += `
+                    <div class="search-result-item" data-id="${item.id}">
+                        <div class="search-result-name">${item.text}</div>
+                        ${pathHtml}
+                        ${feeHtml}
+                    </div>
+                `;
+            });
+            
+            searchResults.html(html);
+            searchResults.addClass('show');
+            
+            // Xử lý khi click vào một kết quả
+            $('.search-result-item').on('click', function() {
+                const courseId = $(this).data('id');
+                navigateToCourse(courseId);
+            });
+        }
+        
+        // Hàm định dạng tiền tệ
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN').format(amount);
+        }
+        
+        // Di chuyển đến khóa học được chọn
+        function navigateToCourse(courseId) {
+            const courseItem = $(`div.tree-item[data-id="${courseId}"]`).first();
+            
+            if (courseItem.length) {
+                // Mở tất cả các nhánh cha
+                const parentCollapses = courseItem.parents('ul.collapse');
+                parentCollapses.each(function() {
+                    $(this).collapse('show');
+                });
+                
+                // Thay đổi icon của các phần tử cha
+                courseItem.parents('li').each(function() {
+                    const toggleIcon = $(this).children('.tree-item').find('.toggle-icon > i');
+                    toggleIcon.removeClass('fa-plus-circle').addClass('fa-minus-circle');
+                });
+                
+                // Xóa highlight trước đó nếu có
+                $('.tree-item.highlight').removeClass('highlight');
+                
+                // Cuộn đến phần tử và highlight
+                setTimeout(() => {
+                    $('html, body').animate({
+                        scrollTop: courseItem.offset().top - 100
+                    }, 500, function() {
+                        // Highlight phần tử sau khi cuộn hoàn tất
+                        courseItem.addClass('highlight');
+                        
+                        // Xóa class highlight sau 3 giây
+                        setTimeout(() => {
+                            courseItem.removeClass('highlight');
+                        }, 3000);
+                    });
+                }, 300);
+                
+                // Đóng kết quả tìm kiếm
+                hideSearchResults();
+            } else {
+                // Nếu không tìm thấy trong DOM, có thể là ở tab khác
+                // Tìm khóa học này trong kết quả tìm kiếm
+                const courseResult = currentSearchResults.find(item => item.id === courseId);
+                if (courseResult) {
+                    // Đóng kết quả tìm kiếm
+                    hideSearchResults();
+                    
+                    // Hiển thị thông báo
+                    showToast(`Đang chuyển đến ${courseResult.text}...`, 'info');
+                    
+                    // Redirect đến trang chi tiết khóa học
+                    window.location.href = `{{ url('/course-items') }}/${courseId}`;
+                }
+            }
+        }
+        
+        // Ẩn kết quả tìm kiếm
+        function hideSearchResults() {
+            $('.search-results').removeClass('show');
+        }
+        
+        // Xóa nội dung tìm kiếm
+        function clearSearch() {
+            $('#course-search').val('');
+            hideSearchResults();
+            $('.search-clear').hide();
+        }
+        
+        // Xử lý phím tắt
+        $('#course-search').on('keydown', function(e) {
+            // ESC: Đóng kết quả tìm kiếm
+            if (e.keyCode === 27) {
+                clearSearch();
+                $(this).blur();
+            }
+            
+            // Enter: Chọn kết quả đầu tiên
+            if (e.keyCode === 13) {
+                const firstResult = $('.search-result-item').first();
+                if (firstResult.length) {
+                    firstResult.click();
+                }
+            }
+        });
         
         // Xử lý form chỉnh sửa bằng AJAX
         $('#edit-item-form').submit(function(e) {
@@ -890,6 +1150,34 @@
         
         $('#editItemModal').modal('show');
     }
+    
+    // Hiển thị thông báo toast
+    function showToast(message, type = 'success') {
+        const toastHTML = `
+            <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        
+        const toastContainer = $('.toast-container');
+        if (!toastContainer.length) {
+            $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
+        }
+        
+        const toast = $(toastHTML).appendTo('.toast-container');
+        const bsToast = new bootstrap.Toast(toast);
+        bsToast.show();
+        
+        // Tự động xóa toast sau 5 giây
+        setTimeout(() => {
+            toast.remove();
+        }, 5000);
+    }
 </script>
 
 <!-- Kéo thả để sắp xếp -->
@@ -968,34 +1256,6 @@
             }
         });
     }
-
-    // Hàm hiển thị thông báo toast
-    function showToast(message, type = 'success') {
-        const toastHTML = `
-            <div class="toast align-items-center text-white bg-${type} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            </div>
-        `;
-        
-        const toastContainer = $('.toast-container');
-        if (!toastContainer.length) {
-            $('body').append('<div class="toast-container position-fixed bottom-0 end-0 p-3"></div>');
-        }
-        
-        const toast = $(toastHTML).appendTo('.toast-container');
-        const bsToast = new bootstrap.Toast(toast);
-        bsToast.show();
-        
-        // Tự động xóa toast sau 5 giây
-        setTimeout(() => {
-            toast.remove();
-        }, 5000);
-    }
 </script>
 @endpush
 
@@ -1033,18 +1293,6 @@
                             <input type="number" class="form-control" id="edit-item-fee" name="fee" min="0" value="0">
                         </div>
                         
-                        <div class="mb-3">
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-has-online" name="has_online" value="1">
-                                <input type="hidden" name="has_online" value="0">
-                                <label class="form-check-label" for="edit-has-online">Có lớp online</label>
-                            </div>
-                            <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" id="edit-has-offline" name="has_offline" value="1">
-                                <input type="hidden" name="has_offline" value="0">
-                                <label class="form-check-label" for="edit-has-offline">Có lớp offline</label>
-                            </div>
-                        </div>
                     </div>
                     
                     <div class="mb-3">

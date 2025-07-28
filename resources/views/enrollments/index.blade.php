@@ -1,93 +1,58 @@
 @extends('layouts.app')
 
-@section('title', 'Danh sách ghi danh')
+@section('page-title', 'Danh sách ghi danh')
+
+@section('breadcrumb')
+<li class="breadcrumb-item active">Ghi danh</li>
+@endsection
+
+@section('page-actions')
+<a href="{{ route('enrollments.create') }}" class="btn btn-primary">
+    <i class="fas fa-plus-circle me-1"></i> Thêm ghi danh mới
+</a>
+@endsection
 
 @section('content')
-<div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 class="h3 mb-0 text-gray-800">Danh sách ghi danh</h1>
-        <a href="{{ route('enrollments.create') }}" class="btn btn-primary">
-            <i class="fas fa-plus-circle mr-1"></i> Thêm ghi danh mới
-        </a>
+<div class="card mb-4">
+    <div class="card-body">
+        <form action="{{ route('enrollments.index') }}" method="GET" class="row align-items-center g-2" id="enrollmentSearchForm">
+            <div class="col-md-4">
+                <select id="student_search" name="search" class="form-control select2-ajax">
+                    @if(request('search'))
+                        <option value="{{ request('search') }}" selected>{{ request('search') }}</option>
+                    @endif
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <select name="status" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Trạng thái --</option>
+                    <option value="enrolled" {{ request('status') == 'enrolled' ? 'selected' : '' }}>Đã ghi danh</option>
+                    <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
+                </select>
+            </div>
+            
+            <div class="col-md-3">
+                <select name="payment_status" class="form-select" onchange="this.form.submit()">
+                    <option value="">-- Trạng thái thanh toán --</option>
+                    <option value="paid" {{ request('payment_status') == 'paid' ? 'selected' : '' }}>Đã thanh toán</option>
+                    <option value="partial" {{ request('payment_status') == 'partial' ? 'selected' : '' }}>Thanh toán một phần</option>
+                    <option value="pending" {{ request('payment_status') == 'pending' ? 'selected' : '' }}>Chưa thanh toán</option>
+                </select>
+            </div>
+            
+            <div class="col-md-2">
+                <a href="{{ route('enrollments.unpaid') }}" class="btn btn-warning w-100">
+                    <i class="fas fa-exclamation-circle me-1"></i> Chưa thanh toán
+                </a>
+            </div>
+        </form>
     </div>
+</div>
 
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card stats-card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ $enrollments->count() }}</p>
-                    <p class="stats-label">Tổng ghi danh</p>
-                    <i class="fas fa-graduation-cap fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card warning">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ $pendingCount ?? 0 }}</p>
-                    <p class="stats-label">Chưa thanh toán</p>
-                    <i class="fas fa-clock fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card danger">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ number_format($totalPaid ?? 0) }}</p>
-                    <p class="stats-label">Đã thanh toán (VND)</p>
-                    <i class="fas fa-money-bill-wave fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-3">
-            <div class="card stats-card">
-                <div class="card-body d-flex justify-content-between align-items-center">
-                    <p class="stats-number">{{ number_format($totalUnpaid ?? 0) }}</p>
-                    <p class="stats-label">Còn nợ (VND)</p>
-                    <i class="fas fa-exclamation-circle fa-2x opacity-75"></i>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="card">
-        <div class="card-header bg-white py-3">
-            <div class="row">
-                <div class="col-md-8">
-                    <form action="{{ route('enrollments.index') }}" method="GET" class="d-flex gap-2">
-                        <div class="input-group">
-                            <input type="text" class="form-control" placeholder="Tìm theo tên học viên..." name="search" value="{{ request('search') }}">
-                            <button class="btn btn-outline-secondary" type="submit">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                        
-                        <select name="status" class="form-select" onchange="this.form.submit()">
-                            <option value="">-- Trạng thái --</option>
-                            <option value="enrolled" {{ request('status') == 'enrolled' ? 'selected' : '' }}>Đã ghi danh</option>
-                            <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
-                        </select>
-                        
-                        <select name="payment_status" class="form-select" onchange="this.form.submit()">
-                            <option value="">-- Trạng thái thanh toán --</option>
-                            <option value="paid" {{ request('payment_status') == 'paid' ? 'selected' : '' }}>Đã thanh toán</option>
-                            <option value="partial" {{ request('payment_status') == 'partial' ? 'selected' : '' }}>Thanh toán một phần</option>
-                            <option value="pending" {{ request('payment_status') == 'pending' ? 'selected' : '' }}>Chưa thanh toán</option>
-                        </select>
-                    </form>
-                </div>
-                <div class="col-md-4 text-end">
-                    <a href="{{ route('enrollments.unpaid') }}" class="btn btn-warning">
-                        <i class="fas fa-exclamation-circle mr-1"></i> Danh sách chưa thanh toán
-                    </a>
-                </div>
-            </div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
                 <table class="table table-hover mb-0">
                     <thead class="table-light">
                         <tr>
@@ -139,28 +104,77 @@
                                             <i class="fas fa-eye"></i>
                                         </a>
                                         @if($remaining > 0)
-                                            <a href="{{ route('payments.create', $enrollment) }}" class="btn btn-sm btn-success">
+                                            <a href="{{ route('payments.create', ['enrollment_id' => $enrollment->id]) }}" class="btn btn-sm btn-success">
                                                 <i class="fas fa-money-bill"></i>
                                             </a>
                                         @endif
+                                        <a href="{{ route('enrollments.edit', $enrollment) }}" class="btn btn-sm btn-warning">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
                                     </div>
                                 </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9" class="text-center py-4">Không tìm thấy dữ liệu ghi danh nào</td>
+                                <td colspan="9" class="text-center py-3">Không có dữ liệu ghi danh</td>
                             </tr>
                         @endforelse
                     </tbody>
                 </table>
             </div>
-        </div>
-        @if($enrollments->hasPages())
+            
             <div class="card-footer">
                 {{ $enrollments->links() }}
             </div>
-        @endif
+        </div>
     </div>
 </div>
-@endsection 
+@endsection
+
+@push('scripts')
+<script>
+$(document).ready(function() {
+    // Cấu hình Select2 cho ô tìm kiếm học viên
+    $('#student_search').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm theo tên học viên...',
+        allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: '{{ route("api.search.autocomplete") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Auto-submit khi search select2 thay đổi
+    $('#student_search').on('select2:select', function(e) {
+        var studentId = e.params.data.id;
+        // Thay đổi URL để truy vấn theo ID học viên
+        window.location.href = '{{ route("enrollments.index") }}?student_id=' + studentId;
+    });
+
+    // Xóa tìm kiếm khi clear
+    $('#student_search').on('select2:clear', function(e) {
+        window.location.href = '{{ route("enrollments.index") }}';
+    });
+});
+</script>
+@endpush 
  

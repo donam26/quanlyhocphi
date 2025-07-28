@@ -2,11 +2,6 @@
 
 @section('page-title', 'Chỉnh sửa ghi danh')
 
-@section('styles')
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
-@endsection
-
 @section('breadcrumb')
     <li class="breadcrumb-item"><a href="{{ route('enrollments.index') }}">Đăng ký học</a></li>
     <li class="breadcrumb-item"><a href="{{ route('enrollments.show', $enrollment) }}">Chi tiết ghi danh</a></li>
@@ -48,7 +43,7 @@
                             <div class="mb-3">
                                 <label for="studentSelect" class="form-label">Học viên <span class="text-danger">*</span></label>
                                 <div class="d-flex gap-2">
-                                    <select name="student_id" id="studentSelect" class="form-select" required>
+                                    <select name="student_id" id="studentSelect" class="form-select select2" required>
                                         @foreach($students as $s)
                                             <option value="{{ $s->id }}" 
                                                 {{ (old('student_id', $enrollment->student_id) == $s->id) ? 'selected' : '' }}>
@@ -108,7 +103,7 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label for="status" class="form-label">Trạng thái <span class="text-danger">*</span></label>
-                                <select name="status" id="status" class="form-control" required>
+                                <select name="status" id="status" class="form-control select2" required>
                                     <option value="enrolled" {{ old('status', $enrollment->status) == 'enrolled' ? 'selected' : '' }}>Đang học</option>
                                     <option value="completed" {{ old('status', $enrollment->status) == 'completed' ? 'selected' : '' }}>Đã hoàn thành</option>
                                     <option value="dropped" {{ old('status', $enrollment->status) == 'dropped' ? 'selected' : '' }}>Đã bỏ học</option>
@@ -163,23 +158,8 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
     $(document).ready(function() {
-        // Khởi tạo Select2 cho ô chọn học viên
-        $('#studentSelect').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Chọn học viên',
-        });
-
-        // Khởi tạo Select2 cho ô chọn khóa học
-        $('#courseClassSelect').select2({
-            theme: 'bootstrap-5',
-            width: '100%',
-            placeholder: 'Chọn một khóa học',
-        });
-
         function formatCurrency(number) {
             return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
         }

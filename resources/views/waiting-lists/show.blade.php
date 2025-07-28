@@ -102,32 +102,6 @@
                         </div>
                     </div>
                     <div class="row mb-3">
-                        <div class="col-md-6">
-                            <p>
-                                <strong>Loại học:</strong> 
-                                @if($waitingList->courseItem->has_online && $waitingList->courseItem->has_offline)
-                                    Online & Offline
-                                @elseif($waitingList->courseItem->has_online)
-                                    Online
-                                @elseif($waitingList->courseItem->has_offline)
-                                    Offline
-                                @else
-                                    Chưa xác định
-                                @endif
-                            </p>
-                        </div>
-                        <div class="col-md-6">
-                            <p>
-                                <strong>Trạng thái:</strong> 
-                                @if($waitingList->courseItem->active)
-                                    <span class="badge bg-success">Đang mở</span>
-                                @else
-                                    <span class="badge bg-secondary">Đã đóng</span>
-                                @endif
-                            </p>
-                        </div>
-                    </div>
-                    <div class="row mb-3">
                         <div class="col-md-12">
                             <p><strong>Đường dẫn khóa học:</strong> {{ $waitingList->courseItem->getPathAttribute() }}</p>
                         </div>

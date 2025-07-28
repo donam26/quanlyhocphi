@@ -142,18 +142,6 @@
                     </div>
                     <div class="col-md-6">
                         <p><strong>Học phí:</strong> {{ number_format($courseItem->fee, 0, ',', '.') }} đồng</p>
-                        <p>
-                            <strong>Loại học:</strong>
-                            @if($courseItem->has_online && $courseItem->has_offline)
-                                Online & Offline
-                            @elseif($courseItem->has_online)
-                                Online
-                            @elseif($courseItem->has_offline)
-                                Offline
-                            @else
-                                Chưa xác định
-                            @endif
-                        </p>
                     </div>
                 </div>
             </div>
@@ -310,7 +298,6 @@
                                     <th width="5%">#</th>
                                     <th width="30%">Tên khóa học</th>
                                     <th width="15%">Học phí</th>
-                                    <th width="15%">Loại học</th>
                                     <th width="10%">Trạng thái</th>
                                     <th width="25%">Thao tác</th>
                                 </tr>
@@ -337,16 +324,6 @@
                                                 {{ number_format($child->fee, 0, ',', '.') }} đ
                                             @else
                                                 -
-                                            @endif
-                                        </td>
-                                        <td>
-                                            @if($child->has_online && $child->has_offline)
-                                                <span class="badge badge-primary">Online</span>
-                                                <span class="badge badge-secondary">Offline</span>
-                                            @elseif($child->has_online)
-                                                <span class="badge badge-primary">Online</span>
-                                            @elseif($child->has_offline)
-                                                <span class="badge badge-secondary">Offline</span>
                                             @endif
                                         </td>
                                         <td>

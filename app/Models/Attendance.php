@@ -12,7 +12,9 @@ class Attendance extends Model
 
     protected $fillable = [
         'enrollment_id',
-        'class_date',
+        'course_item_id',
+        'student_id',
+        'attendance_date',
         'status',
         'start_time',
         'end_time',
@@ -20,7 +22,7 @@ class Attendance extends Model
     ];
 
     protected $casts = [
-        'class_date' => 'date',
+        'attendance_date' => 'date',
         'start_time' => 'datetime:H:i',
         'end_time' => 'datetime:H:i'
     ];
@@ -34,19 +36,19 @@ class Attendance extends Model
     }
 
     /**
+     * Quan hệ trực tiếp với khóa học
+     */
+    public function courseItem()
+    {
+        return $this->belongsTo(CourseItem::class);
+    }
+
+    /**
      * Lấy học viên (qua ghi danh)
      */
     public function student()
     {
-        return $this->enrollment->student();
-    }
-
-    /**
-     * Lấy khóa học (qua ghi danh)
-     */
-    public function courseItem()
-    {
-        return $this->enrollment->courseItem();
+        return $this->belongsTo(Student::class);
     }
 
     /**
@@ -54,8 +56,8 @@ class Attendance extends Model
      */
     public function scopeBetweenDates($query, $fromDate, $toDate)
     {
-        return $query->whereDate('class_date', '>=', $fromDate)
-                     ->whereDate('class_date', '<=', $toDate);
+        return $query->whereDate('attendance_date', '>=', $fromDate)
+                     ->whereDate('attendance_date', '<=', $toDate);
     }
 
     /**
@@ -63,9 +65,7 @@ class Attendance extends Model
      */
     public function scopeForCourseItem($query, $courseItemId)
     {
-        return $query->whereHas('enrollment', function ($q) use ($courseItemId) {
-            $q->where('course_item_id', $courseItemId);
-        });
+        return $query->where('course_item_id', $courseItemId);
     }
 
     /**
@@ -73,9 +73,7 @@ class Attendance extends Model
      */
     public function scopeForStudent($query, $studentId)
     {
-        return $query->whereHas('enrollment', function ($q) use ($studentId) {
-            $q->where('student_id', $studentId);
-        });
+        return $query->where('student_id', $studentId);
     }
 
     /**
@@ -87,11 +85,11 @@ class Attendance extends Model
     }
 
     /**
-     * Format class_date theo format Việt Nam
+     * Format attendance_date theo format Việt Nam
      */
     public function getFormattedDateAttribute()
     {
-        return Carbon::parse($this->class_date)->format('d/m/Y');
+        return Carbon::parse($this->attendance_date)->format('d/m/Y');
     }
 
     /**

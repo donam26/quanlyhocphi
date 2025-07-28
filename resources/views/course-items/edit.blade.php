@@ -71,20 +71,6 @@
 
                 <div class="form-group">
                     <div class="custom-control custom-checkbox">
-                        <input type="checkbox" name="has_online" id="has_online" class="custom-control-input" value="1" @if(old('has_online', $courseItem->has_online)) checked @endif>
-                        <label class="custom-control-label" for="has_online">Có lớp online</label>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" name="has_offline" id="has_offline" class="custom-control-input" value="1" @if(old('has_offline', $courseItem->has_offline)) checked @endif>
-                        <label class="custom-control-label" for="has_offline">Có lớp offline</label>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <div class="custom-control custom-checkbox">
                         <input type="checkbox" name="active" id="active" class="custom-control-input" value="1" @if(old('active', $courseItem->active)) checked @endif>
                         <label class="custom-control-label" for="active">Đang hoạt động</label>
                     </div>

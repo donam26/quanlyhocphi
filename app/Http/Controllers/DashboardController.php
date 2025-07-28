@@ -53,27 +53,13 @@ class DashboardController extends Controller
         // Thống kê thanh toán theo phương thức
         $paymentMethodData = $this->getPaymentMethodData();
         
-        // Thống kê học viên theo giới tính
-        $genderData = $this->getStudentGenderData();
-        
-        // Thống kê tình trạng thanh toán (đã thanh toán/chưa thanh toán/thanh toán một phần)
-        $paymentStatusData = $this->getPaymentStatusData();
-        
+     
         // Thống kê ghi danh theo khóa học (Top 5)
         $enrollmentsByCourse = $this->getEnrollmentsByCourse();
         
         // Thống kê doanh thu theo tuần gần đây nhất
         $revenueByDay = $this->getRevenueByDay();
-        
-        // Top khóa học được đăng ký nhiều nhất
-        $topCourses = CourseItem::withCount(['enrollments' => function($query) {
-                            $query->where('status', 'enrolled');
-                        }])
-                        ->where('is_leaf', true)
-                        ->orderBy('enrollments_count', 'desc')
-                        ->limit(5)
-                        ->get();
-        
+       
         // Học viên mới nhất
         $newStudents = Student::orderBy('created_at', 'desc')->limit(5)->get();
         
@@ -95,11 +81,8 @@ class DashboardController extends Controller
             'enrollmentChartData', 
             'revenueChartData', 
             'paymentMethodData',
-            'genderData',
-            'paymentStatusData',
             'enrollmentsByCourse',
             'revenueByDay',
-            'topCourses', 
             'newStudents',
             'waitingContact'
         ));

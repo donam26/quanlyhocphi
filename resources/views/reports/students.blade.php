@@ -19,7 +19,7 @@
                     Học viên theo giới tính
                 </div>
                 <div class="card-body">
-                    <canvas id="genderChart" width="100%" height="250"></canvas>
+                    <div id="genderChart" style="height: 250px;"></div>
                     
                     <div class="table-responsive mt-3">
                         <table class="table table-bordered table-sm">
@@ -69,7 +69,7 @@
                     Học viên theo độ tuổi
                 </div>
                 <div class="card-body">
-                    <canvas id="ageChart" width="100%" height="250"></canvas>
+                    <div id="ageChart" style="height: 250px;"></div>
                     
                     <div class="table-responsive mt-3">
                         <table class="table table-bordered table-sm">
@@ -115,7 +115,7 @@
                     Ghi danh theo trạng thái
                 </div>
                 <div class="card-body">
-                    <canvas id="statusChart" width="100%" height="250"></canvas>
+                    <div id="statusChart" style="height: 250px;"></div>
                     
                     <div class="table-responsive mt-3">
                         <table class="table table-bordered table-sm">
@@ -248,101 +248,240 @@
 @endsection
 
 @push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
-// Set new default font family and font color to mimic Bootstrap's default styling
-Chart.defaults.font.family = '-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
-Chart.defaults.color = '#858796';
+document.addEventListener('DOMContentLoaded', function() {
+    // Kiểm tra và đảm bảo dữ liệu hợp lệ
+    const safeJsonParse = function(jsonString, defaultValue = {}) {
+        try {
+            const parsed = JSON.parse(jsonString);
+            return parsed || defaultValue;
+        } catch (e) {
+            console.error("Error parsing JSON:", e);
+            return defaultValue;
+        }
+    };
+    
+    // Màu sắc chung
+    const colors = {
+        primary: '#4e73df',
+        danger: '#e74a3b',
+        success: '#1cc88a',
+        warning: '#f6c23e',
+        secondary: '#858796'
+    };
 
-// Biểu đồ giới tính học viên
-var genderCtx = document.getElementById("genderChart");
-var genderData = @json($studentsByGender->pluck('total', 'gender')->toArray());
-var genderChart = new Chart(genderCtx, {
-    type: 'pie',
-    data: {
-        labels: Object.keys(genderData).map(gender => {
+    // Biểu đồ giới tính học viên
+    try {
+        const genderData = safeJsonParse('@json($studentsByGender->pluck('total', 'gender')->toArray())', {});
+        const genderLabels = Object.keys(genderData).map(gender => {
             if (gender === 'male') return 'Nam';
             if (gender === 'female') return 'Nữ';
             return 'Khác';
-        }),
-        datasets: [{
-            data: Object.values(genderData),
-            backgroundColor: ['#4e73df', '#e74a3b', '#858796'],
-            hoverBackgroundColor: ['#2e59d9', '#d52a1a', '#6e707e'],
-            hoverBorderColor: "rgba(234, 236, 244, 1)",
-        }],
-    },
-    options: {
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom'
-            }
-        }
-    }
-});
+        });
+        const genderValues = Object.values(genderData);
 
-// Biểu đồ độ tuổi học viên
-var ageCtx = document.getElementById("ageChart");
-var ageGroups = @json($ageGroups);
-var ageChart = new Chart(ageCtx, {
-    type: 'bar',
-    data: {
-        labels: ['<18', '18-25', '26-35', '36-50', '>50'],
-        datasets: [{
-            data: [ageGroups.under_18, ageGroups['18_25'], ageGroups['26_35'], ageGroups['36_50'], ageGroups.above_50],
-            backgroundColor: ['#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b'],
-            maxBarThickness: 25,
-        }],
-    },
-    options: {
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
-        },
-        scales: {
-            x: {
-                grid: {
-                    display: false
+        if (document.getElementById("genderChart") && genderValues.length > 0) {
+            const options = {
+                chart: {
+                    type: 'pie',
+                    height: 250,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+                },
+                series: genderValues,
+                labels: genderLabels,
+                colors: [colors.primary, colors.danger, colors.secondary],
+                legend: {
+                    position: 'bottom'
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function(val) {
+                        return Math.round(val) + "%";
+                    },
+                    style: {
+                        fontSize: '14px',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto'
+                    }
+                },
+                tooltip: {
+                    y: {
+                        formatter: function(value, { seriesIndex, dataPointIndex, w }) {
+                            const total = genderValues.reduce((a, b) => a + b, 0);
+                            const percent = total > 0 ? Math.round((value / total) * 100) : 0;
+                            return value + ' học viên (' + percent + '%)';
+                        }
+                    }
+                },
+                responsive: [{
+                    breakpoint: 480,
+                    options: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }]
+            };
+            
+            const genderChart = new ApexCharts(document.querySelector("#genderChart"), options);
+            genderChart.render();
+        } else {
+            console.warn("Không thể tạo biểu đồ giới tính: Không có dữ liệu hoặc không tìm thấy element");
+            document.querySelector("#genderChart").innerHTML = '<div class="alert alert-info">Không có dữ liệu để hiển thị</div>';
+        }
+    } catch (e) {
+        console.error("Lỗi khi tạo biểu đồ giới tính:", e);
+        document.querySelector("#genderChart").innerHTML = '<div class="alert alert-danger">Đã xảy ra lỗi khi tạo biểu đồ</div>';
+    }
+    
+    // Biểu đồ độ tuổi học viên
+    try {
+        const ageGroups = safeJsonParse('@json($ageGroups)', {});
+        const ageData = [
+            ageGroups.under_18 || 0, 
+            ageGroups['18_25'] || 0, 
+            ageGroups['26_35'] || 0, 
+            ageGroups['36_50'] || 0, 
+            ageGroups.above_50 || 0
+        ];
+        
+        if (document.getElementById("ageChart") && ageData.some(value => value > 0)) {
+            const options = {
+                chart: {
+                    type: 'bar',
+                    height: 250,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    toolbar: {
+                        show: false
+                    }
+                },
+                plotOptions: {
+                    bar: {
+                        distributed: true,
+                        columnWidth: '60%',
+                        borderRadius: 3
+                    }
+                },
+                series: [{
+                    name: 'Học viên',
+                    data: ageData
+                }],
+                xaxis: {
+                    categories: ['<18', '18-25', '26-35', '36-50', '>50'],
+                    labels: {
+                        style: {
+                            colors: '#858796'
+                        }
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        formatter: function(value) {
+                            return Math.round(value);
+                        }
+                    }
+                },
+                dataLabels: {
+                    enabled: false
+                },
+                colors: [colors.primary, colors.success, colors.info, colors.warning, colors.danger],
+                legend: {
+                    show: false
+                },
+                tooltip: {
+                    y: {
+                        formatter: function(value) {
+                            return value + ' học viên';
+                        }
+                    }
                 }
-            },
-            y: {
-                beginAtZero: true
-            }
+            };
+            
+            const ageChart = new ApexCharts(document.querySelector("#ageChart"), options);
+            ageChart.render();
+        } else {
+            console.warn("Không thể tạo biểu đồ độ tuổi: Không có dữ liệu hoặc không tìm thấy element");
+            document.querySelector("#ageChart").innerHTML = '<div class="alert alert-info">Không có dữ liệu để hiển thị</div>';
         }
+    } catch (e) {
+        console.error("Lỗi khi tạo biểu đồ độ tuổi:", e);
+        document.querySelector("#ageChart").innerHTML = '<div class="alert alert-danger">Đã xảy ra lỗi khi tạo biểu đồ</div>';
     }
-});
-
-// Biểu đồ trạng thái ghi danh
-var statusCtx = document.getElementById("statusChart");
-var statusData = @json($enrollmentCounts->pluck('total', 'status')->toArray());
-var statusLabels = Object.keys(statusData).map(status => {
-    if (status === 'enrolled') return 'Đang học';
-    if (status === 'completed') return 'Hoàn thành';
-    if (status === 'cancelled') return 'Đã hủy';
-    if (status === 'on_hold') return 'Tạm dừng';
-    return status;
-});
-var statusChart = new Chart(statusCtx, {
-    type: 'doughnut',
-    data: {
-        labels: statusLabels,
-        datasets: [{
-            data: Object.values(statusData),
-            backgroundColor: ['#1cc88a', '#4e73df', '#e74a3b', '#f6c23e'],
-            hoverBackgroundColor: ['#17a673', '#2e59d9', '#d52a1a', '#e3af0e'],
-            hoverBorderColor: "rgba(234, 236, 244, 1)",
-        }],
-    },
-    options: {
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom'
-            }
+    
+    // Biểu đồ trạng thái ghi danh
+    try {
+        const statusData = safeJsonParse('@json($enrollmentCounts->pluck('total', 'status')->toArray())', {});
+        const statusLabels = Object.keys(statusData).map(status => {
+            if (status === 'enrolled') return 'Đang học';
+            if (status === 'completed') return 'Hoàn thành';
+            if (status === 'cancelled') return 'Đã hủy';
+            if (status === 'on_hold') return 'Tạm dừng';
+            return status;
+        });
+        const statusValues = Object.values(statusData);
+        
+        if (document.getElementById("statusChart") && statusValues.length > 0) {
+            const options = {
+                chart: {
+                    type: 'donut',
+                    height: 250,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+                },
+                series: statusValues,
+                labels: statusLabels,
+                colors: [colors.success, colors.primary, colors.danger, colors.warning],
+                legend: {
+                    position: 'bottom',
+                    fontSize: '14px'
+                },
+                dataLabels: {
+                    enabled: true,
+                    formatter: function(val) {
+                        return Math.round(val) + "%";
+                    },
+                    style: {
+                        fontSize: '14px',
+                        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto'
+                    }
+                },
+                tooltip: {
+                    y: {
+                        formatter: function(value) {
+                            const total = statusValues.reduce((a, b) => a + b, 0);
+                            const percent = total > 0 ? Math.round((value / total) * 100) : 0;
+                            return value + ' lượt (' + percent + '%)';
+                        }
+                    }
+                },
+                plotOptions: {
+                    pie: {
+                        donut: {
+                            size: '50%'
+                        }
+                    }
+                },
+                responsive: [{
+                    breakpoint: 480,
+                    options: {
+                        chart: {
+                            height: 200
+                        },
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }]
+            };
+            
+            const statusChart = new ApexCharts(document.querySelector("#statusChart"), options);
+            statusChart.render();
+        } else {
+            console.warn("Không thể tạo biểu đồ trạng thái: Không có dữ liệu hoặc không tìm thấy element");
+            document.querySelector("#statusChart").innerHTML = '<div class="alert alert-info">Không có dữ liệu để hiển thị</div>';
         }
+    } catch (e) {
+        console.error("Lỗi khi tạo biểu đồ trạng thái:", e);
+        document.querySelector("#statusChart").innerHTML = '<div class="alert alert-danger">Đã xảy ra lỗi khi tạo biểu đồ</div>';
     }
 });
 </script>

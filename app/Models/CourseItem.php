@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Models\Attendance;
 
 class CourseItem extends Model
 {
@@ -16,8 +17,6 @@ class CourseItem extends Model
         'fee',
         'level',
         'is_leaf',
-        'has_online',
-        'has_offline',
         'order_index',
         'active'
     ];
@@ -25,8 +24,6 @@ class CourseItem extends Model
     protected $casts = [
         'fee' => 'decimal:2',
         'is_leaf' => 'boolean',
-        'has_online' => 'boolean',
-        'has_offline' => 'boolean',
         'active' => 'boolean'
     ];
 
@@ -139,5 +136,33 @@ class CourseItem extends Model
         return CourseItem::where('parent_id', $this->parent_id)
                         ->where('id', '!=', $this->id)
                         ->get();
+    }
+
+    /**
+     * Quan hệ với bảng điểm danh trực tiếp
+     */
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class, 'course_item_id');
+    }
+
+    /**
+     * Lấy tất cả điểm danh cho khóa học này và các khóa học con
+     */
+    public function getAllAttendances()
+    {
+        // Lấy tất cả ID của khóa học này và các khóa học con
+        $courseItemIds = [$this->id];
+        
+        // Thêm ID của tất cả các khóa học con
+        foreach ($this->descendants() as $descendant) {
+            $courseItemIds[] = $descendant->id;
+        }
+        
+        // Trả về tất cả điểm danh liên quan đến các khóa học này
+        return Attendance::whereIn('course_item_id', $courseItemIds)
+            ->orWhereHas('enrollment', function ($query) use ($courseItemIds) {
+                $query->whereIn('course_item_id', $courseItemIds);
+            });
     }
 }

@@ -84,7 +84,7 @@
                     <div class="col-md-6">
                         <div class="form-group mb-3">
                             <label for="interest_level" class="form-label">Mức độ quan tâm <span class="text-danger">*</span></label>
-                            <select name="interest_level" id="interest_level" class="form-select" required>
+                            <select name="interest_level" id="interest_level" class="form-select select2" required>
                                 <option value="medium" selected>Trung bình</option>
                                 <option value="high">Cao</option>
                                 <option value="low">Thấp</option>
@@ -129,15 +129,3 @@
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-    $(document).ready(function() {
-        // Khởi tạo Select2 cho các dropdown
-        $('.select2').select2({
-            theme: 'bootstrap-5',
-            width: '100%'
-        });
-    });
-</script>
-@endpush 

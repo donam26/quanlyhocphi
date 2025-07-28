@@ -10,16 +10,15 @@
 <!-- Filter & Search -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="GET" action="{{ route('students.index') }}">
-            <div class="row">
+        <form method="GET" action="{{ route('students.index') }}" id="studentSearchForm">
+            <div class="row align-items-center">
                 <div class="col-md-4">
-                    <div class="input-group">
-                        <input type="text" name="search" class="form-control" 
-                               placeholder="Tìm theo tên, SĐT, CCCD..." 
-                               value="{{ request('search') }}">
-                        <button class="btn btn-outline-secondary" type="submit">
-                            <i class="fas fa-search"></i>
-                        </button>
+                    <div class="form-group mb-0">
+                        <select id="student_search" name="search" class="form-control select2-ajax" style="width: 100%;">
+                            @if(request('search'))
+                                <option value="{{ request('search') }}" selected>{{ request('search') }}</option>
+                            @endif
+                        </select>
                     </div>
                     @if(request('search'))
                     <small class="form-text text-muted mt-1">
@@ -34,7 +33,7 @@
                     @endif
                 </div>
                 <div class="col-md-3">
-                    <select name="course_item_id" class="form-select">
+                    <select name="course_item_id" class="form-select" onchange="this.form.submit()">
                         <option value="">Tất cả khóa học</option>
                         @php
                             $courseItems = \App\Models\CourseItem::whereNull('parent_id')->get();
@@ -47,7 +46,7 @@
                     </select>
                 </div>
                 <div class="col-md-3">
-                    <select name="status" class="form-select">
+                    <select name="status" class="form-select" onchange="this.form.submit()">
                         <option value="">Tất cả trạng thái</option>
                         <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang học</option>
                         <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
@@ -101,9 +100,6 @@
                             <td>{{ $students->firstItem() + $index }}</td>
                             <td>
                                 <div class="d-flex align-items-center">
-                                    <div class="avatar-sm bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3">
-                                        {{ substr($student->full_name, 0, 1) }}
-                                    </div>
                                     <div>
                                         <div class="fw-medium">{{ $student->full_name }}</div>
                                         <small class="text-muted">
@@ -216,59 +212,58 @@
     </div>
 </div>
 
-<!-- Quick Stats -->
-@if($students->count() > 0)
-<div class="row mt-4">
-    <div class="col-md-3">
-        <div class="stats-card">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="stats-number">{{ $students->total() }}</p>
-                    <p class="stats-label">Tổng học viên</p>
-                </div>
-                <i class="fas fa-users fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stats-card success">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="stats-number">{{ $students->filter(function($s) { return $s->enrollments->where('status', 'enrolled')->count() > 0; })->count() }}</p>
-                    <p class="stats-label">Đang học</p>
-                </div>
-                <i class="fas fa-user-check fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stats-card warning">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="stats-number">{{ $students->filter(function($s) { return $s->enrollments->where('payment_status', '!=', 'paid')->count() > 0; })->count() }}</p>
-                    <p class="stats-label">Chưa thanh toán</p>
-                </div>
-                <i class="fas fa-exclamation-triangle fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="stats-card danger">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <p class="stats-number">{{ $students->filter(function($s) { return $s->enrollments->count() == 0; })->count() }}</p>
-                    <p class="stats-label">Chưa ghi danh</p>
-                </div>
-                <i class="fas fa-user-times fa-2x opacity-75"></i>
-            </div>
-        </div>
-    </div>
-</div>
-@endif
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
+$(document).ready(function() {
+    // Cấu hình Select2 cho ô tìm kiếm học viên với AJAX
+    $('#student_search').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm theo tên, SĐT, CCCD...',
+        allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: '{{ route("api.search.autocomplete") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,  // Sử dụng ID của học viên
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Auto-submit form khi select thay đổi
+    $('select[name="course_item_id"], select[name="status"]').change(function() {
+        $(this).closest('form').submit();
+    });
+
+    // Auto-submit khi search select2 thay đổi
+    $('#student_search').on('select2:select', function(e) {
+        var studentId = e.params.data.id;
+        // Thay đổi URL để truy vấn theo ID học viên
+        window.location.href = '{{ route("students.index") }}?student_id=' + studentId;
+    });
+
+    // Xóa tìm kiếm khi clear
+    $('#student_search').on('select2:clear', function(e) {
+        window.location.href = '{{ route("students.index") }}';
+    });
+});
+
 function exportStudents() {
     alert('Chức năng xuất Excel đang được phát triển');
 }
@@ -276,11 +271,6 @@ function exportStudents() {
 function printStudents() {
     window.print();
 }
-
-// Auto-submit form when select changes
-$('select[name="course_item_id"], select[name="status"]').change(function() {
-    $(this).closest('form').submit();
-});
 </script>
-@endsection 
+@endpush 
  

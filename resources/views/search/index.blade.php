@@ -21,13 +21,12 @@
                     <div class="col-md-8">
                         <div class="form-group">
                             <label for="term" class="form-label">Tìm kiếm theo tên hoặc số điện thoại học viên</label>
-                            <div class="input-group">
-                                <input type="text" class="form-control @error('term') is-invalid @enderror" 
-                                    id="term" name="term" value="{{ $searchTerm ?? old('term') }}" 
-                                    placeholder="Nhập tên hoặc số điện thoại...">
-                                <button class="btn btn-primary" type="submit">
-                                    <i class="fas fa-search"></i> Tìm kiếm
-                                </button>
+                            <div style="width: 100%">
+                                <select id="student_search" name="term" class="form-control select2-ajax" style="width: 100%;">
+                                    @if(isset($searchTerm))
+                                        <option value="{{ $searchTerm }}" selected>{{ $searchTerm }}</option>
+                                    @endif
+                                </select>
                             </div>
                             @error('term')
                                 <div class="invalid-feedback">{{ $message }}</div>
@@ -36,6 +35,9 @@
                     </div>
                     <div class="col-md-4 d-flex justify-content-end">
                         <div class="form-group">
+                            <button type="submit" class="btn btn-primary me-2">
+                                <i class="fas fa-search me-1"></i> Tìm kiếm
+                            </button>
                             <a href="{{ route('students.index') }}" class="btn btn-outline-secondary">
                                 <i class="fas fa-users me-1"></i> Xem tất cả học viên
                             </a>
@@ -308,3 +310,58 @@
     @endisset
 </div>
 @endsection
+
+@push('scripts')
+<script>
+$(document).ready(function() {
+    // Cấu hình Select2 cho ô tìm kiếm học viên
+    $('#student_search').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Nhập tên hoặc số điện thoại học viên...',
+        allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: '{{ route("api.search.autocomplete") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Auto-submit khi search select2 thay đổi
+    $('#student_search').on('select2:select', function(e) {
+        var studentId = e.params.data.id;
+        // Thêm student_id vào form hidden và submit
+        var hiddenInput = $('<input>').attr({
+            type: 'hidden',
+            name: 'student_id',
+            value: studentId
+        });
+        $('#search-form').append(hiddenInput);
+        $('#search-form').submit();
+    });
+
+    // Xóa tìm kiếm khi clear
+    $('#student_search').on('select2:clear', function(e) {
+        $('#search-form').find('input[name="term"]').val('');
+        $('#search-form').find('input[name="student_id"]').remove();
+        $('#search-form').submit();
+    });
+});
+</script>
+@endpush

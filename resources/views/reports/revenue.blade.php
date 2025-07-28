@@ -43,7 +43,7 @@
                     Doanh thu theo ngày
                 </div>
                 <div class="card-body">
-                    <canvas id="revenueChart" width="100%" height="40"></canvas>
+                    <div id="revenueChart" style="height: 300px;"></div>
                 </div>
                 <div class="card-footer small text-muted">
                     Dữ liệu từ {{ $startDate->format('d/m/Y') }} đến {{ $endDate->format('d/m/Y') }}
@@ -230,58 +230,142 @@
 </div>
 @endsection
 
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.0/dist/chart.min.js"></script>
-<script>
-// Set new default font family and font color
-Chart.defaults.font.family = '-apple-system,system-ui,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif';
-Chart.defaults.color = '#858796';
+@push('styles')
+<style>
+.border-left-primary {border-left: 4px solid #4e73df;}
+.border-left-success {border-left: 4px solid #1cc88a;}
+</style>
+@endpush
 
-// Area Chart - Revenue
-var ctx = document.getElementById("revenueChart");
-var myLineChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: {!! json_encode($chartData['labels']) !!},
-        datasets: [{
-            label: "Doanh thu",
-            lineTension: 0.3,
-            backgroundColor: "rgba(78, 115, 223, 0.05)",
-            borderColor: "rgba(78, 115, 223, 1)",
-            pointRadius: 3,
-            pointBackgroundColor: "rgba(78, 115, 223, 1)",
-            pointBorderColor: "rgba(78, 115, 223, 1)",
-            pointHoverRadius: 5,
-            pointHoverBackgroundColor: "rgba(78, 115, 223, 1)",
-            pointHoverBorderColor: "rgba(78, 115, 223, 1)",
-            pointHitRadius: 10,
-            pointBorderWidth: 2,
-            data: {!! json_encode($chartData['data']) !!},
-        }],
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-            y: {
-                ticks: {
-                    callback: function(value) {
-                        return new Intl.NumberFormat('vi-VN').format(value) + ' đ';
-                    }
-                }
-            }
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        var label = context.dataset.label || '';
-                        var value = context.raw;
-                        return label + ': ' + new Intl.NumberFormat('vi-VN').format(value) + ' đ';
-                    }
-                }
-            }
+@push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Định dạng tiền tệ Việt Nam
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('vi-VN', { 
+            style: 'currency', 
+            currency: 'VND',
+            maximumFractionDigits: 0 
+        }).format(value);
+    }
+
+    // Kiểm tra và đảm bảo dữ liệu hợp lệ
+    const safeJsonParse = function(jsonString, defaultValue = []) {
+        try {
+            const parsed = JSON.parse(jsonString);
+            return parsed || defaultValue;
+        } catch (e) {
+            console.error("Error parsing JSON:", e);
+            return defaultValue;
         }
+    };
+
+    // Biểu đồ doanh thu
+    try {
+        const chartLabels = safeJsonParse('{!! json_encode($chartData["labels"] ?? []) !!}', []);
+        const chartData = safeJsonParse('{!! json_encode($chartData["data"] ?? []) !!}', []);
+
+        if (document.getElementById("revenueChart") && chartLabels.length > 0) {
+            const options = {
+                chart: {
+                    type: 'area',
+                    height: 300,
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+                    toolbar: {
+                        show: false
+                    },
+                    zoom: {
+                        enabled: false
+                    },
+                    animations: {
+                        enabled: true,
+                        easing: 'easeinout',
+                        speed: 800
+                    }
+                },
+                series: [{
+                    name: 'Doanh thu',
+                    data: chartData
+                }],
+                xaxis: {
+                    categories: chartLabels,
+                    axisBorder: {
+                        show: false
+                    },
+                    axisTicks: {
+                        show: false
+                    },
+                    labels: {
+                        style: {
+                            colors: '#858796'
+                        }
+                    }
+                },
+                yaxis: {
+                    labels: {
+                        formatter: function(value) {
+                            return formatCurrency(value);
+                        },
+                        style: {
+                            colors: '#858796'
+                        }
+                    }
+                },
+                dataLabels: {
+                    enabled: false
+                },
+                stroke: {
+                    curve: 'smooth',
+                    width: 2
+                },
+                colors: ['#4e73df'],
+                fill: {
+                    type: 'gradient',
+                    gradient: {
+                        shadeIntensity: 1,
+                        opacityFrom: 0.7,
+                        opacityTo: 0.2,
+                        stops: [0, 90, 100]
+                    }
+                },
+                markers: {
+                    size: 4,
+                    colors: ['#4e73df'],
+                    strokeColors: '#fff',
+                    strokeWidth: 2,
+                    hover: {
+                        size: 7
+                    }
+                },
+                tooltip: {
+                    theme: 'light',
+                    y: {
+                        formatter: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                },
+                grid: {
+                    borderColor: '#e0e0e0',
+                    strokeDashArray: 4,
+                    position: 'back'
+                },
+                legend: {
+                    position: 'top',
+                    horizontalAlign: 'right'
+                }
+            };
+
+            const revenueChart = new ApexCharts(document.querySelector("#revenueChart"), options);
+            revenueChart.render();
+        } else {
+            console.warn("Không thể tạo biểu đồ doanh thu: Không có dữ liệu hoặc không tìm thấy element");
+            document.querySelector("#revenueChart").innerHTML = '<div class="alert alert-info">Không có dữ liệu để hiển thị</div>';
+        }
+    } catch (e) {
+        console.error("Lỗi khi tạo biểu đồ doanh thu:", e);
+        document.querySelector("#revenueChart").innerHTML = '<div class="alert alert-danger">Đã xảy ra lỗi khi tạo biểu đồ</div>';
     }
 });
 </script>

@@ -200,15 +200,23 @@ class ReportController extends Controller
         $startDate = $request->input('start_date') ? Carbon::parse($request->input('start_date')) : Carbon::now()->startOfMonth();
         $endDate = $request->input('end_date') ? Carbon::parse($request->input('end_date'))->endOfDay() : Carbon::now()->endOfDay();
         
-        // Tổng số ghi danh trong khoảng thời gian
-        $totalEnrollments = Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])->count();
-        
+        // Tổng số ghi danh trong khoảng thời gian và theo trạng thái
+        $totalEnrollments = [
+            'total' => Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])->count(),
+            'enrolled' => Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])
+                ->where('status', 'enrolled')->count(),
+            'completed' => Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])
+                ->where('status', 'completed')->count(),
+            'cancelled' => Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])
+                ->where('status', 'cancelled')->count()
+        ];
+            
         // Ghi danh theo khóa học
         $enrollmentsByCourse = Enrollment::whereBetween('enrollment_date', [$startDate, $endDate])
             ->join('course_items', 'enrollments.course_item_id', '=', 'course_items.id')
-            ->select('course_items.name', DB::raw('count(*) as total'))
+            ->select('course_items.name', DB::raw('count(*) as count'))
             ->groupBy('course_items.id', 'course_items.name')
-            ->orderBy('total', 'desc')
+            ->orderBy('count', 'desc')
             ->get();
             
         // Ghi danh theo ngày
@@ -232,7 +240,7 @@ class ReportController extends Controller
             
         // Tỷ lệ hoàn thành học phí
         $paymentStats = [
-            'fully_paid' => Enrollment::where('status', 'enrolled')
+            'paid' => Enrollment::where('status', 'enrolled')
                 ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") >= enrollments.final_fee')
                 ->count(),
             'partially_paid' => Enrollment::where('status', 'enrolled')
@@ -311,7 +319,7 @@ class ReportController extends Controller
             ->get();
             
         // Danh sách thanh toán gần đây
-        $recentPayments = Payment::with(['student', 'enrollment.courseItem'])
+        $recentPayments = Payment::with(['enrollment', 'enrollment.student', 'enrollment.courseItem'])
             ->where('status', 'confirmed')
             ->whereBetween('payment_date', [$startDate, $endDate])
             ->orderBy('payment_date', 'desc')
@@ -355,6 +363,10 @@ class ReportController extends Controller
     public function attendanceReport(Request $request)
     {
         $courseItem = null;
+        $attendanceStats = [];
+        $attendanceByDate = collect();
+        $studentsAttendance = collect();
+        $chartData = null;
         
         if ($request->has('course_item_id')) {
             $courseItem = CourseItem::findOrFail($request->course_item_id);
@@ -367,6 +379,11 @@ class ReportController extends Controller
                 ->pluck('count', 'status')
                 ->toArray();
                 
+            // Đảm bảo có đủ các trạng thái mặc định nếu không có dữ liệu
+            if (!isset($attendanceStats['present'])) $attendanceStats['present'] = 0;
+            if (!isset($attendanceStats['absent'])) $attendanceStats['absent'] = 0;
+            if (!isset($attendanceStats['late'])) $attendanceStats['late'] = 0;
+                
             // Lấy thống kê điểm danh theo ngày
             $attendanceByDate = Attendance::where('course_item_id', $request->course_item_id)
                 ->select(DB::raw('DATE(attendance_date) as date'), 
@@ -378,18 +395,22 @@ class ReportController extends Controller
                 ->get();
                 
             // Học viên với tỷ lệ điểm danh cao nhất
-            $studentsAttendance = Attendance::where('course_item_id', $request->course_item_id)
+            $studentsAttendance = DB::table('attendances')
                 ->join('students', 'attendances.student_id', '=', 'students.id')
-                ->select('students.id', 'students.full_name',
-                         DB::raw('COUNT(*) as total'),
-                         DB::raw('SUM(CASE WHEN attendances.status = "present" THEN 1 ELSE 0 END) as present_count'),
-                         DB::raw('SUM(CASE WHEN attendances.status = "absent" THEN 1 ELSE 0 END) as absent_count'),
-                         DB::raw('SUM(CASE WHEN attendances.status = "late" THEN 1 ELSE 0 END) as late_count'))
+                ->where('attendances.course_item_id', $request->course_item_id)
+                ->select(
+                    'students.id',
+                    'students.full_name',
+                    DB::raw('COUNT(*) as total'),
+                    DB::raw('SUM(CASE WHEN attendances.status = "present" THEN 1 ELSE 0 END) as present_count'),
+                    DB::raw('SUM(CASE WHEN attendances.status = "absent" THEN 1 ELSE 0 END) as absent_count'),
+                    DB::raw('SUM(CASE WHEN attendances.status = "late" THEN 1 ELSE 0 END) as late_count')
+                )
                 ->groupBy('students.id', 'students.full_name')
-                ->orderByRaw('present_count DESC, late_count ASC')
+                ->orderByRaw('SUM(CASE WHEN attendances.status = "present" THEN 1 ELSE 0 END) DESC, SUM(CASE WHEN attendances.status = "late" THEN 1 ELSE 0 END) ASC')
                 ->get();
                 
-            foreach ($studentsAttendance as &$student) {
+            foreach ($studentsAttendance as $student) {
                 $student->attendance_rate = $student->total > 0 
                     ? round((($student->present_count + $student->late_count * 0.5) / $student->total) * 100, 1) 
                     : 0;
@@ -407,7 +428,11 @@ class ReportController extends Controller
         
         // Lấy danh sách khóa học có điểm danh
         $courses = CourseItem::where('is_leaf', true)
-            ->whereHas('attendances')
+            ->whereExists(function ($query) {
+                $query->select(DB::raw(1))
+                      ->from('attendances')
+                      ->whereColumn('attendances.course_item_id', 'course_items.id');
+            })
             ->orderBy('name')
             ->get();
         

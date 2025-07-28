@@ -17,8 +17,6 @@ return new class extends Migration
             $table->foreignId('parent_id')->nullable()->constrained('course_items')->onDelete('cascade');
             $table->integer('level')->default(1);
             $table->boolean('is_leaf')->default(true);
-            $table->boolean('has_online')->default(true);
-            $table->boolean('has_offline')->default(true);
             $table->decimal('fee', 15, 2)->default(0);
             $table->integer('order_index')->default(0);
             $table->boolean('active')->default(true);

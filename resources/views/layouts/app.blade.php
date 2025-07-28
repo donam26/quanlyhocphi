@@ -347,14 +347,25 @@
     <div class="main-content">
         <!-- Page header -->
         <div class="page-header">
-            <h1>@yield('page-title', 'Dashboard')</h1>
-            @if(View::hasSection('breadcrumb'))
-                <nav aria-label="breadcrumb">
-                    <ol class="breadcrumb">
-                        @yield('breadcrumb')
-                    </ol>
-                </nav>
-            @endif
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>@yield('page-title', 'Dashboard')</h1>
+                    @if(View::hasSection('breadcrumb'))
+                        <nav aria-label="breadcrumb">
+                            <ol class="breadcrumb">
+                                <li class="breadcrumb-item"><a href="{{ route('dashboard') }}">Dashboard</a></li>
+                                @yield('breadcrumb')
+                            </ol>
+                        </nav>
+                    @endif
+                </div>
+                <div>
+                    <button onclick="window.history.back()" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i>Quay lại
+                    </button>
+                    @yield('page-actions')
+                </div>
+            </div>
         </div>
 
         <!-- Flash messages -->
@@ -411,6 +422,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Select2 -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -420,6 +432,63 @@
     <!-- Toastr -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
+    
+    <style>
+        /* Fix cho Select2 AJAX */
+        .select2-ajax-container {
+            width: 100% !important;
+        }
+        
+        .select2-container--bootstrap-5 {
+            width: 100% !important;
+        }
+        
+        .select2-container--bootstrap-5 .select2-selection {
+            min-height: 38px;
+            border-radius: 0.375rem;
+            border: 1px solid #dee2e6;
+            padding: 0.375rem 0.75rem;
+        }
+        
+        .select2-container--bootstrap-5 .select2-selection--single {
+            padding: 0.375rem 2.25rem 0.375rem 0.75rem;
+        }
+        
+        /* Fix cho row gap */
+        .gap-2 {
+            gap: 0.5rem !important;
+        }
+    </style>
+    
+    <script>
+        // Cấu hình Select2 mặc định cho toàn bộ ứng dụng
+        $(document).ready(function() {
+            // Áp dụng Select2 cho tất cả các select có class .select2
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
+            
+            // Cấu hình đặc biệt cho select2-ajax
+            $('.select2-ajax').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: 'Tìm kiếm...',
+                allowClear: true,
+                containerCssClass: 'select2-ajax-container'
+            });
+            
+            // Format tiền tệ
+            function formatCurrency(number) {
+                return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+            }
+            
+            // Hàm mở mobile sidebar
+            function toggleSidebar() {
+                document.getElementById('sidebar').classList.toggle('show');
+            }
+        });
+    </script>
     
     @stack('scripts')
 </body>

@@ -29,20 +29,19 @@
 <!-- Filter & Search -->
 <div class="card mb-4">
     <div class="card-body">
-        <form method="GET" action="{{ route('payments.index') }}">
-            <div class="row">
+        <form method="GET" action="{{ route('payments.index') }}" id="paymentSearchForm">
+            <div class="row align-items-center">
                 <div class="col-md-3">
-                    <div class="input-group">
-                        <input type="text" name="search" class="form-control" 
-                               placeholder="Tìm theo tên, SĐT, mã GD..." 
-                               value="{{ request('search') }}">
-                        <button class="btn btn-outline-secondary" type="submit">
-                            <i class="fas fa-search"></i>
-                        </button>
+                    <div class="form-group mb-0">
+                        <select id="payment_search" name="search" class="form-control select2-ajax" style="width: 100%;">
+                            @if(request('search'))
+                                <option value="{{ request('search') }}" selected>{{ request('search') }}</option>
+                            @endif
+                        </select>
                     </div>
                 </div>
                 <div class="col-md-2">
-                    <select name="payment_method" class="form-select">
+                    <select name="payment_method" class="form-select" onchange="this.form.submit()">
                         <option value="">Tất cả phương thức</option>
                         <option value="cash" {{ request('payment_method') == 'cash' ? 'selected' : '' }}>Tiền mặt</option>
                         <option value="bank_transfer" {{ request('payment_method') == 'bank_transfer' ? 'selected' : '' }}>Chuyển khoản</option>
@@ -51,7 +50,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <select name="status" class="form-select">
+                    <select name="status" class="form-select" onchange="this.form.submit()">
                         <option value="">Tất cả trạng thái</option>
                         <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
                         <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xác nhận</option>
@@ -290,20 +289,6 @@
     </div>
 </div>
 
-<!-- Revenue Chart -->
-@if($payments->count() > 0)
-<div class="card mt-4">
-    <div class="card-header">
-        <h6 class="card-title mb-0">
-            <i class="fas fa-chart-line me-2"></i>Biểu đồ doanh thu 7 ngày gần đây
-        </h6>
-    </div>
-    <div class="card-body">
-        <canvas id="revenueChart" height="100"></canvas>
-    </div>
-</div>
-@endif
-
 <!-- Bulk Actions Modal -->
 <div class="modal fade" id="bulkActionsModal" tabindex="-1">
     <div class="modal-dialog">
@@ -345,49 +330,86 @@
 </div>
 @endsection
 
-@section('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+@push('scripts')
 <script>
-// Chart.js for revenue chart
-@if($payments->count() > 0 && isset($chartData))
-const ctx = document.getElementById('revenueChart').getContext('2d');
-const revenueChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: {!! json_encode($chartData['labels']) !!},
-        datasets: [{
-            label: 'Doanh thu (VNĐ)',
-            data: {!! json_encode($chartData['data']) !!},
-            borderColor: 'rgb(75, 192, 192)',
-            backgroundColor: 'rgba(75, 192, 192, 0.1)',
-            tension: 0.1,
-            fill: true
-        }]
-    },
-    options: {
-        responsive: true,
-        scales: {
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    callback: function(value) {
-                        return new Intl.NumberFormat('vi-VN').format(value) + ' VNĐ';
-                    }
-                }
-            }
-        },
-        plugins: {
-            tooltip: {
-                callbacks: {
-                    label: function(context) {
-                        return 'Doanh thu: ' + new Intl.NumberFormat('vi-VN').format(context.parsed.y) + ' VNĐ';
-                    }
-                }
-            }
+$(document).ready(function() {
+    // Cấu hình Select2 cho ô tìm kiếm thanh toán với AJAX
+    $('#payment_search').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm theo tên, SĐT, mã GD...',
+        allowClear: true,
+        minimumInputLength: 2,
+        ajax: {
+            url: '{{ route("api.search.autocomplete") }}',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
+    });
+
+    // Auto-submit khi search select2 thay đổi
+    $('#payment_search').on('select2:select', function(e) {
+        var studentId = e.params.data.id;
+        // Thay đổi URL để truy vấn theo ID học viên
+        window.location.href = '{{ route("payments.index") }}?student_id=' + studentId;
+    });
+
+    // Xóa tìm kiếm khi clear
+    $('#payment_search').on('select2:clear', function(e) {
+        window.location.href = '{{ route("payments.index") }}';
+    });
+
+    // Auto-submit khi các select khác thay đổi
+    $('select[name="payment_method"], select[name="status"]').change(function() {
+        $(this).closest('form').submit();
+    });
+
+    // Xử lý chọn tất cả
+    $('#selectAll').click(function() {
+        $('.payment-checkbox').prop('checked', this.checked);
+        updateBulkActions();
+    });
+
+    // Xử lý chọn từng khoản thanh toán
+    $('.payment-checkbox').click(function() {
+        updateBulkActions();
+        
+        // Nếu bỏ chọn một item, bỏ chọn cả "Chọn tất cả"
+        if (!this.checked) {
+            $('#selectAll').prop('checked', false);
+        }
+        
+        // Nếu đã chọn tất cả item, chọn cả "Chọn tất cả"
+        else if ($('.payment-checkbox:checked').length == $('.payment-checkbox').length) {
+            $('#selectAll').prop('checked', true);
+        }
+    });
+    
+    // Cập nhật nút thao tác hàng loạt
+    function updateBulkActions() {
+        var count = $('.payment-checkbox:checked').length;
+        if (count > 0) {
+            $('#bulk-action-btn').text('Thao tác (' + count + ')').removeAttr('disabled');
+        } else {
+            $('#bulk-action-btn').text('Thao tác').attr('disabled', 'disabled');
         }
     }
 });
-@endif
 
 function toggleSelectAll() {
     const selectAll = document.getElementById('selectAll');
@@ -396,6 +418,7 @@ function toggleSelectAll() {
     checkboxes.forEach(checkbox => {
         checkbox.checked = selectAll.checked;
     });
+    updateBulkActions();
 }
 
 function bulkActions() {
@@ -486,11 +509,6 @@ function printReceipts() {
     window.open(url, '_blank');
 }
 
-// Auto-submit form when filters change
-$('select[name="payment_method"], select[name="status"], input[name="date_from"], input[name="date_to"]').change(function() {
-    $(this).closest('form').submit();
-});
-
 // Show/hide bulk action fields
 $('select[name="bulk_action"]').change(function() {
     const action = $(this).val();
@@ -500,6 +518,15 @@ $('select[name="bulk_action"]').change(function() {
         $('#methodSelect').show();
     }
 });
+
+function updateBulkActions() {
+    var count = $('.payment-checkbox:checked').length;
+    if (count > 0) {
+        $('#bulk-action-btn').text('Thao tác (' + count + ')').removeAttr('disabled');
+    } else {
+        $('#bulk-action-btn').text('Thao tác').attr('disabled', 'disabled');
+    }
+}
 </script>
-@endsection 
+@endpush 
  

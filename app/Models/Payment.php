@@ -33,19 +33,19 @@ class Payment extends Model
     }
 
     /**
-     * Lấy học viên từ quan hệ ghi danh
+     * Get the student that owns the payment.
      */
     public function student()
     {
-        return $this->enrollment->student();
+        return $this->enrollment ? $this->enrollment->student : null;
     }
 
     /**
-     * Lấy khóa học từ quan hệ ghi danh
+     * Get the course item for the payment.
      */
     public function courseItem()
     {
-        return $this->enrollment->courseItem();
+        return $this->enrollment ? $this->enrollment->courseItem : null;
     }
 
     /**
