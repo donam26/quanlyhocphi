@@ -43,6 +43,20 @@
                     @enderror
                 </div>
 
+                <div class="form-group mt-4 mb-4">
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" name="make_root" id="make_root" class="custom-control-input" value="1" @if(!$courseItem->parent_id) checked @endif>
+                        <label class="custom-control-label" for="make_root">
+                            <strong class="text-primary">Đặt làm khóa chính</strong> (khóa này sẽ hiển thị ở cấp cao nhất, không thuộc khóa nào)
+                        </label>
+                    </div>
+                    @if($courseItem->parent_id)
+                        <div class="alert alert-info mt-2" id="make_root_info" style="display: none;">
+                            <i class="fas fa-info-circle"></i> Khi chọn làm khóa chính, khóa học này sẽ được đưa lên cấp cao nhất và hiển thị cùng cấp với các ngành học.
+                        </div>
+                    @endif
+                </div>
+
                 <div class="form-group">
                     <label for="name">Tên khóa học <span class="text-danger">*</span></label>
                     <input type="text" name="name" id="name" class="form-control @error('name') is-invalid @enderror" value="{{ old('name', $courseItem->name) }}" required>
@@ -98,10 +112,37 @@
 @push('scripts')
 <script>
     $(document).ready(function() {
-        // Nếu đã là khóa học lá (có con), không cho chọn parent là con của nó
+        // Xử lý tương tác giữa checkbox "Đặt làm khóa chính" và dropdown chọn cha
+        function handleRootToggle() {
+            const makeRootChecked = $('#make_root').is(':checked');
+            if (makeRootChecked) {
+                // Nếu đặt làm khóa chính, vô hiệu hóa dropdown chọn cha
+                $('#parent_id').prop('disabled', true);
+                $('#parent_id').val('');
+                $('#make_root_info').slideDown();
+            } else {
+                // Nếu không đặt làm khóa chính, kích hoạt dropdown chọn cha
+                $('#parent_id').prop('disabled', false);
+                $('#make_root_info').slideUp();
+            }
+        }
+
+        // Kích hoạt xử lý khi trang tải
+        handleRootToggle();
+
+        // Kích hoạt xử lý khi checkbox thay đổi
+        $('#make_root').change(function() {
+            handleRootToggle();
+        });
+
+        // Xử lý khi chọn parent_id
         $('#parent_id').change(function() {
             const selectedId = $(this).val();
-            // Logic kiểm tra ở đây nếu cần
+            // Nếu chọn một parent, bỏ chọn "Đặt làm khóa chính"
+            if (selectedId) {
+                $('#make_root').prop('checked', false);
+                $('#make_root_info').slideUp();
+            }
         });
     });
 </script>

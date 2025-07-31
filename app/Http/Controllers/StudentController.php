@@ -2,9 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
+use App\Models\Attendance;
+use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\WaitingList;
+use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -25,11 +26,6 @@ class StudentController extends Controller
         // Tìm kiếm theo ID học viên
         if ($request->filled('student_id')) {
             $query->where('id', $request->student_id);
-        }
-
-        // Lọc theo trạng thái
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
         }
         
         // Lọc theo khóa học
@@ -110,11 +106,36 @@ class StudentController extends Controller
             'address' => 'nullable|string',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
-            'status' => 'required|in:active,inactive,potential',
             'notes' => 'nullable|string',
+            'gender' => 'nullable|string|in:male,female,other',
+            'custom_field_keys.*' => 'nullable|string',
+            'custom_field_values.*' => 'nullable|string'
         ]);
 
-        $student->update($validatedData);
+        // Xử lý trường thông tin tùy chỉnh
+        $customFields = [];
+        if ($request->has('custom_field_keys')) {
+            $keys = $request->input('custom_field_keys', []);
+            $values = $request->input('custom_field_values', []);
+            
+            foreach ($keys as $index => $key) {
+                if (!empty($key) && isset($values[$index])) {
+                    $customFields[$key] = $values[$index];
+                }
+            }
+        }
+
+        // Tạo mảng dữ liệu để update
+        $dataToUpdate = array_filter($validatedData, function($key) {
+            return !in_array($key, ['custom_field_keys', 'custom_field_values']);
+        }, ARRAY_FILTER_USE_KEY);
+
+        // Thêm trường custom_fields vào dữ liệu cập nhật
+        if (!empty($customFields)) {
+            $dataToUpdate['custom_fields'] = $customFields;
+        }
+
+        $student->update($dataToUpdate);
 
         return redirect()->route('students.show', $student)
                         ->with('success', 'Cập nhật thông tin học viên thành công!');
@@ -152,13 +173,9 @@ class StudentController extends Controller
                 'id' => $student->id,
                 'full_name' => $student->full_name,
                 'phone' => $student->phone,
-                'status' => $student->status,
-                'current_classes' => $student->enrollments->where('status', 'enrolled')->map(function($enrollment) {
-                    return $enrollment->courseClass->name;
+                'current_classes' => $student->enrollments->map(function($enrollment) {
+                    return $enrollment->courseItem->name;
                 })->toArray(),
-                'waiting_courses' => $student->waitingLists->where('status', 'waiting')->map(function($waiting) {
-                    return $waiting->courseItem->name;
-                })->toArray()
             ];
         }));
     }
@@ -170,11 +187,6 @@ class StudentController extends Controller
     {
         $stats = [
             'total_students' => Student::count(),
-            'active_students' => Student::where('status', 'active')->count(),
-            'potential_students' => Student::where('status', 'potential')->count(),
-            'students_with_unpaid_fees' => Student::whereHas('enrollments', function($q) {
-                $q->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE enrollment_id = enrollments.id AND status = "confirmed") < final_fee');
-            })->count(),
             'recent_registrations' => Student::where('created_at', '>=', now()->subDays(30))->count()
         ];
 

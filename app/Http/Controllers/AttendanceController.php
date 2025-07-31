@@ -19,15 +19,15 @@ class AttendanceController extends Controller
     public function index(Request $request)
     {
         $query = Attendance::with(['enrollment.student', 'enrollment.courseItem'])
-                    ->orderBy('class_date', 'desc');
+                    ->orderBy('attendance_date', 'desc');
         
         // Lọc theo ngày
         if ($request->filled('date_from')) {
-            $query->whereDate('class_date', '>=', $request->date_from);
+            $query->whereDate('attendance_date', '>=', $request->date_from);
         }
         
         if ($request->filled('date_to')) {
-            $query->whereDate('class_date', '<=', $request->date_to);
+            $query->whereDate('attendance_date', '<=', $request->date_to);
         }
         
         // Lọc theo trạng thái
@@ -85,7 +85,7 @@ class AttendanceController extends Controller
         
         // Lấy điểm danh hiện có cho ngày được chọn
         $existingAttendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
-            ->whereDate('class_date', $attendanceDate)
+            ->whereDate('attendance_date', $attendanceDate)
             ->get()
             ->keyBy('enrollment_id'); // Sử dụng enrollment_id làm khóa để dễ tìm kiếm
         
@@ -133,7 +133,7 @@ class AttendanceController extends Controller
                 Attendance::updateOrCreate(
                     [
                         'enrollment_id' => $attendanceData['enrollment_id'],
-                        'class_date' => $attendanceDate,
+                        'attendance_date' => $attendanceDate,
                     ],
                     [
                         'status' => $attendanceData['status'],
@@ -180,7 +180,7 @@ class AttendanceController extends Controller
         
         // Lấy điểm danh hiện có cho ngày được chọn
         $existingAttendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
-            ->whereDate('class_date', $attendanceDate)
+            ->whereDate('attendance_date', $attendanceDate)
             ->get()
             ->keyBy('enrollment_id');
         
@@ -210,12 +210,12 @@ class AttendanceController extends Controller
     {
         $request->validate([
             'course_item_id' => 'required|exists:course_items,id',
-            'class_date' => 'required|date',
+            'attendance_date' => 'required|date',
             'status' => 'required|in:present,absent,late,excused',
         ]);
         
         $courseItem = CourseItem::findOrFail($request->course_item_id);
-        $classDate = $request->class_date;
+        $attendanceDate = $request->attendance_date;
         $status = $request->status;
         
         // Lấy tất cả ghi danh cho khóa học
@@ -229,7 +229,7 @@ class AttendanceController extends Controller
                 Attendance::updateOrCreate(
                     [
                         'enrollment_id' => $enrollment->id,
-                        'class_date' => $classDate,
+                        'attendance_date' => $attendanceDate,
                     ],
                     [
                         'status' => $status,
@@ -241,7 +241,7 @@ class AttendanceController extends Controller
             DB::commit();
             return redirect()->route('course-items.attendance.by-date', [
                 'courseItem' => $courseItem->id, 
-                'date' => $classDate
+                'date' => $attendanceDate
             ])->with('success', 'Điểm danh nhanh đã được áp dụng thành công!');
             
         } catch (\Exception $e) {
@@ -269,7 +269,7 @@ class AttendanceController extends Controller
         
         // Lấy tất cả điểm danh của học viên
         $attendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
-            ->orderBy('class_date', 'desc')
+            ->orderBy('attendance_date', 'desc')
             ->get();
         
         // Nhóm điểm danh theo khóa học
@@ -385,13 +385,13 @@ class AttendanceController extends Controller
         
         // Lấy tất cả điểm danh trong tháng
         $attendances = Attendance::whereIn('enrollment_id', $enrollments->pluck('id'))
-            ->whereDate('class_date', '>=', $startDate)
-            ->whereDate('class_date', '<=', $endDate)
+            ->whereDate('attendance_date', '>=', $startDate)
+            ->whereDate('attendance_date', '<=', $endDate)
             ->get();
         
         // Nhóm theo ngày
         $attendancesByDate = $attendances->groupBy(function ($attendance) {
-            return Carbon::parse($attendance->class_date)->toDateString();
+            return Carbon::parse($attendance->attendance_date)->toDateString();
         });
         
         // Tạo thống kê

@@ -2,25 +2,19 @@
 
 @section('page-title', 'Thanh toán - ' . $courseItem->name)
 
+@section('breadcrumb')
+<li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">Khóa học</a></li>
+<li class="breadcrumb-item active">Thanh toán</li>
+@endsection
+
+@section('page-actions')
+<a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-secondary">
+    <i class="fas fa-arrow-left"></i> Quay lại
+</a>
+@endsection
+
 @section('content')
 <div class="container-fluid">
-    <div class="row mb-3">
-        <div class="col-md-8">
-            <h2>Thanh toán: {{ $courseItem->name }}</h2>
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">Khóa học</a></li>
-                    <li class="breadcrumb-item active">Thanh toán</li>
-                </ol>
-            </nav>
-        </div>
-        <div class="col-md-4 text-end">
-            <a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-secondary">
-                <i class="fas fa-arrow-left"></i> Quay lại
-            </a>
-        </div>
-    </div>
-
     <!-- Thống kê thanh toán -->
     <div class="row mb-4">
         <div class="col-md-3">
@@ -79,9 +73,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Danh sách học viên</h5>
                     <div>
-                        <button class="btn btn-sm btn-success" onclick="exportToExcel()">
+                        <a href="{{ route('payments.course.export', $courseItem->id) }}" class="btn btn-sm btn-success">
                             <i class="fas fa-file-excel me-1"></i>Xuất Excel
-                        </button>
+                        </a>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -433,11 +427,6 @@
                 document.getElementById('paymentHistoryContent').innerHTML = 
                     `<div class="alert alert-danger">Có lỗi xảy ra khi tải dữ liệu: ${error.message}</div>`;
             });
-    }
-    
-    function exportToExcel() {
-        // Implement export functionality
-        alert('Chức năng xuất Excel đang được phát triển!');
     }
 </script>
 @endpush

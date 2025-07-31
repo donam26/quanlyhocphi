@@ -1,20 +1,20 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\StudentController;
+use App\Http\Controllers\CourseItemController;
 use App\Http\Controllers\EnrollmentController;
 use App\Http\Controllers\PaymentController;
-use App\Http\Controllers\SearchController;
-use App\Http\Controllers\ReportController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\WaitingListController;
 use App\Http\Controllers\AttendanceController;
-use App\Http\Controllers\PaymentGatewayController;
-use App\Http\Controllers\CoursePackageController;
-use App\Http\Controllers\CourseItemController;
-use App\Http\Controllers\ClassesController;
 use App\Http\Controllers\LearningPathController;
+use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\PaymentGatewayController;
+use App\Http\Controllers\DashboardController;
 use Illuminate\Support\Facades\Auth;
+use App\Http\Controllers\ScheduleController;
+use App\Http\Controllers\LearningProgressController;
 
 // Auth Routes (đã được tạo bởi laravel/ui)
 Auth::routes(['register' => false]); // Tắt đăng ký, vì chỉ có admin
@@ -38,7 +38,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
     Route::get('course-items/download-template', [CourseItemController::class, 'exportTemplate'])->name('course-items.download-template');
     Route::post('course-items/{courseItem}/toggle-active', [CourseItemController::class, 'toggleActive'])->name('course-items.toggle-active');
-    Route::get('tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
+    Route::get('course-items/tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
     Route::get('course-items/{id}/students', [CourseItemController::class, 'showStudents'])->name('course-items.students');
     Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');
     Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
@@ -61,21 +61,15 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Enrollments
     Route::resource('enrollments', EnrollmentController::class);
     Route::post('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])->name('enrollments.update-fee');
-    Route::post('enrollments/{enrollment}/confirm', [EnrollmentController::class, 'confirm'])->name('enrollments.confirm');
-    Route::delete('enrollments/{enrollment}/cancel', [EnrollmentController::class, 'cancel'])->name('enrollments.cancel');
-    Route::get('enrollments/waiting-list/{waitingList}', [EnrollmentController::class, 'createFromWaitingList'])->name('enrollments.from-waiting-list');
-    Route::post('enrollments/from-waiting-list', [EnrollmentController::class, 'storeFromWaitingList'])->name('enrollments.store-from-waiting');
     Route::get('unpaid-enrollments', [EnrollmentController::class, 'unpaidList'])->name('enrollments.unpaid');
-
-    // Waiting Lists
-    Route::resource('waiting-lists', WaitingListController::class);
-    Route::post('waiting-lists/{waitingList}/mark-contacted', [WaitingListController::class, 'markContacted'])->name('waiting-lists.mark-contacted');
-    Route::post('waiting-lists/{waitingList}/mark-not-interested', [WaitingListController::class, 'markNotInterested'])->name('waiting-lists.mark-not-interested');
-    Route::post('waiting-lists/{waitingList}/move-to-enrollment', [WaitingListController::class, 'moveToEnrollment'])->name('waiting-lists.move-to-enrollment');
-    Route::get('waiting-lists-needs-contact', [WaitingListController::class, 'needsContact'])->name('waiting-lists.needs-contact');
-    Route::get('waiting-lists-statistics', [WaitingListController::class, 'statistics'])->name('waiting-lists.statistics');
-    Route::get('course-items/{courseItem}/waiting-lists', [WaitingListController::class, 'showByCourseItem'])->name('course-items.waiting-lists');
-    Route::post('enrollments/move-to-waiting-list', [WaitingListController::class, 'moveFromEnrollment'])->name('enrollments.move-to-waiting');
+    
+    // Danh sách chờ (Waitlist) - tích hợp trong Enrollment
+    Route::get('waiting-list', [EnrollmentController::class, 'waitingList'])->name('enrollments.waiting-list');
+    Route::get('waiting-list/needs-contact', [EnrollmentController::class, 'needsContact'])->name('enrollments.needs-contact');
+    Route::post('enrollments/{enrollment}/confirm-waiting', [EnrollmentController::class, 'confirmFromWaiting'])->name('enrollments.confirm-waiting');
+    Route::post('enrollments/{enrollment}/add-waiting-note', [EnrollmentController::class, 'addWaitingNote'])->name('enrollments.add-waiting-note');
+    Route::post('enrollments/move-to-waiting', [EnrollmentController::class, 'moveToWaiting'])->name('enrollments.move-to-waiting');
+    Route::get('course-items/{courseItem}/waiting-list', [CourseItemController::class, 'waitingList'])->name('course-items.waiting-list');
 
     // Attendance
     Route::resource('attendance', AttendanceController::class);
@@ -137,10 +131,45 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/payments/export', [ReportController::class, 'exportPaymentReport'])->name('payments.export');
         Route::get('/attendance/export', [ReportController::class, 'exportAttendanceReport'])->name('attendance.export');
     });
+});
 
-    // Gói khóa học
-    Route::resource('course-packages', CoursePackageController::class);
-    Route::post('course-packages/{package}/add-classes', [CoursePackageController::class, 'addClasses'])->name('course-packages.add-classes');
-    Route::delete('course-packages/{package}/classes/{class}', [CoursePackageController::class, 'removeClass'])->name('course-packages.remove-class');
-    Route::post('course-packages/{package}/update-order', [CoursePackageController::class, 'updateClassesOrder'])->name('course-packages.update-order');
+// Payment routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
+    Route::get('/payments/create', [PaymentController::class, 'create'])->name('payments.create');
+    Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
+    Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
+    Route::get('/payments/{payment}/edit', [PaymentController::class, 'edit'])->name('payments.edit');
+    Route::put('/payments/{payment}', [PaymentController::class, 'update'])->name('payments.update');
+    Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
+    Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
+    Route::get('/payments/{payment}/receipt', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
+    Route::get('/payments/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('payments.course');
+    Route::get('/payments/course/{courseItem}/export', [PaymentController::class, 'exportCoursePayments'])->name('payments.course.export');
+    Route::get('/payments/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('payments.bulk-receipt');
+    Route::get('/enrollments/{enrollment}/payments', [PaymentController::class, 'getEnrollmentPayments'])->name('enrollments.payments');
+});
+
+// Course item routes
+Route::middleware(['auth'])->group(function () {
+    Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
+    Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
+    Route::get('/course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
+    
+    // Lịch học
+    Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
+    Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
+    Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
+    Route::get('/schedules/{schedule}/edit', [ScheduleController::class, 'edit'])->name('schedules.edit');
+    Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->name('schedules.update');
+    Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
+    Route::get('/course-items/{courseItem}/schedules', [ScheduleController::class, 'showCourseSchedule'])->name('course-items.schedules');
+    
+    // Tiến độ học tập
+    Route::get('/learning-progress', [LearningProgressController::class, 'index'])->name('learning-progress.index');
+    Route::get('/learning-progress/students/{student}', [LearningProgressController::class, 'showStudentProgress'])->name('learning-progress.student');
+    Route::get('/learning-progress/courses/{courseItem}', [LearningProgressController::class, 'showCourseProgress'])->name('learning-progress.course');
+    Route::post('/learning-progress/update', [LearningProgressController::class, 'updateProgress'])->name('learning-progress.update');
+    Route::post('/learning-progress/update-bulk', [LearningProgressController::class, 'updateBulkProgress'])->name('learning-progress.update-bulk');
+    Route::post('/learning-progress/update-path-status', [LearningProgressController::class, 'updatePathStatus'])->name('learning-progress.update-path-status');
 });

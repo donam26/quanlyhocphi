@@ -166,6 +166,10 @@ class CourseItemController extends Controller
             'fee' => 'nullable|numeric|min:0',
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
+            'make_root' => 'nullable|boolean',
+            'is_special' => 'nullable|boolean',
+            'custom_field_keys.*' => 'nullable|string',
+            'custom_field_values.*' => 'nullable|string',
         ]);
         
         $courseItem = CourseItem::findOrFail($id);
@@ -180,19 +184,37 @@ class CourseItemController extends Controller
         
         // Kiểm tra không cho phép chọn con làm cha
         $descendants = $courseItem->descendants()->pluck('id')->toArray();
-        if (in_array($request->parent_id, $descendants)) {
+        if (!empty($request->parent_id) && in_array($request->parent_id, $descendants)) {
             if ($request->ajax() || $request->expectsJson()) {
                 return response()->json(['success' => false, 'errors' => ['parent_id' => 'Không thể chọn con làm cha']], 422);
             }
             return back()->withErrors(['parent_id' => 'Không thể chọn con làm cha']);
         }
         
+        // Xác định parent_id dựa vào lựa chọn make_root
+        $parentId = $request->parent_id;
+        if ($request->has('make_root') && $request->make_root) {
+            $parentId = null; // Đặt parent_id = null nếu chọn làm khóa chính
+        }
+        
+        // Xử lý các trường thông tin tùy chỉnh
+        $customFields = [];
+        if ($request->has('is_special') && $request->is_special && $request->has('custom_field_keys')) {
+            $keys = $request->input('custom_field_keys', []);
+            
+            foreach ($keys as $key) {
+                if (!empty($key)) {
+                    $customFields[$key] = ""; // Lưu với giá trị rỗng
+                }
+            }
+        }
+        
         // Xác định level dựa trên parent_id
         $level = 1; // Mặc định là cấp cao nhất
         $isLeaf = $courseItem->is_leaf; // Giữ nguyên trạng thái leaf
         
-        if ($request->parent_id) {
-            $parentItem = CourseItem::findOrFail($request->parent_id);
+        if ($parentId) {
+            $parentItem = CourseItem::findOrFail($parentId);
             $level = $parentItem->level + 1;
             
             // Nếu có giá tiền, đánh dấu là nút lá
@@ -206,12 +228,24 @@ class CourseItemController extends Controller
         
         $courseItem->update([
             'name' => $request->name,
-            'parent_id' => $request->parent_id,
+            'parent_id' => $parentId,
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $request->is_leaf,
             'active' => $request->active,
+            'is_special' => $request->has('is_special') ? $request->is_special : false,
+            'custom_fields' => !empty($customFields) ? $customFields : null,
         ]);
+
+        // Cập nhật các trường thông tin tùy chỉnh cho enrollments hiện tại nếu khóa học đặc biệt
+        if ($request->has('is_special') && $request->is_special && !empty($customFields)) {
+            $enrollments = $courseItem->enrollments;
+            foreach ($enrollments as $enrollment) {
+                $enrollment->update([
+                    'custom_fields' => $customFields
+                ]);
+            }
+        }
 
         // Nếu là AJAX request, trả về JSON response
         if ($request->ajax() || $request->expectsJson()) {
@@ -223,12 +257,13 @@ class CourseItemController extends Controller
         }
         
         // Nếu không phải AJAX request, chuyển hướng như trước
-        if ($request->parent_id) {
-            return redirect()->route('course-items.show', $request->parent_id)
+        if ($parentId) {
+            return redirect()->route('course-items.show', $parentId)
                     ->with('success', 'Đã cập nhật thành công!');
         }
         
-        return redirect()->route('course-items.index')
+        // Nếu là khóa chính, chuyển về trang cây khóa học
+        return redirect()->route('course-items.tree')
                 ->with('success', 'Đã cập nhật thành công!');
     }
 
@@ -405,6 +440,7 @@ class CourseItemController extends Controller
                              substr($latestPayment->notes, strpos($latestPayment->notes, 'Người thu:') + 11) : 'N/A');
             }
             
+            // Trả về thông tin học viên kèm custom_fields từ đăng ký
             return [
                 'student' => $enrollment->student,
                 'course_item' => $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A',
@@ -418,7 +454,8 @@ class CourseItemController extends Controller
                 'paid_amount' => $enrollment->getTotalPaidAmount(),
                 'remaining_amount' => $enrollment->getRemainingAmount(),
                 'payment_notes' => $paymentNotes,
-                'has_notes' => count($paymentNotes) > 0
+                'has_notes' => count($paymentNotes) > 0,
+                'custom_fields' => $enrollment->custom_fields
             ];
         });
         
@@ -426,7 +463,9 @@ class CourseItemController extends Controller
             'courseItem' => $courseItem,
             'students' => $students,
             'enrollmentCount' => $enrollments->count(),
-            'studentCount' => $enrollments->pluck('student_id')->unique()->count()
+            'studentCount' => $enrollments->pluck('student_id')->unique()->count(),
+            'is_special' => $courseItem->is_special,
+            'custom_fields' => $courseItem->is_special ? $courseItem->custom_fields : null
         ]);
     }
     
@@ -712,5 +751,17 @@ class CourseItemController extends Controller
                 ->withInput()
                 ->withErrors(['error' => 'Đã xảy ra lỗi: ' . $e->getMessage()]);
         }
+    }
+
+    /**
+     * Hiển thị danh sách chờ theo khóa học
+     */
+    public function waitingList($id)
+    {
+        // Chuyển hướng đến trang ghi danh với filter theo course_item_id và status waiting
+        return redirect()->route('enrollments.index', [
+            'course_item_id' => $id,
+            'status' => 'waiting'
+        ]);
     }
 }

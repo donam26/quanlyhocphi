@@ -18,13 +18,17 @@ class CourseItem extends Model
         'level',
         'is_leaf',
         'order_index',
-        'active'
+        'active',
+        'is_special',
+        'custom_fields'
     ];
 
     protected $casts = [
         'fee' => 'decimal:2',
         'is_leaf' => 'boolean',
-        'active' => 'boolean'
+        'active' => 'boolean',
+        'is_special' => 'boolean',
+        'custom_fields' => 'array'
     ];
 
     /**
@@ -60,11 +64,12 @@ class CourseItem extends Model
     }
 
     /**
-     * Lấy danh sách chờ
+     * Lấy danh sách chờ của khóa học
      */
-    public function waitingLists()
+    public function waitingList()
     {
-        return $this->hasMany(WaitingList::class, 'course_item_id');
+        return $this->hasMany(Enrollment::class, 'course_item_id')
+            ->where('status', 'waiting');
     }
     
     /**
@@ -144,6 +149,14 @@ class CourseItem extends Model
     public function attendances()
     {
         return $this->hasMany(Attendance::class, 'course_item_id');
+    }
+
+    /**
+     * Quan hệ với bảng lịch học
+     */
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class, 'course_item_id');
     }
 
     /**

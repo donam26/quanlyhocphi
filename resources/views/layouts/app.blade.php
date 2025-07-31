@@ -300,20 +300,22 @@
                     Khóa học
                 </a>
                 
-                <a href="{{ route('enrollments.index') }}" class="nav-link {{ request()->routeIs('enrollments.index') || (request()->routeIs('enrollments.*') && !request()->is('unpaid-enrollments')) ? 'active' : '' }}">
-                    <i class="fas fa-user-plus"></i>
-                    Ghi danh
+                <a href="{{ route('enrollments.index') }}" class="nav-link {{ request()->routeIs('enrollments.*') ? 'active' : '' }}">
+                    <i class="fas fa-user-graduate"></i> Ghi danh
                 </a>
                 
-                <a href="{{ route('waiting-lists.index') }}" class="nav-link {{ request()->routeIs('waiting-lists.*') ? 'active' : '' }}">
-                    <i class="fas fa-clock"></i>
-                    Danh sách chờ
+                <a href="{{ route('schedules.index') }}" class="nav-link {{ request()->routeIs('schedules.*') || request()->routeIs('*.schedules') ? 'active' : '' }}">
+                    <i class="fas fa-calendar-alt"></i> Lịch học
+                </a>
+
+                <a href="{{ route('learning-progress.index') }}" class="nav-link {{ request()->routeIs('learning-progress.*') ? 'active' : '' }}">
+                    <i class="fas fa-tasks"></i> Tiến độ học tập
                 </a>
             </div>
-
-            <!-- Thanh toán -->
+            
+            <!-- THANH TOÁN -->
             <div class="nav-section">
-                <div class="nav-section-title">Thanh toán</div>
+                <div class="nav-section-title">THANH TOÁN</div>
                 
                 <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') && !request()->routeIs('payments.send-reminder') ? 'active' : '' }}">
                     <i class="fas fa-credit-card"></i>

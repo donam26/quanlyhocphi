@@ -30,7 +30,6 @@ Route::post('/course-items', [CourseItemController::class, 'store']);
 Route::get('/course-items/{id}', [CourseItemController::class, 'show']);
 Route::put('/course-items/{id}', [CourseItemController::class, 'update']);
 Route::delete('/course-items/{id}', [CourseItemController::class, 'destroy']);
-Route::get('/tree', [CourseItemController::class, 'tree']);
 
 // API cho thanh toán
 Route::post('/payments/bulk-action', [PaymentController::class, 'bulkAction'])->name('api.payments.bulk-action');

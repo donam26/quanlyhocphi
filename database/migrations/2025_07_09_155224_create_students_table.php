@@ -24,8 +24,6 @@ return new class extends Migration
             $table->string('current_workplace')->nullable(); // Nơi công tác hiện tại
             $table->integer('accounting_experience_years')->nullable(); // Số năm kinh nghiệm làm kế toán
             
-            // Trạng thái và ghi chú
-            $table->enum('status', ['active', 'inactive', 'potential'])->default('active'); // Trạng thái học viên
             $table->text('notes')->nullable(); // Ghi chú
             $table->timestamps();
         });

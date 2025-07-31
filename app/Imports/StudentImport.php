@@ -45,7 +45,6 @@ class StudentImport implements ToModel, WithHeadingRow, WithValidation
                 'address' => $row['dia_chi'] ?? null,
                 'current_workplace' => $row['noi_cong_tac'] ?? null,
                 'accounting_experience_years' => $row['kinh_nghiem'] ?? null,
-                'status' => 'active',
                 'notes' => $row['ghi_chu'] ?? null,
             ]
         );
@@ -70,7 +69,6 @@ class StudentImport implements ToModel, WithHeadingRow, WithValidation
                 'student_id' => $student->id,
                 'course_item_id' => $this->courseItemId,
                 'enrollment_date' => now(),
-                'status' => 'enrolled',
                 'discount_percentage' => $this->discountPercentage,
                 'discount_amount' => $discountAmount,
                 'final_fee' => $finalFee,

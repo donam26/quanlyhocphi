@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Attendance;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\Student;
-use App\Models\WaitingList;
-use App\Models\Attendance;
 use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;

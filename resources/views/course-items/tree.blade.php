@@ -685,6 +685,57 @@
             clearSearch();
         });
         
+        // Xử lý checkbox "Khóa học đặc biệt"
+        $('#edit-is-special').change(function() {
+            if ($(this).is(':checked')) {
+                $('#custom-fields-container').slideDown();
+            } else {
+                $('#custom-fields-container').slideUp();
+            }
+        });
+        
+        // Thêm trường thông tin tùy chỉnh
+        $('#add-custom-field').click(function() {
+            const fieldId = Date.now(); // ID độc nhất cho trường
+            const fieldHtml = `
+                <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                    <div class="row g-2">
+                        <div class="col-10">
+                            <input type="text" class="form-control form-control-sm field-key" 
+                                placeholder="Tên trường" name="custom_field_keys[]">
+                        </div>
+                        <div class="col-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            $('#custom-fields-list').append(fieldHtml);
+        });
+        
+        // Xóa trường thông tin tùy chỉnh
+        $(document).on('click', '.remove-field', function() {
+            $(this).closest('.custom-field-row').fadeOut(300, function() {
+                $(this).remove();
+            });
+        });
+        
+        // Xử lý checkbox "Đặt làm khóa chính" trong modal chỉnh sửa
+        $('#edit-make-root').change(function() {
+            handleEditRootToggle();
+        });
+        
+        // Xử lý khi dropdown parent_id thay đổi trong modal chỉnh sửa
+        $('#edit-parent-id').change(function() {
+            if ($(this).val()) {
+                $('#edit-make-root').prop('checked', false);
+                $('#edit-root-info').slideUp();
+            }
+        });
+        
         // Mở rộng tất cả
         $('#expand-all').click(function() {
             $('.course-tree .collapse').collapse('show');
@@ -1068,6 +1119,11 @@
                         
                         // Hiển thị thông báo thành công
                         showToast('Đã cập nhật thành công!', 'success');
+                        
+                        // Reload trang sau 1 giây để cập nhật dữ liệu
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
                     }
                 },
                 error: function(xhr) {
@@ -1111,8 +1167,6 @@
         const name = item.find('a').contents().first().text().trim();
         const isLeaf = item.hasClass('leaf');
         const isActive = item.hasClass('active');
-        const hasOnline = item.find('.badge:contains("Online")').length > 0;
-        const hasOffline = item.find('.badge:contains("Offline")').length > 0;
         
         // Lấy học phí nếu có
         let fee = 0;
@@ -1128,15 +1182,22 @@
             parentId = parentItem.data('id');
         }
         
+        // Kiểm tra xem có phải là khóa chính không
+        const isRoot = item.closest('.level-1').length > 0;
+        
         // Điền thông tin vào form
         $('#edit-item-id').val(id);
         $('#edit-parent-id').val(parentId);
         $('#edit-item-name').val(name);
         $('#edit-is-leaf').prop('checked', isLeaf);
         $('#edit-item-active').prop('checked', isActive);
-        $('#edit-has-online').prop('checked', hasOnline);
-        $('#edit-has-offline').prop('checked', hasOffline);
         $('#edit-item-fee').val(fee);
+        
+        // Đặt trạng thái checkbox "Đặt làm khóa chính"
+        if ($('#edit-make-root').length > 0) {
+            $('#edit-make-root').prop('checked', !parentId);
+            handleEditRootToggle();
+        }
         
         // Cập nhật action của form
         $('#edit-item-form').attr('action', "{{ url('/course-items') }}/" + id);
@@ -1148,7 +1209,65 @@
             $('#edit-leaf-options').slideUp();
         }
         
+        // Lấy thông tin về khóa học đặc biệt và các trường tùy chỉnh
+        $.ajax({
+            url: "{{ url('/api/course-items') }}/" + id,
+            method: "GET",
+            success: function(response) {
+                // Thiết lập checkbox khóa học đặc biệt
+                $('#edit-is-special').prop('checked', response.is_special);
+                
+                // Xử lý các trường thông tin tùy chỉnh
+                $('#custom-fields-list').empty();
+                
+                if (response.is_special && response.custom_fields) {
+                    $('#custom-fields-container').show();
+                    
+                    // Hiển thị các trường đã có
+                    $.each(response.custom_fields, function(key, value) {
+                        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
+                        const fieldHtml = `
+                            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                                <div class="row g-2">
+                                    <div class="col-10">
+                                        <input type="text" class="form-control form-control-sm field-key" 
+                                            placeholder="Tên trường" name="custom_field_keys[]" value="${key}">
+                                    </div>
+                                    <div class="col-2">
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        $('#custom-fields-list').append(fieldHtml);
+                    });
+                } else {
+                    $('#custom-fields-container').hide();
+                }
+            },
+            error: function(error) {
+                console.error('Không thể tải thông tin khóa học:', error);
+            }
+        });
+        
         $('#editItemModal').modal('show');
+    }
+    
+    // Xử lý tương tác giữa checkbox "Đặt làm khóa chính" và dropdown chọn cha trong modal
+    function handleEditRootToggle() {
+        const makeRootChecked = $('#edit-make-root').is(':checked');
+        if (makeRootChecked) {
+            // Nếu đặt làm khóa chính, vô hiệu hóa dropdown chọn cha
+            $('#edit-parent-id').prop('disabled', true);
+            $('#edit-parent-id').val('');
+            $('#edit-root-info').slideDown();
+        } else {
+            // Nếu không đặt làm khóa chính, kích hoạt dropdown chọn cha
+            $('#edit-parent-id').prop('disabled', false);
+            $('#edit-root-info').slideUp();
+        }
     }
     
     // Hiển thị thông báo toast
@@ -1247,6 +1366,11 @@
             success: function(response) {
                 if (response.success) {
                     showToast('Đã cập nhật thứ tự hiển thị', 'success');
+                    
+                    // Reload trang sau 1 giây để cập nhật dữ liệu
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
                 } else {
                     showToast('Có lỗi xảy ra khi cập nhật thứ tự', 'danger');
                 }
@@ -1300,6 +1424,49 @@
                             <input class="form-check-input" type="checkbox" id="edit-item-active" name="active" value="1" checked>
                             <input type="hidden" name="active" value="0">
                             <label class="form-check-label" for="edit-item-active">Hoạt động</label>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="edit-is-special" name="is_special" value="1">
+                            <input type="hidden" name="is_special" value="0">
+                            <label class="form-check-label" for="edit-is-special">
+                                <strong class="text-warning">Khóa học đặc biệt</strong>
+                            </label>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            Khóa học đặc biệt cho phép thêm các trường thông tin tùy chỉnh
+                        </div>
+                    </div>
+                    
+                    <div id="custom-fields-container" style="display: none;">
+                        <hr>
+                        <h6 class="mb-3">Thông tin tùy chỉnh</h6>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Các trường thông tin này sẽ được sao chép khi học viên đăng ký khóa học này.
+                        </div>
+                        
+                        <div id="custom-fields-list">
+                            <!-- Các trường thông tin tùy chỉnh sẽ được thêm vào đây -->
+                        </div>
+                        
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-custom-field">
+                                <i class="fas fa-plus"></i> Thêm trường thông tin
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="edit-make-root" name="make_root" value="1">
+                            <label class="form-check-label" for="edit-make-root">
+                                <strong class="text-primary">Đặt làm khóa chính</strong>
+                            </label>
+                        </div>
+                        <div class="alert alert-info mt-2" id="edit-root-info" style="display: none;">
+                            <i class="fas fa-info-circle"></i> Khi chọn làm khóa chính, khóa học này sẽ được đưa lên cấp cao nhất và hiển thị cùng cấp với các ngành học.
                         </div>
                     </div>
                 </div>

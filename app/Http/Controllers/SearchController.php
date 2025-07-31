@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\WaitingList;
 use App\Models\Payment;
+use App\Models\Student;
 use Illuminate\Http\Request;
 
 class SearchController extends Controller
@@ -87,7 +86,7 @@ class SearchController extends Controller
             }
             
             // Lấy danh sách chờ của học viên
-            $waitingLists = WaitingList::where('student_id', $student->id)
+            $waitingLists = Enrollment::where('student_id', $student->id)
                 ->with('courseItem')
                 ->where('status', 'waiting')
                 ->get();
@@ -97,7 +96,7 @@ class SearchController extends Controller
                 $waitingListData[] = [
                     'id' => $waitingList->id,
                     'course_item' => $waitingList->courseItem,
-                    'registration_date' => $waitingList->registration_date->format('d/m/Y'),
+                    'registration_date' => $waitingList->request_date ? $waitingList->request_date->format('d/m/Y') : $waitingList->enrollment_date->format('d/m/Y'),
                     'status' => $waitingList->status,
                     'notes' => $waitingList->notes
                 ];
@@ -126,7 +125,7 @@ class SearchController extends Controller
      */
     public function studentHistory($studentId)
     {
-        $student = Student::with(['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem'])->findOrFail($studentId);
+        $student = Student::with(['enrollments.courseItem', 'enrollments.payments'])->findOrFail($studentId);
         
         // Lấy lịch sử thanh toán
         $payments = Payment::whereHas('enrollment', function($query) use ($studentId) {

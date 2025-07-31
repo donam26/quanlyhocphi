@@ -92,64 +92,76 @@
                         </div>
                     </div>
 
-                    <div class="row mb-4">
-                        <div class="col-12">
-                            <h6 class="border-bottom pb-2 mb-3">Thông tin học phí</h6>
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <table class="table table-borderless">
-                                        <tr>
-                                            <th width="40%">Học phí gốc:</th>
-                                            <td>{{ number_format($enrollment->courseItem->fee) }} VND</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Chiết khấu:</th>
-                                            <td>
-                                                @if($enrollment->discount_percentage > 0)
-                                                    {{ $enrollment->discount_percentage }}% 
-                                                    ({{ number_format($enrollment->discount_amount) }} VND)
-                                                @elseif($enrollment->discount_amount > 0)
-                                                    {{ number_format($enrollment->discount_amount) }} VND
-                                                @else
-                                                    Không có
-                                                @endif
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <th>Học phí cuối:</th>
-                                            <td class="fw-bold">{{ number_format($enrollment->final_fee) }} VND</td>
-                                        </tr>
-                                    </table>
-                                </div>
-                                <div class="col-md-6">
-                                    <table class="table table-borderless">
-                                        <tr>
-                                            <th width="40%">Đã thanh toán:</th>
-                                            <td class="text-success">{{ number_format($enrollment->getTotalPaidAmount()) }} VND</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Còn lại:</th>
-                                            <td class="text-danger">{{ number_format($enrollment->getRemainingAmount()) }} VND</td>
-                                        </tr>
-                                        <tr>
-                                            <th>Tình trạng:</th>
-                                            <td>
-                                                @if($enrollment->isFullyPaid())
-                                                    <span class="badge bg-success">Đã thanh toán đủ</span>
-                                                @elseif($enrollment->getTotalPaidAmount() > 0)
-                                                    <span class="badge bg-warning">Thanh toán một phần</span>
-                                                @else
-                                                    <span class="badge bg-danger">Chưa thanh toán</span>
-                                                @endif
-                                            </td>
-                                        </tr>
-                                    </table>
-                                </div>
-                            </div>
+                    <div class="mb-4">
+                        <h4>Thông tin thanh toán</h4>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-striped">
+                                <tbody>
+                                    <tr>
+                                        <th>Học phí gốc:</th>
+                                        <td>{{ number_format($enrollment->courseItem->fee) }} VNĐ</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Giảm giá:</th>
+                                        <td>
+                                            @if($enrollment->discount_percentage > 0)
+                                                {{ $enrollment->discount_percentage }}% 
+                                                ({{ number_format($enrollment->discount_amount) }} VNĐ)
+                                            @elseif($enrollment->discount_amount > 0)
+                                                {{ number_format($enrollment->discount_amount) }} VNĐ
+                                            @else
+                                                0 VNĐ
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Học phí cuối cùng:</th>
+                                        <td>{{ number_format($enrollment->final_fee) }} VNĐ</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Đã thanh toán:</th>
+                                        <td>{{ number_format($enrollment->getTotalPaidAmount()) }} VNĐ</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Còn thiếu:</th>
+                                        <td class="{{ $enrollment->getRemainingAmount() > 0 ? 'text-danger' : 'text-success' }}">
+                                            {{ number_format($enrollment->getRemainingAmount()) }} VNĐ
+                                            @if($enrollment->isFullyPaid())
+                                                <span class="badge bg-success">Đã thanh toán đủ</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
-
+                    
+                    @if(!empty($enrollment->custom_fields))
+                    <div class="mb-4">
+                        <h4>Thông tin tùy chỉnh</h4>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th width="40%">Tên trường</th>
+                                        <th>Giá trị</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($enrollment->custom_fields as $key => $value)
+                                    <tr>
+                                        <th>{{ $key }}</th>
+                                        <td>{{ $value }}</td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
+                    
                     @if($enrollment->notes)
+                    <div class="mb-4"
                     <div class="row">
                         <div class="col-12">
                             <h6 class="border-bottom pb-2 mb-3">Ghi chú</h6>

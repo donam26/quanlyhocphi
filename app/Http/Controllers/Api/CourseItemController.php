@@ -89,7 +89,7 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Hiển thị chi tiết item
+     * Hiển thị chi tiết một item
      */
     public function show($id)
     {
@@ -97,9 +97,11 @@ class CourseItemController extends Controller
                             $query->orderBy('order_index');
                         }])->findOrFail($id);
         
-        // Nếu là nút lá, lấy các lớp học liên quan
-        if ($courseItem->is_leaf) {
-            $courseItem->load('classes');
+        // Đảm bảo custom_fields được trả về
+        if ($courseItem->is_special && !empty($courseItem->custom_fields)) {
+            $courseItem->custom_fields = $courseItem->custom_fields;
+        } else {
+            $courseItem->custom_fields = [];
         }
         
         return response()->json($courseItem);

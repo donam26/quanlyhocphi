@@ -59,33 +59,6 @@
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label">Nơi sinh</label>
-                            <input type="text" name="place_of_birth" class="form-control @error('place_of_birth') is-invalid @enderror"
-                                   value="{{ old('place_of_birth', $student->place_of_birth) }}">
-                            @error('place_of_birth')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Số CCCD/CMND</label>
-                            <input type="text" name="citizen_id" class="form-control @error('citizen_id') is-invalid @enderror"
-                                   value="{{ old('citizen_id', $student->citizen_id) }}">
-                            @error('citizen_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6">
-                            <label class="form-label">Dân tộc</label>
-                            <input type="text" name="ethnicity" class="form-control @error('ethnicity') is-invalid @enderror"
-                                   value="{{ old('ethnicity', $student->ethnicity) }}">
-                            @error('ethnicity')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
-                        </div>
-
-                        <div class="col-md-6">
                             <label class="form-label">Email</label>
                             <input type="email" name="email" class="form-control @error('email') is-invalid @enderror"
                                    value="{{ old('email', $student->email) }}">
@@ -117,23 +90,40 @@
                         </div>
                     </div>
 
-                    <!-- Trạng thái -->
+                    <!-- Thông tin tùy chỉnh -->
                     <div class="row mb-4">
                         <div class="col-12">
                             <h6 class="border-bottom pb-2 mb-3">
-                                <i class="fas fa-toggle-on me-2"></i>Trạng thái
+                                <i class="fas fa-cog me-2"></i>Thông tin tùy chỉnh
                             </h6>
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Thêm các trường thông tin tùy chỉnh theo nhu cầu.
+                            </div>
                         </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Trạng thái học viên <span class="text-danger">*</span></label>
-                            <select name="status" class="form-select @error('status') is-invalid @enderror" required>
-                                <option value="potential" {{ old('status', $student->status) == 'potential' ? 'selected' : '' }}>Tiềm năng</option>
-                                <option value="active" {{ old('status', $student->status) == 'active' ? 'selected' : '' }}>Đang học</option>
-                                <option value="inactive" {{ old('status', $student->status) == 'inactive' ? 'selected' : '' }}>Đã nghỉ</option>
-                            </select>
-                            @error('status')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        
+                        <div class="col-12" id="custom-fields-container">
+                            @if(!empty($student->custom_fields) && is_array($student->custom_fields))
+                                @foreach($student->custom_fields as $key => $value)
+                                <div class="row mb-3 custom-field-row">
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="custom_field_keys[]" value="{{ $key }}" placeholder="Tên trường">
+                                    </div>
+                                    <div class="col-md-5">
+                                        <input type="text" class="form-control" name="custom_field_values[]" value="{{ $value }}" placeholder="Giá trị">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button type="button" class="btn btn-danger btn-sm remove-field"><i class="fas fa-times"></i></button>
+                                    </div>
+                                </div>
+                                @endforeach
+                            @endif
+                        </div>
+                        
+                        <div class="col-12 mt-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="add-custom-field">
+                                <i class="fas fa-plus me-1"></i> Thêm trường thông tin
+                            </button>
                         </div>
                     </div>
 
@@ -260,6 +250,33 @@ $(document).ready(function() {
     $('input[name="citizen_id"]').on('input', function() {
         let value = $(this).val().replace(/\D/g, '');
         $(this).val(value.slice(0, 12));
+    });
+
+    // Xử lý thêm trường thông tin tùy chỉnh
+    $('#add-custom-field').click(function() {
+        const fieldId = Date.now();
+        const fieldHtml = `
+            <div class="row mb-3 custom-field-row" data-field-id="${fieldId}">
+                <div class="col-md-5">
+                    <input type="text" class="form-control" name="custom_field_keys[]" placeholder="Tên trường">
+                </div>
+                <div class="col-md-5">
+                    <input type="text" class="form-control" name="custom_field_values[]" placeholder="Giá trị">
+                </div>
+                <div class="col-md-2">
+                    <button type="button" class="btn btn-danger btn-sm remove-field"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+        `;
+        
+        $('#custom-fields-container').append(fieldHtml);
+    });
+    
+    // Xóa trường thông tin tùy chỉnh
+    $(document).on('click', '.remove-field', function() {
+        $(this).closest('.custom-field-row').fadeOut(300, function() {
+            $(this).remove();
+        });
     });
 });
 </script>

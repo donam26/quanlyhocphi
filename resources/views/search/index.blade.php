@@ -273,11 +273,11 @@
                                                                 <td>{{ $waitingList['notes'] ?? 'Không có ghi chú' }}</td>
                                                                 <td>
                                                                     <div class="btn-group btn-group-sm" role="group">
-                                                                        <a href="{{ route('enrollments.from-waiting-list', $waitingList['id']) }}" 
+                                                                        <a href="{{ route('enrollments.confirm-waiting', $waitingList['id']) }}" 
                                                                            class="btn btn-success" title="Chuyển sang ghi danh">
                                                                             <i class="fas fa-user-plus"></i>
                                                                         </a>
-                                                                        <a href="{{ route('waiting-lists.show', $waitingList['id']) }}" 
+                                                                        <a href="{{ route('enrollments.show', $waitingList['id']) }}" 
                                                                            class="btn btn-info" title="Xem chi tiết danh sách chờ">
                                                                             <i class="fas fa-eye"></i>
                                                                         </a>

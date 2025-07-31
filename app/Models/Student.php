@@ -19,11 +19,13 @@ class Student extends Model
         'current_workplace',
         'accounting_experience_years',
         'status',
-        'notes'
+        'notes',
+        'custom_fields'
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date'
+        'date_of_birth' => 'date',
+        'custom_fields' => 'array'
     ];
 
     /**
@@ -45,11 +47,12 @@ class Student extends Model
     }
 
     /**
-     * Quan hệ với danh sách chờ
+     * Lấy danh sách chờ của học viên
      */
     public function waitingLists()
     {
-        return $this->hasMany(WaitingList::class);
+        return $this->hasMany(Enrollment::class)
+            ->where('status', 'waiting');
     }
 
     /**

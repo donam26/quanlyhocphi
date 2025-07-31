@@ -9,22 +9,39 @@ class Enrollment extends Model
 {
     use HasFactory;
 
+    // Các trạng thái đăng ký
+    const STATUS_PENDING = 'pending';    // Chờ xử lý
+    const STATUS_WAITING = 'waiting';    // Trong danh sách chờ
+    const STATUS_CONFIRMED = 'confirmed'; // Đã xác nhận
+    const STATUS_ACTIVE = 'active';      // Đang học
+    const STATUS_COMPLETED = 'completed'; // Đã hoàn thành
+    const STATUS_CANCELLED = 'cancelled'; // Đã hủy
+
     protected $fillable = [
         'student_id',
         'course_item_id',
         'enrollment_date',
         'status',
+        'request_date',
+        'confirmation_date',
+        'last_status_change',
+        'previous_status',
         'discount_percentage',
         'discount_amount',
         'final_fee',
-        'notes'
+        'notes',
+        'custom_fields'
     ];
 
     protected $casts = [
         'enrollment_date' => 'date',
+        'request_date' => 'datetime',
+        'confirmation_date' => 'datetime',
+        'last_status_change' => 'datetime',
         'discount_percentage' => 'decimal:2',
         'discount_amount' => 'decimal:2',
-        'final_fee' => 'decimal:2'
+        'final_fee' => 'decimal:2',
+        'custom_fields' => 'array'
     ];
 
     /**
@@ -50,7 +67,7 @@ class Enrollment extends Model
     {
         return $this->hasMany(Payment::class);
     }
-
+    
     /**
      * Quan hệ với các điểm danh
      */
@@ -60,15 +77,15 @@ class Enrollment extends Model
     }
     
     /**
-     * Quan hệ với tiến độ lộ trình học tập
+     * Quan hệ với bảng tiến độ học tập
      */
     public function learningPathProgress()
     {
         return $this->hasMany(LearningPathProgress::class);
     }
-
+    
     /**
-     * Tổng số tiền đã thanh toán
+     * Lấy tổng số tiền đã thanh toán
      */
     public function getTotalPaidAmount()
     {
@@ -115,5 +132,48 @@ class Enrollment extends Model
             ->count();
             
         return round(($completedPaths / $paths->count()) * 100);
+    }
+
+    /**
+     * Kiểm tra xem ghi danh có đang trong danh sách chờ không
+     */
+    public function isWaiting()
+    {
+        return $this->status === self::STATUS_WAITING;
+    }
+
+    /**
+     * Cập nhật trạng thái và lưu trạng thái trước đó
+     */
+    public function updateStatus($newStatus)
+    {
+        $this->previous_status = $this->status;
+        $this->status = $newStatus;
+        $this->last_status_change = now();
+        
+        if ($newStatus === self::STATUS_CONFIRMED) {
+            $this->confirmation_date = now();
+        }
+        
+        $this->save();
+        
+        return $this;
+    }
+    
+    /**
+     * Danh sách các enrollment đang trong danh sách chờ
+     */
+    public function scopeWaitingList($query)
+    {
+        return $query->where('status', self::STATUS_WAITING);
+    }
+    
+    /**
+     * Danh sách các enrollment cần liên hệ
+     */
+    public function scopeNeedsContact($query)
+    {
+        return $query->where('status', self::STATUS_WAITING)
+            ->whereNull('notes');
     }
 }

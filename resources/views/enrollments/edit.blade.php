@@ -92,12 +92,82 @@
                             </h6>
                         </div>
                         <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="final_fee">Học phí cuối cùng <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="text" name="final_fee" id="final_fee" class="form-control @error('final_fee') is-invalid @enderror" value="{{ old('final_fee', $enrollment->final_fee) }}" required>
+                                    <div class="input-group-append">
+                                        <span class="input-group-text">VNĐ</span>
+                                    </div>
+                                </div>
+                                @error('final_fee')
+                                    <span class="invalid-feedback">{{ $message }}</span>
+                                @enderror
+                            </div>
+                            
+                            @if((!empty($enrollment->custom_fields) || 
+                   (isset($enrollment->courseItem) && $enrollment->courseItem->is_special)))
+                <hr>
+                <h5>Thông tin tùy chỉnh</h5>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> 
+                    Đây là các trường thông tin tùy chỉnh của khóa học đặc biệt.
+                </div>
+                            
+                            <div id="custom-fields-list">
+                                @if(!empty($enrollment->custom_fields) && is_array($enrollment->custom_fields))
+                                    @foreach($enrollment->custom_fields as $key => $value)
+                                    <div class="custom-field-row mb-3">
+                                        <div class="row g-2">
+                                            <div class="col-5">
+                                                <label class="form-label">{{ $key }}</label>
+                                                <input type="hidden" name="custom_field_keys[]" value="{{ $key }}">
+                                            </div>
+                                            <div class="col-7">
+                                                <input type="text" class="form-control field-value" 
+                                                    placeholder="Giá trị" name="custom_field_values[]" value="{{ $value }}">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                @elseif(isset($enrollment->courseItem) && 
+                                        $enrollment->courseItem->is_special && 
+                                        !empty($enrollment->courseItem->custom_fields))
+                                    @foreach($enrollment->courseItem->custom_fields as $key => $value)
+                                    <div class="custom-field-row mb-3">
+                                        <div class="row g-2">
+                                            <div class="col-5">
+                                                <label class="form-label">{{ $key }}</label>
+                                                <input type="hidden" name="custom_field_keys[]" value="{{ $key }}">
+                                            </div>
+                                            <div class="col-7">
+                                                <input type="text" class="form-control field-value" 
+                                                    placeholder="Giá trị" name="custom_field_values[]" value="">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @endforeach
+                                @else
+                                    <div class="alert alert-warning">
+                                        <i class="fas fa-exclamation-triangle"></i> 
+                                        Khóa học này là khóa học đặc biệt nhưng chưa có trường thông tin tùy chỉnh nào.
+                                    </div>
+                                @endif
+                            </div>
+                            
                             <div class="mb-3">
-                                <label for="final_fee" class="form-label">Học phí cuối cùng</label>
-                                <input type="text" id="final_fee_display" class="form-control" 
-                                       value="{{ number_format($enrollment->final_fee) }}" readonly>
-                                <input type="hidden" name="final_fee" id="final_fee" 
-                                       value="{{ old('final_fee', $enrollment->final_fee) }}">
+                                <button type="button" class="btn btn-sm btn-outline-primary" id="add-custom-field">
+                                    <i class="fas fa-plus"></i> Thêm trường thông tin
+                                </button>
+                            </div>
+                            @endif
+                            
+                            <div class="form-group">
+                                <label for="notes">Ghi chú</label>
+                                <textarea name="notes" id="notes" class="form-control @error('notes') is-invalid @enderror" rows="3">{{ old('notes', $enrollment->notes) }}</textarea>
+                                @error('notes')
+                                    <span class="invalid-feedback">{{ $message }}</span>
+                                @enderror
                             </div>
                         </div>
                         <div class="col-md-6">
@@ -131,12 +201,6 @@
                                        min="0" step="1000">
                             </div>
                         </div>
-                    </div>
-
-                    <!-- Ghi chú -->
-                    <div class="mb-4">
-                        <label for="notes" class="form-label">Ghi chú</label>
-                        <textarea name="notes" id="notes" class="form-control" rows="3">{{ old('notes', $enrollment->notes) }}</textarea>
                     </div>
 
                     <div class="d-flex justify-content-between">
@@ -206,6 +270,39 @@
 
         // Tính toán lần đầu khi tải trang
         calculateFinalFee();
+
+        // Xử lý thêm trường thông tin tùy chỉnh
+        $('#add-custom-field').click(function() {
+            const fieldId = Date.now(); // ID độc nhất cho trường
+            const fieldHtml = `
+                <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                    <div class="row g-2">
+                        <div class="col-5">
+                            <input type="text" class="form-control form-control-sm field-key" 
+                                placeholder="Tên trường" name="custom_field_keys[]">
+                        </div>
+                        <div class="col-5">
+                            <input type="text" class="form-control form-control-sm field-value" 
+                                placeholder="Giá trị" name="custom_field_values[]">
+                        </div>
+                        <div class="col-2">
+                            <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            $('#custom-fields-list').append(fieldHtml);
+        });
+        
+        // Xóa trường thông tin tùy chỉnh
+        $(document).on('click', '.remove-field', function() {
+            $(this).closest('.custom-field-row').fadeOut(300, function() {
+                $(this).remove();
+            });
+        });
     });
 </script>
 @endpush 

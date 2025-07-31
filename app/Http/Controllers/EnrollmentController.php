@@ -10,7 +10,8 @@ use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\CourseItem; // Added this import
+use App\Models\CourseItem;
+use App\Models\LearningPathProgress;
 
 class EnrollmentController extends Controller
 {
@@ -24,6 +25,11 @@ class EnrollmentController extends Controller
         // Lọc theo trạng thái
         if ($request->filled('status')) {
             $query->where('status', $request->status);
+            
+            // Nếu là status waiting và cần lọc theo cần liên hệ
+            if ($request->status === Enrollment::STATUS_WAITING && $request->filled('needs_contact')) {
+                $query->whereNull('notes');
+            }
         }
         
         // Lọc theo khóa học
@@ -74,17 +80,22 @@ class EnrollmentController extends Controller
             }
         }
 
+        // Sắp xếp kết quả
+        if ($request->status === Enrollment::STATUS_WAITING) {
+            $enrollments = $query->latest('request_date')->paginate(15);
+        } else {
         $enrollments = $query->latest()->paginate(15);
+        }
 
         // Tính toán thống kê
         $totalPaid = Enrollment::join('payments', 'enrollments.id', '=', 'payments.enrollment_id')
                               ->where('payments.status', 'confirmed')
                               ->sum('payments.amount');
         
-        $totalFees = Enrollment::where('status', 'enrolled')->sum('final_fee');
+        $totalFees = Enrollment::whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_CONFIRMED])->sum('final_fee');
         $totalUnpaid = max(0, $totalFees - $totalPaid);
         
-        $pendingCount = Enrollment::where('status', 'enrolled')
+        $pendingCount = Enrollment::whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_CONFIRMED])
                                 ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
                                 ->count();
 
@@ -96,8 +107,8 @@ class EnrollmentController extends Controller
      */
     public function unpaidList()
     {
-        // Lấy danh sách ghi danh có trạng thái "enrolled" (đang học)
-        $enrollments = Enrollment::where('status', 'enrolled')
+        // Lấy danh sách ghi danh có trạng thái "active" hoặc "confirmed"
+        $enrollments = Enrollment::whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_CONFIRMED])
                                 ->with(['student', 'courseItem', 'payments' => function ($query) {
                                     $query->where('status', 'confirmed'); // Chỉ lấy các thanh toán đã xác nhận
                                 }])
@@ -148,6 +159,24 @@ class EnrollmentController extends Controller
     }
 
     /**
+     * Hiển thị danh sách chờ
+     */
+    public function waitingList(Request $request)
+    {
+        // Chuyển hướng đến trang ghi danh với filter trạng thái là waiting
+        return redirect()->route('enrollments.index', ['status' => 'waiting']);
+    }
+
+    /**
+     * Hiển thị danh sách chờ cần liên hệ
+     */
+    public function needsContact()
+    {
+        // Chuyển hướng đến trang ghi danh với filter trạng thái là waiting
+        return redirect()->route('enrollments.index', ['status' => 'waiting', 'needs_contact' => 1]);
+    }
+
+    /**
      * Hiển thị form tạo ghi danh mới
      */
     public function create()
@@ -167,56 +196,57 @@ class EnrollmentController extends Controller
             'student_id' => 'required|exists:students,id',
             'course_item_id' => 'required|exists:course_items,id',
             'enrollment_date' => 'required|date',
-            'final_fee' => 'required|numeric|min:0',
-            'status' => 'required|in:enrolled,cancelled',
-            'notes' => 'nullable|string',
+            'status' => 'required|in:pending,waiting,confirmed,active,completed,cancelled',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0'
+            'discount_amount' => 'nullable|numeric|min:0',
+            'final_fee' => 'required|numeric|min:0',
+            'notes' => 'nullable|string',
         ]);
         
         // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
         $existingEnrollment = Enrollment::where('student_id', $request->student_id)
-                                       ->where('course_item_id', $request->course_item_id)
-                                       ->first();
-                                       
+                                    ->where('course_item_id', $request->course_item_id)
+                                    ->first();
+        
         if ($existingEnrollment) {
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
+            return back()->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này.'])
+                        ->withInput();
         }
         
-        try {
+        // Lấy thông tin khóa học
+        $courseItem = CourseItem::findOrFail($request->course_item_id);
+        
+        // Xử lý custom_fields nếu khóa học là đặc biệt
+        $customFields = null;
+        if ($courseItem->is_special && $courseItem->custom_fields) {
+            $customFields = [];
+            foreach ($courseItem->custom_fields as $key => $value) {
+                $customFields[$key] = ""; // Giá trị ban đầu trống
+            }
+        }
+        
+        // Tạo ghi danh mới
         $enrollment = Enrollment::create([
             'student_id' => $request->student_id,
             'course_item_id' => $request->course_item_id,
             'enrollment_date' => $request->enrollment_date,
-            'discount_percentage' => $request->discount_percentage ?? 0,
-            'discount_amount' => $request->discount_amount ?? 0,
-            'final_fee' => $request->final_fee,
             'status' => $request->status,
-            'notes' => $request->notes
+            'request_date' => $request->status === Enrollment::STATUS_WAITING ? now() : null,
+            'discount_percentage' => $request->discount_percentage,
+            'discount_amount' => $request->discount_amount,
+            'final_fee' => $request->final_fee,
+            'notes' => $request->notes,
+            'custom_fields' => $customFields,
+            'last_status_change' => now()
         ]);
         
-        // Nếu có thanh toán ban đầu
-        if ($request->has('initial_payment') && $request->initial_payment > 0) {
-            Payment::create([
-                'enrollment_id' => $enrollment->id,
-                'amount' => $request->initial_payment,
-                'payment_date' => now(),
-                'payment_method' => $request->payment_method ?? 'cash',
-                'status' => 'confirmed',
-                'notes' => 'Thanh toán ban đầu'
-            ]);
+        // Tạo các bản ghi tiến độ học tập cho ghi danh mới nếu trạng thái là active
+        if ($request->status === Enrollment::STATUS_ACTIVE) {
+        $this->createLearningPathProgress($enrollment);
         }
         
-        return redirect()->route('enrollments.show', $enrollment)
-            ->with('success', 'Ghi danh mới đã được tạo thành công.');
-        } catch (\Exception $e) {
-            // Xử lý lỗi, bao gồm cả lỗi vi phạm ràng buộc duy nhất
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Không thể ghi danh: ' . $e->getMessage()]);
-        }
+        return redirect()->route('enrollments.show', $enrollment->id)
+                        ->with('success', 'Đã ghi danh học viên thành công.');
     }
 
     /**
@@ -249,25 +279,101 @@ class EnrollmentController extends Controller
             'course_item_id' => 'required|exists:course_items,id',
             'enrollment_date' => 'required|date',
             'final_fee' => 'required|numeric|min:0',
-            'status' => 'required|in:enrolled,cancelled',
+            'status' => 'required|in:pending,waiting,confirmed,active,completed,cancelled',
             'notes' => 'nullable|string',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0'
+            'discount_amount' => 'nullable|numeric|min:0',
+            'custom_field_keys.*' => 'nullable|string',
+            'custom_field_values.*' => 'nullable|string'
         ]);
         
-        $enrollment->update([
-            'student_id' => $request->student_id,
-            'course_item_id' => $request->course_item_id,
+        // Chuyển đổi sang số nguyên để so sánh chính xác
+        $newStudentId = (int)$request->student_id;
+        $newCourseId = (int)$request->course_item_id;
+        $currentStudentId = (int)$enrollment->student_id;
+        $currentCourseId = (int)$enrollment->course_item_id;
+        
+        // Tạo mảng dữ liệu cần cập nhật
+        $dataToUpdate = [
             'enrollment_date' => $request->enrollment_date,
             'discount_percentage' => $request->discount_percentage ?? 0,
             'discount_amount' => $request->discount_amount ?? 0,
             'final_fee' => $request->final_fee,
-            'status' => $request->status,
-            'notes' => $request->notes
-        ]);
+            'notes' => $request->notes,
+        ];
         
-        return redirect()->route('enrollments.show', $enrollment)
-            ->with('success', 'Thông tin ghi danh đã được cập nhật.');
+        // Cập nhật trạng thái nếu thay đổi
+        if ($request->status !== $enrollment->status) {
+            $enrollment->updateStatus($request->status);
+        } else {
+            // Nếu không thay đổi trạng thái, cập nhật các trường khác
+            $dataToUpdate['status'] = $request->status;
+        }
+        
+        // Chỉ cập nhật student_id và course_item_id khi thực sự thay đổi
+        $studentOrCourseChanged = false;
+        
+        if ($newStudentId !== $currentStudentId) {
+            $dataToUpdate['student_id'] = $newStudentId;
+            $studentOrCourseChanged = true;
+        }
+        
+        if ($newCourseId !== $currentCourseId) {
+            $dataToUpdate['course_item_id'] = $newCourseId;
+            $studentOrCourseChanged = true;
+        }
+       
+        
+        // Xử lý thông tin tùy chỉnh
+        $customFields = $enrollment->custom_fields;
+        
+        // Nếu thay đổi khóa học và khóa học mới là đặc biệt
+        if ($newCourseId !== $currentCourseId) {
+            $courseItem = CourseItem::findOrFail($newCourseId);
+            if ($courseItem->is_special && !empty($courseItem->custom_fields)) {
+                $customFields = [];
+                foreach ($courseItem->custom_fields as $key => $value) {
+                    $customFields[$key] = "";
+                }
+            }
+        }
+        
+        // Xử lý các trường tùy chỉnh gửi từ form
+        if ($request->has('custom_field_keys')) {
+            $keys = $request->input('custom_field_keys', []);
+            $values = $request->input('custom_field_values', []);
+            
+            if (!empty($keys)) {
+                $customFields = [];
+                foreach ($keys as $index => $key) {
+                    if (!empty($key) && isset($values[$index])) {
+                        $customFields[$key] = $values[$index];
+                    }
+                }
+            }
+        }
+        
+        // Thêm trường custom_fields vào dữ liệu cập nhật
+        $dataToUpdate['custom_fields'] = !empty($customFields) ? $customFields : null;
+        
+        try {
+            // Cập nhật đăng ký
+            $enrollment->update($dataToUpdate);
+            
+            return redirect()->route('enrollments.show', $enrollment)
+                ->with('success', 'Thông tin ghi danh đã được cập nhật.');
+                
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Xử lý lỗi integrity constraint violation
+            if ($e->errorInfo[1] == 1062) { // Mã lỗi duplicate entry
+                return back()->withErrors([
+                    'error' => 'Không thể cập nhật vì học viên đã đăng ký khóa học này.'
+                ])->withInput();
+            }
+            
+            // Nếu là lỗi khác, ném ra để xử lý ở handler
+            throw $e;
+        }
     }
 
     /**
@@ -353,106 +459,103 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Tạo ghi danh mới từ danh sách chờ
+     * Chuyển đổi trạng thái của danh sách chờ thành ghi danh xác nhận
      */
-    public function createFromWaitingList($waitingListId)
+    public function confirmFromWaiting(Enrollment $enrollment)
     {
-        // Lấy thông tin danh sách chờ
-        $waitingList = \App\Models\WaitingList::with(['student', 'courseItem'])->findOrFail($waitingListId);
-        
-        // Kiểm tra học viên đã có ghi danh vào khóa học này chưa
-        $existingEnrollment = Enrollment::where('student_id', $waitingList->student_id)
-            ->where('course_item_id', $waitingList->course_item_id)
-            ->whereIn('status', ['enrolled', 'completed'])
-            ->first();
-            
-        if ($existingEnrollment) {
-            return redirect()->back()->with('error', 'Học viên đã ghi danh vào khóa học này rồi!');
+        if (!$enrollment->isWaiting()) {
+            return back()->with('error', 'Ghi danh này không phải trong danh sách chờ.');
         }
         
-        // Tạo form với dữ liệu sẵn từ waiting list
-        $student = $waitingList->student;
-        $courseItem = $waitingList->courseItem;
-        $initialFee = $courseItem->fee;
+        $enrollment->updateStatus(Enrollment::STATUS_CONFIRMED);
+        $enrollment->confirmation_date = now();
+        $enrollment->save();
         
-        // Lấy danh sách các phương thức thanh toán
-        $paymentMethods = [
-            'cash' => 'Tiền mặt',
-            'bank_transfer' => 'Chuyển khoản',
-            'card' => 'Thẻ tín dụng/ghi nợ',
-            'qr_code' => 'Quét mã QR',
-            'sepay' => 'SEPAY'
-        ];
+        // Tạo các bản ghi tiến độ học tập
+        $this->createLearningPathProgress($enrollment);
         
-        return view('enrollments.create_from_waiting', compact('waitingList', 'student', 'courseItem', 'initialFee', 'paymentMethods'));
+        return redirect()->route('enrollments.show', $enrollment)
+            ->with('success', 'Học viên đã được xác nhận ghi danh từ danh sách chờ.');
     }
     
     /**
-     * Xác nhận và tạo ghi danh từ danh sách chờ
+     * Thêm ghi chú cho danh sách chờ
      */
-    public function storeFromWaitingList(Request $request)
+    public function addWaitingNote(Request $request, Enrollment $enrollment)
     {
         $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'course_item_id' => 'required|exists:course_items,id',
-            'waiting_list_id' => 'required|exists:waiting_lists,id',
-            'enrollment_date' => 'required|date',
-            'final_fee' => 'required|numeric|min:0',
-            'status' => 'required|in:enrolled,cancelled',
-            'notes' => 'nullable|string',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0'
+            'note' => 'required|string'
         ]);
         
-        // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
-        $existingEnrollment = Enrollment::where('student_id', $request->student_id)
-                                       ->where('course_item_id', $request->course_item_id)
-                                       ->first();
-                                       
-        if ($existingEnrollment) {
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
+        if (!$enrollment->isWaiting()) {
+            return back()->with('error', 'Ghi danh này không phải trong danh sách chờ.');
         }
         
-        try {
-            $enrollment = Enrollment::create([
-                'student_id' => $request->student_id,
-                'course_item_id' => $request->course_item_id,
-                'enrollment_date' => $request->enrollment_date,
-                'discount_percentage' => $request->discount_percentage ?? 0,
-                'discount_amount' => $request->discount_amount ?? 0,
-                'final_fee' => $request->final_fee,
-                'status' => $request->status,
-                'notes' => $request->notes
+        $currentNotes = $enrollment->notes ?? '';
+        $newNote = "[" . now()->format('d/m/Y H:i') . "] " . $request->note;
+        
+        if (!empty($currentNotes)) {
+            $enrollment->notes = $currentNotes . "\n" . $newNote;
+        } else {
+            $enrollment->notes = $newNote;
+        }
+        
+        $enrollment->save();
+            
+        return back()->with('success', 'Đã thêm ghi chú thành công.');
+    }
+
+    /**
+     * Chuyển học viên từ trạng thái ghi danh sang danh sách chờ
+     */
+    public function moveToWaiting(Request $request)
+    {
+        $request->validate([
+            'enrollment_id' => 'required|exists:enrollments,id',
+            'reason' => 'required|string'
+        ]);
+        
+        $enrollment = Enrollment::findOrFail($request->enrollment_id);
+        
+        // Lưu trạng thái cũ
+        $previousStatus = $enrollment->status;
+        
+        // Thêm ghi chú về lý do chuyển sang danh sách chờ
+        $currentNotes = $enrollment->notes ?? '';
+        $newNote = "[" . now()->format('d/m/Y H:i') . "] Chuyển sang danh sách chờ. Lý do: " . $request->reason;
+        
+        if (!empty($currentNotes)) {
+            $enrollment->notes = $currentNotes . "\n" . $newNote;
+        } else {
+            $enrollment->notes = $newNote;
+        }
+        
+        // Cập nhật trạng thái
+        $enrollment->updateStatus(Enrollment::STATUS_WAITING);
+        $enrollment->previous_status = $previousStatus;
+        $enrollment->request_date = now();
+        $enrollment->save();
+        
+        return redirect()->route('enrollments.show', $enrollment->id)
+            ->with('success', 'Học viên đã được chuyển sang danh sách chờ thành công.');
+    }
+
+    /**
+     * Tạo các bản ghi tiến độ học tập cho ghi danh mới
+     */
+    private function createLearningPathProgress($enrollment)
+    {
+        // Lấy danh sách các lộ trình học tập của khóa học
+        $learningPaths = $enrollment->courseItem->learningPaths;
+        
+        // Tạo bản ghi tiến độ cho mỗi lộ trình
+        foreach ($learningPaths as $path) {
+            LearningPathProgress::create([
+                'learning_path_id' => $path->id,
+                'enrollment_id' => $enrollment->id,
+                'is_completed' => false,
+                'completed_at' => null
             ]);
-            
-            // Nếu có thanh toán ban đầu
-            if ($request->has('has_payment') && $request->has('initial_payment') && $request->initial_payment > 0) {
-                Payment::create([
-                    'enrollment_id' => $enrollment->id,
-                    'amount' => $request->initial_payment,
-                    'payment_date' => $request->payment_date ?? now(),
-                    'payment_method' => $request->payment_method ?? 'cash',
-                    'status' => 'confirmed',
-                    'notes' => 'Thanh toán ban đầu'
-                ]);
-            }
-            
-            // Cập nhật trạng thái danh sách chờ
-            $waitingList = \App\Models\WaitingList::findOrFail($request->waiting_list_id);
-            $waitingList->update([
-                'status' => 'enrolled',
-                'contact_notes' => ($waitingList->contact_notes ?? '') . "\n[" . now()->format('d/m/Y H:i') . "] Đã ghi danh vào khóa học."
-            ]);
-            
-            return redirect()->route('enrollments.show', $enrollment)
-                ->with('success', 'Đã ghi danh học viên từ danh sách chờ thành công!');
-                
-        } catch (\Exception $e) {
-            return back()
-                ->withInput()
-                ->withErrors(['error' => 'Không thể ghi danh: ' . $e->getMessage()]);
         }
     }
 }

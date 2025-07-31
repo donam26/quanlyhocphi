@@ -68,7 +68,7 @@
                 </div>
             </div>
             <div class="card-footer bg-transparent border-top-0 d-flex justify-content-between align-items-center">
-                <a class="text-white stretched-link" href="{{ route('waiting-lists.index') }}">Xem chi tiết</a>
+                <a class="text-white stretched-link" href="{{ route('enrollments.waiting-list') }}">Xem chi tiết</a>
                 <i class="fas fa-arrow-circle-right"></i>
             </div>
         </div>
@@ -197,11 +197,11 @@
                         <span><i class="fas fa-user-clock me-2 text-warning"></i>Học viên chưa thanh toán</span>
                         <span class="badge bg-warning rounded-pill">{{ $unPaidCount }}</span>
                     </a>
-                    <a href="{{ route('waiting-lists.index') }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                    <a href="{{ route('enrollments.waiting-list') }}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
                         <span><i class="fas fa-user-plus me-2 text-primary"></i>Đăng ký mới chờ xử lý</span>
                         <span class="badge bg-primary rounded-pill">{{ $stats['waitings_count'] }}</span>
                     </a>
-                    <a href="{{ route('waiting-lists.needs-contact') }}" class="list-group-item list-group-item-action">
+                    <a href="{{ route('enrollments.needs-contact') }}" class="list-group-item list-group-item-action">
                         <i class="fas fa-phone-alt me-2 text-info"></i>Cần liên hệ lại
                     </a>
                 </div>

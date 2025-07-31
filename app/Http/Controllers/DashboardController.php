@@ -6,7 +6,6 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\Student;
-use App\Models\WaitingList;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,13 +18,13 @@ class DashboardController extends Controller
         $stats = [
             'students_count' => Student::count(),
             'courses_count' => CourseItem::where('is_leaf', true)->where('active', true)->count(),
-            'enrollments_count' => Enrollment::where('status', 'enrolled')->count(),
-            'waitings_count' => WaitingList::where('status', 'waiting')->count(),
+            'enrollments_count' => Enrollment::where('status', 'confirmed')->orWhere('status', 'active')->count(),
+            'waitings_count' => Enrollment::where('status', 'waiting')->count(),
         ];
 
         // Thống kê tài chính
         $financialStats = [
-            'total_fee' => Enrollment::where('status', 'enrolled')->sum('final_fee'),
+            'total_fee' => Enrollment::whereIn('status', ['confirmed', 'active'])->sum('final_fee'),
             'total_paid' => Payment::where('status', 'confirmed')->sum('amount'),
             'total_pending' => Payment::where('status', 'pending')->sum('amount'),
             'recent_payments' => Payment::with(['enrollment.student', 'enrollment.courseItem'])
@@ -40,7 +39,7 @@ class DashboardController extends Controller
             : 0;
 
         // Thống kê học viên nợ học phí
-        $unPaidCount = Enrollment::where('status', 'enrolled')
+        $unPaidCount = Enrollment::whereIn('status', ['confirmed', 'active'])
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
             ->count();
 
@@ -64,13 +63,13 @@ class DashboardController extends Controller
         $newStudents = Student::orderBy('created_at', 'desc')->limit(5)->get();
         
         // Học viên chờ liên hệ
-        $waitingContact = WaitingList::with('student', 'courseItem')
+        $waitingContact = Enrollment::with('student', 'courseItem')
                             ->where('status', 'waiting')
                             ->where(function($query) {
-                                $query->whereNull('last_contact_date')
-                                    ->orWhere('last_contact_date', '<', now()->subDays(7));
+                                $query->whereNull('last_status_change')
+                                    ->orWhere('last_status_change', '<', now()->subDays(7));
                             })
-                            ->orderBy('interest_level', 'desc')
+                            ->orderBy('request_date', 'desc')
                             ->limit(5)
                             ->get();
         
@@ -98,6 +97,7 @@ class DashboardController extends Controller
             $month = Carbon::now()->subMonths($i);
             $count = Enrollment::whereYear('enrollment_date', $month->year)
                     ->whereMonth('enrollment_date', $month->month)
+                    ->whereIn('status', ['confirmed', 'active', 'completed'])
                     ->count();
             
             $labels[] = $month->format('M Y');
@@ -209,18 +209,18 @@ class DashboardController extends Controller
     private function getPaymentStatusData()
     {
         // Đã thanh toán đủ
-        $fullyPaid = Enrollment::where('status', 'enrolled')
+        $fullyPaid = Enrollment::whereIn('status', ['confirmed', 'active'])
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") >= enrollments.final_fee')
             ->count();
             
         // Đã thanh toán một phần
-        $partiallyPaid = Enrollment::where('status', 'enrolled')
+        $partiallyPaid = Enrollment::whereIn('status', ['confirmed', 'active'])
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") > 0')
             ->count();
             
         // Chưa thanh toán
-        $notPaid = Enrollment::where('status', 'enrolled')
+        $notPaid = Enrollment::whereIn('status', ['confirmed', 'active'])
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") = 0')
             ->count();
             
@@ -234,7 +234,7 @@ class DashboardController extends Controller
     private function getEnrollmentsByCourse()
     {
         $enrollments = CourseItem::withCount(['enrollments' => function($query) {
-                            $query->where('status', 'enrolled');
+                            $query->whereIn('status', ['confirmed', 'active']);
                         }])
                         ->where('is_leaf', true)
                         ->orderBy('enrollments_count', 'desc')

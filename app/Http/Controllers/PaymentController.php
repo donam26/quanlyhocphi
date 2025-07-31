@@ -11,6 +11,11 @@ use App\Mail\PaymentReminderMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
 use App\Models\CourseItem; // Added this import
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+use Maatwebsite\Excel\Facades\Excel;
+use Illuminate\Support\Str;
 
 class PaymentController extends Controller
 {
@@ -28,38 +33,32 @@ class PaymentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Payment::with(['enrollment.student', 'enrollment.courseItem']);
-
-        // Chỉ hiển thị các thanh toán đã xác nhận, trừ khi có yêu cầu lọc cụ thể
-        if (!$request->filled('status')) {
-            $query->where('status', 'confirmed');
-        } else {
-            $query->where('status', $request->status);
+        // Lấy tất cả các khóa học (CourseItems) có học viên đăng ký
+        $courseItems = CourseItem::whereHas('enrollments')->get();
+        
+        // Tạo một mảng để lưu trữ thông tin thống kê cho mỗi khóa học
+        $courseStats = [];
+        
+        foreach ($courseItems as $courseItem) {
+            // Lấy danh sách ghi danh của khóa học này
+            $enrollments = Enrollment::where('course_item_id', $courseItem->id)->get();
+            $enrollmentIds = $enrollments->pluck('id')->toArray();
+            
+            // Lấy tất cả thanh toán liên quan đến các ghi danh này
+            $payments = Payment::whereIn('enrollment_id', $enrollmentIds)
+                               ->where('status', 'confirmed')
+                               ->get();
+            
+            // Tính toán thống kê
+            $courseStats[$courseItem->id] = [
+                'total_enrollments' => $enrollments->count(),
+                'total_paid' => $payments->sum('amount'),
+                'total_fee' => $enrollments->sum('final_fee'),
+                'remaining' => $enrollments->sum('final_fee') - $payments->sum('amount'),
+            ];
         }
-
-        // Lọc theo học viên
-        if ($request->filled('student_id')) {
-            $query->whereHas('enrollment', function($q) use ($request) {
-                $q->where('student_id', $request->student_id);
-            });
-        }
-
-        // Lọc theo phương thức thanh toán
-        if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
-        }
-
-        // Lọc theo khoảng thời gian
-        if ($request->filled('date_from')) {
-            $query->where('payment_date', '>=', $request->date_from);
-        }
-        if ($request->filled('date_to')) {
-            $query->where('payment_date', '<=', $request->date_to);
-        }
-
-        $payments = $query->orderBy('payment_date', 'desc')->paginate(20);
-
-        // Thống kê nhanh
+        
+        // Thống kê tổng quan
         $stats = [
             'total_payments' => Payment::count(),
             'total_amount' => Payment::where('status', 'confirmed')->sum('amount'),
@@ -68,8 +67,8 @@ class PaymentController extends Controller
                                     ->sum('amount'),
             'pending_count' => Payment::where('status', 'pending')->count()
         ];
-
-        return view('payments.index', compact('payments', 'stats'));
+        
+        return view('payments.index', compact('courseItems', 'courseStats', 'stats'));
     }
 
     /**
@@ -609,5 +608,75 @@ class PaymentController extends Controller
         ];
         
         return view('payments.course', compact('courseItem', 'enrollments', 'payments', 'stats'));
+    }
+
+    /**
+     * Xuất Excel danh sách thanh toán theo khóa học
+     */
+    public function exportCoursePayments(CourseItem $courseItem)
+    {
+        // Lấy danh sách ghi danh của khóa học này
+        $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+                                ->with('student')
+                                ->get();
+        
+        // Tạo dữ liệu cho file Excel
+        $fileName = 'thanh-toan-' . Str::slug($courseItem->name) . '-' . date('d-m-Y') . '.xlsx';
+        
+        return Excel::download(new class($courseItem, $enrollments) implements FromCollection, WithHeadings, ShouldAutoSize {
+            protected $courseItem;
+            protected $enrollments;
+            
+            public function __construct($courseItem, $enrollments) {
+                $this->courseItem = $courseItem;
+                $this->enrollments = $enrollments;
+            }
+            
+            public function collection()
+            {
+                $data = [];
+                $index = 1;
+                
+                foreach ($this->enrollments as $enrollment) {
+                    $paidAmount = $enrollment->getTotalPaidAmount();
+                    $remainingAmount = $enrollment->getRemainingAmount();
+                    
+                    // Chiết khấu
+                    $discount = '';
+                    if ($enrollment->discount_percentage > 0) {
+                        $discount = $enrollment->discount_percentage . '%';
+                    } elseif ($enrollment->discount_amount > 0) {
+                        $discount = number_format($enrollment->discount_amount) . ' đ';
+                    }
+                    
+                    $data[] = [
+                        'STT' => $index++,
+                        'Họ và tên' => $enrollment->student->full_name,
+                        'SĐT' => $enrollment->student->phone,
+                        'Học phí gốc' => number_format($this->courseItem->fee) . ' đ',
+                        'Chiết khấu' => $discount,
+                        'Học phí cuối' => number_format($enrollment->final_fee) . ' đ',
+                        'Đã đóng' => number_format($paidAmount) . ' đ',
+                        'Còn lại' => $remainingAmount > 0 ? number_format($remainingAmount) . ' đ' : 'Đã thanh toán đủ'
+                    ];
+                }
+                
+                return collect($data);
+            }
+            
+            public function headings(): array
+            {
+                return [
+                    'STT',
+                    'Họ và tên',
+                    'SĐT',
+                    'Học phí gốc',
+                    'Chiết khấu',
+                    'Học phí cuối',
+                    'Đã đóng',
+                    'Còn lại'
+                ];
+            }
+        }, 'xlsx');
     }
 }

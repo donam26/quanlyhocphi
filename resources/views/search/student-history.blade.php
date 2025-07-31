@@ -370,36 +370,20 @@
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
                                         <td>{{ $waitingList->courseItem->name ?? 'N/A' }}</td>
-                                        <td>{{ $waitingList->registration_date->format('d/m/Y') }}</td>
+                                        <td>{{ $waitingList->request_date ? $waitingList->request_date->format('d/m/Y') : $waitingList->enrollment_date->format('d/m/Y') }}</td>
                                         <td>
-                                            @if($waitingList->status == 'waiting')
-                                                <span class="badge bg-warning text-dark">Đang chờ</span>
-                                            @elseif($waitingList->status == 'contacted')
-                                                <span class="badge bg-info">Đã liên hệ</span>
-                                            @elseif($waitingList->status == 'enrolled')
-                                                <span class="badge bg-success">Đã ghi danh</span>
-                                            @elseif($waitingList->status == 'not_interested')
-                                                <span class="badge bg-danger">Không quan tâm</span>
-                                            @else
-                                                <span class="badge bg-secondary">{{ $waitingList->status }}</span>
-                                            @endif
+                                            <span class="badge bg-warning text-dark">Đang chờ</span>
                                         </td>
                                         <td>{{ $waitingList->notes ?? 'Không có ghi chú' }}</td>
                                         <td>
-                                            @if($waitingList->status == 'waiting' || $waitingList->status == 'contacted')
-                                                <div class="btn-group btn-group-sm" role="group">
-                                                    <a href="{{ route('enrollments.from-waiting-list', $waitingList->id) }}" class="btn btn-success" title="Chuyển sang ghi danh">
-                                                        <i class="fas fa-user-plus"></i>
-                                                    </a>
-                                                    <a href="{{ route('waiting-lists.show', $waitingList->id) }}" class="btn btn-info" title="Xem chi tiết">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
-                                                </div>
-                                            @else
-                                                <a href="{{ route('waiting-lists.show', $waitingList->id) }}" class="btn btn-sm btn-info" title="Xem chi tiết">
+                                            <div class="btn-group btn-group-sm" role="group">
+                                                <a href="{{ route('enrollments.confirm-waiting', $waitingList->id) }}" class="btn btn-success" title="Chuyển sang ghi danh">
+                                                    <i class="fas fa-user-plus"></i>
+                                                </a>
+                                                <a href="{{ route('enrollments.show', $waitingList->id) }}" class="btn btn-info" title="Xem chi tiết">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                            @endif
+                                            </div>
                                         </td>
                                     </tr>
                                 @empty

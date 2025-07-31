@@ -107,41 +107,6 @@
 
     <!-- Khóa học và thanh toán -->
     <div class="col-md-8">
-        <!-- Thống kê nhanh -->
-        <div class="row mb-4">
-            <div class="col-md-3">
-                <div class="stats-card">
-                    <div class="text-center">
-                        <h4 class="stats-number">{{ $student->enrollments->count() }}</h4>
-                        <p class="stats-label">Khóa học</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stats-card success">
-                    <div class="text-center">
-                        <h4 class="stats-number">{{ $student->enrollments->where('status', 'enrolled')->count() }}</h4>
-                        <p class="stats-label">Đang học</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stats-card warning">
-                    <div class="text-center">
-                        <h4 class="stats-number">{{ $student->payments->count() }}</h4>
-                        <p class="stats-label">Thanh toán</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="stats-card danger">
-                    <div class="text-center">
-                        <h4 class="stats-number">{{ number_format($student->payments->sum('amount')) }}đ</h4>
-                        <p class="stats-label">Tổng đã TT</p>
-                    </div>
-                </div>
-            </div>
-        </div>
 
         <!-- Danh sách khóa học -->
         <div class="card mb-4">
@@ -231,84 +196,6 @@
             </div>
         </div>
 
-        <!-- Lịch sử thanh toán -->
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="card-title mb-0">
-                    <i class="fas fa-money-bill-wave me-2"></i>Lịch sử thanh toán
-                </h5>
-                <a href="{{ route('payments.create', ['student_id' => $student->id]) }}" class="btn btn-sm btn-success">
-                    <i class="fas fa-plus me-1"></i>Thu học phí
-                </a>
-            </div>
-            <div class="card-body p-0">
-                @if($student->payments->count() > 0)
-                    <div class="table-responsive">
-                        <table class="table table-hover mb-0">
-                            <thead>
-                                <tr>
-                                    <th>Ngày</th>
-                                    <th>Khóa học</th>
-                                    <th>Số tiền</th>
-                                    <th>Phương thức</th>
-                                    <th>Trạng thái</th>
-                                    <th>Thao tác</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($student->payments->sortByDesc('payment_date') as $payment)
-                                <tr>
-                                    <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
-                                    <td>
-                                        @if($payment->enrollment)
-                                            <div class="fw-medium">{{ $payment->enrollment->courseItem->name }}</div>
-                                        @else
-                                            <span class="text-muted">N/A</span>
-                                        @endif
-                                    </td>
-                                    <td class="fw-medium">{{ number_format($payment->amount) }}đ</td>
-                                    <td>
-                                        @if($payment->payment_method == 'cash')
-                                            <span class="badge bg-success">Tiền mặt</span>
-                                        @elseif($payment->payment_method == 'bank_transfer')
-                                            <span class="badge bg-info">Chuyển khoản</span>
-                                        @elseif($payment->payment_method == 'card')
-                                            <span class="badge bg-warning">Thẻ</span>
-                                        @elseif($payment->payment_method == 'qr_code')
-                                            <span class="badge bg-primary">QR Code</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        @if($payment->status == 'confirmed')
-                                            <span class="badge bg-success">Đã thanh toán</span>
-                                        @elseif($payment->status == 'pending')
-                                            <span class="badge bg-warning">Chờ xử lý</span>
-                                        @else
-                                            <span class="badge bg-secondary">{{ $payment->status }}</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <a href="{{ route('payments.show', $payment) }}" 
-                                           class="btn btn-sm btn-outline-primary" title="Chi tiết">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                @else
-                    <div class="text-center py-4">
-                        <i class="fas fa-money-bill-wave fa-3x text-muted mb-3"></i>
-                        <h6 class="text-muted">Chưa có thanh toán nào</h6>
-                        <a href="{{ route('payments.create', ['student_id' => $student->id]) }}" class="btn btn-success">
-                            <i class="fas fa-plus me-2"></i>Thu học phí đầu tiên
-                        </a>
-                    </div>
-                @endif
-            </div>
-        </div>
 
         @if($student->notes)
         <div class="card mt-4">

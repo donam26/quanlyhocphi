@@ -69,7 +69,7 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label for="payment_method">Hình thức thanh toán <span class="text-danger">*</span></label>
-                                        <select class="form-control select2 @error('payment_method') is-invalid @enderror" 
+                                        <select class="form-control @error('payment_method') is-invalid @enderror" 
                                             id="payment_method" name="payment_method" required>
                                     <option value="cash" {{ old('payment_method') == 'cash' ? 'selected' : '' }}>Tiền mặt</option>
                                     <option value="bank_transfer" {{ old('payment_method') == 'bank_transfer' ? 'selected' : '' }}>Chuyển khoản</option>
@@ -84,7 +84,7 @@
                                 <div class="col-md-6">
                                     <div class="form-group mb-3">
                                         <label for="status">Trạng thái <span class="text-danger">*</span></label>
-                                        <select class="form-control select2 @error('status') is-invalid @enderror" 
+                                        <select class="form-control @error('status') is-invalid @enderror" 
                                             id="status" name="status" required>
                                             <option value="pending" {{ old('status', 'pending') == 'pending' ? 'selected' : '' }}>Chờ xác nhận</option>
                                             <option value="confirmed" {{ old('status') == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
@@ -131,6 +131,7 @@
 @push('scripts')
 <script>
 $(document).ready(function() {
+    // Chỉ khởi tạo Select2 cho tìm kiếm học viên
     $('#student_search').select2({
         placeholder: 'Nhập tên hoặc SĐT học viên...',
         minimumInputLength: 2,

@@ -15,8 +15,7 @@ class StudentController extends Controller
     public function getInfo($id)
     {
         $student = Student::with(['enrollments' => function($query) {
-                $query->where('status', 'enrolled')
-                    ->with(['courseItem']);
+                $query->with(['courseItem']);
             }])
             ->findOrFail($id);
             
