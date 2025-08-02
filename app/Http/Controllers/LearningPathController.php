@@ -151,6 +151,28 @@ class LearningPathController extends Controller
         $newCompletionStatus = !$isCompleted;
         $request->session()->put($sessionKey, $newCompletionStatus);
         
+        // Đồng bộ với database - cập nhật cho tất cả học viên đăng ký khóa học này
+        if (Auth::check() && Auth::user()->is_admin) {
+            // Lấy tất cả enrollment của khóa học
+            $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+                ->where('status', 'enrolled')
+                ->get();
+            
+            foreach ($enrollments as $enrollment) {
+                // Cập nhật hoặc tạo bản ghi tiến độ
+                LearningPathProgress::updateOrCreate(
+                    [
+                        'enrollment_id' => $enrollment->id,
+                        'learning_path_id' => $learningPath->id
+                    ],
+                    [
+                        'is_completed' => $newCompletionStatus,
+                        'completed_at' => $newCompletionStatus ? now() : null
+                    ]
+                );
+            }
+        }
+        
         return response()->json([
             'status' => 'success',
             'is_completed' => $newCompletionStatus,

@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Date;
 
 class Student extends Model
 {
-    use HasFactory;
+    use HasFactory, Date;
 
     protected $fillable = [
         'full_name',
@@ -27,6 +28,22 @@ class Student extends Model
         'date_of_birth' => 'date',
         'custom_fields' => 'array'
     ];
+
+    /**
+     * Format ngày sinh theo định dạng dd/mm/yyyy
+     */
+    public function getFormattedDateOfBirthAttribute()
+    {
+        return $this->formatDate('date_of_birth');
+    }
+
+    /**
+     * Chuyển đổi ngày sinh từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setDateOfBirthAttribute($value)
+    {
+        $this->attributes['date_of_birth'] = static::parseDate($value);
+    }
 
     /**
      * Quan hệ với các ghi danh

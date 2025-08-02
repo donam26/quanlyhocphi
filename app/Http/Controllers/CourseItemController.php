@@ -121,7 +121,7 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Hiển thị chi tiết và cây con của một item
+     * Hiển thị thông tin chi tiết về course item
      */
     public function show($id)
     {
@@ -134,7 +134,38 @@ class CourseItemController extends Controller
         // Lấy đường dẫn từ gốc đến item này
         $breadcrumbs = $courseItem->ancestors()->push($courseItem);
         
-        return view('course-items.show', compact('courseItem', 'breadcrumbs'));
+        // Nếu là khóa học lá có lộ trình, chuẩn bị dữ liệu về tình trạng hoàn thành
+        $pathCompletionStats = [];
+        if ($courseItem->is_leaf && $courseItem->learningPaths->count() > 0) {
+            // Đếm tổng số học viên đã đăng ký khóa học
+            $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
+                ->where('status', 'enrolled')
+                ->count();
+                
+            foreach ($courseItem->learningPaths as $path) {
+                // Đếm số học viên đã hoàn thành path này
+                $completedCount = \App\Models\LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
+                    $query->where('course_item_id', $courseItem->id)
+                        ->where('status', 'enrolled');
+                })
+                ->where('learning_path_id', $path->id)
+                ->where('is_completed', true)
+                ->count();
+                
+                // Một path được coi là hoàn thành nếu có ít nhất 1 học viên hoàn thành
+                $isCompleted = $completedCount > 0;
+                
+                $pathCompletionStats[$path->id] = [
+                    'completed_count' => $completedCount,
+                    'is_completed' => $isCompleted
+                ];
+                
+                // Lưu trạng thái vào session để đảm bảo đồng bộ với LearningProgressController
+                session()->put("learning_path_{$path->id}_completed", $isCompleted);
+            }
+        }
+        
+        return view('course-items.show', compact('courseItem', 'breadcrumbs', 'pathCompletionStats'));
     }
 
     /**

@@ -3,7 +3,8 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Pagination\Paginator;
+use Illuminate\Support\Facades\Schema;
+use Carbon\Carbon;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,6 +21,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Paginator::useBootstrapFive();
+        Schema::defaultStringLength(191);
+        
+        // Đặt định dạng ngày tháng mặc định là dd/mm/yyyy
+        Carbon::setToStringFormat(config('app.date_format', 'd/m/Y'));
+        
+        // Đặt ngôn ngữ cho Carbon là tiếng Việt
+        Carbon::setLocale('vi');
     }
 }

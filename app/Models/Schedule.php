@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Traits\Date;
 
 class Schedule extends Model
 {
-    use HasFactory;
+    use HasFactory, Date;
     
     protected $fillable = [
         'course_item_id',
@@ -28,6 +29,38 @@ class Schedule extends Model
         'is_recurring' => 'boolean',
         'active' => 'boolean'
     ];
+    
+    /**
+     * Format ngày bắt đầu theo định dạng dd/mm/yyyy
+     */
+    public function getFormattedStartDateAttribute()
+    {
+        return $this->formatDate('start_date');
+    }
+    
+    /**
+     * Format ngày kết thúc theo định dạng dd/mm/yyyy
+     */
+    public function getFormattedEndDateAttribute()
+    {
+        return $this->formatDate('end_date');
+    }
+    
+    /**
+     * Chuyển đổi ngày bắt đầu từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setStartDateAttribute($value)
+    {
+        $this->attributes['start_date'] = static::parseDate($value);
+    }
+    
+    /**
+     * Chuyển đổi ngày kết thúc từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setEndDateAttribute($value)
+    {
+        $this->attributes['end_date'] = static::parseDate($value);
+    }
     
     /**
      * Lấy khóa học liên quan đến lịch học này

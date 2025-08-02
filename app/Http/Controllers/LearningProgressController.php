@@ -17,60 +17,70 @@ class LearningProgressController extends Controller
      */
     public function index(Request $request)
     {
+        // Lấy các khóa học đang hoạt động
         $courseItems = CourseItem::where('is_leaf', true)
-                                ->where('active', true)
-                                ->orderBy('name')
-                                ->get();
-
-        $selectedCourseId = $request->input('course_id');
-        $selectedCourse = null;
-        $learningPaths = collect([]);
-        $pathCompletionStats = [];
-        $totalStudents = 0;
-        $avgProgress = 0;
+                            ->where('active', true)
+                            ->orderBy('name')
+                            ->get();
         
-        if ($selectedCourseId) {
-            $selectedCourse = CourseItem::findOrFail($selectedCourseId);
-            $learningPaths = $selectedCourse->learningPaths()->orderBy('order')->get();
+        $incompleteCoursesData = [];
+        
+        foreach ($courseItems as $courseItem) {
+            // Lấy danh sách lộ trình học tập của khóa học
+            $learningPaths = $courseItem->learningPaths()->orderBy('order')->get();
             
-            // Đếm tổng số học viên đã đăng ký khóa học
-            $totalStudents = Enrollment::where('course_item_id', $selectedCourseId)
-                ->where('status', 'enrolled')
-                ->count();
-
-            // Tính toán tiến độ chung của khóa học
-            foreach ($learningPaths as $path) {
-                // Đếm số học viên đã hoàn thành path này
-                $completedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($selectedCourseId) {
-                    $query->where('course_item_id', $selectedCourseId)
-                        ->where('status', 'enrolled');
-                })
-                ->where('learning_path_id', $path->id)
-                ->where('is_completed', true)
-                ->count();
-                
-                // Tính tỷ lệ hoàn thành cho path này
-                $completionRate = $totalStudents > 0 ? round(($completedCount / $totalStudents) * 100) : 0;
-                
-                $pathCompletionStats[$path->id] = [
-                    'path' => $path,
-                    'total_students' => $totalStudents,
-                    'completed_count' => $completedCount,
-                    'completion_rate' => $completionRate
-                ];
+            if ($learningPaths->isEmpty()) {
+                // Bỏ qua khóa học không có lộ trình
+                continue;
             }
             
-            // Tính tiến độ trung bình của toàn khóa học
-            if ($learningPaths->count() > 0) {
-                $totalCompletionRate = 0;
-                foreach ($pathCompletionStats as $stat) {
-                    $totalCompletionRate += $stat['completion_rate'];
+            // Đếm tổng số học viên đã đăng ký khóa học
+            $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
+                ->where('status', 'enrolled')
+                ->count();
+                
+            // Tính toán số lượng lộ trình đã hoàn thành
+            $completedCount = 0;
+            $totalPathways = $learningPaths->count();
+            
+            if ($totalStudents > 0) {
+                // Nếu có học viên đăng ký, tính toán hoàn thành dựa trên tiến độ học viên
+                foreach ($learningPaths as $path) {
+                    // Đếm số học viên đã hoàn thành path này
+                    $pathCompletedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
+                        $query->where('course_item_id', $courseItem->id)
+                            ->where('status', 'enrolled');
+                    })
+                    ->where('learning_path_id', $path->id)
+                    ->where('is_completed', true)
+                    ->count();
+                    
+                    // Một lộ trình được xem là hoàn thành khi tất cả học viên đều hoàn thành
+                    if ($pathCompletedCount >= $totalStudents && $totalStudents > 0) {
+                        $completedCount++;
+                    }
                 }
-                $avgProgress = round($totalCompletionRate / $learningPaths->count());
+                
+                // Tính phần trăm hoàn thành
+                $progressPercentage = $totalPathways > 0 ? round(($completedCount / $totalPathways) * 100) : 0;
+            } else {
+                // Nếu chưa có học viên đăng ký, đánh dấu là chưa hoàn thành (0%)
+                $progressPercentage = 0;
+            }
+            
+            // Thêm tất cả khóa học có lộ trình và chưa hoàn thành 100%
+            if ($progressPercentage < 100) {
+                $incompleteCoursesData[] = [
+                    'course' => $courseItem,
+                    'total_pathways' => $totalPathways,
+                    'completed_pathways' => $completedCount,
+                    'progress_percentage' => $progressPercentage,
+                    'total_students' => $totalStudents
+                ];
             }
         }
         
-        return view('learning-progress.index', compact('courseItems', 'selectedCourse', 'learningPaths', 'pathCompletionStats', 'totalStudents', 'avgProgress'));
+        return view('learning-progress.index', compact('incompleteCoursesData'));
     }
 
     /**

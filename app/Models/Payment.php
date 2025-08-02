@@ -4,10 +4,11 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Date;
 
 class Payment extends Model
 {
-    use HasFactory;
+    use HasFactory, Date;
 
     protected $fillable = [
         'enrollment_id',
@@ -78,5 +79,21 @@ class Payment extends Model
     public function getReceiptNumberAttribute()
     {
         return 'PMT-' . str_pad($this->id, 6, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Format ngày thanh toán theo định dạng dd/mm/yyyy
+     */
+    public function getFormattedPaymentDateAttribute()
+    {
+        return $this->formatDate('payment_date');
+    }
+
+    /**
+     * Chuyển đổi ngày thanh toán từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setPaymentDateAttribute($value)
+    {
+        $this->attributes['payment_date'] = static::parseDate($value);
     }
 }

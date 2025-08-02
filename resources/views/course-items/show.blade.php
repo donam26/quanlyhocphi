@@ -177,7 +177,8 @@
                         <div class="learning-path-list">
                             @foreach($courseItem->learningPaths as $path)
                                 @php
-                                    $isCompleted = session("learning_path_{$path->id}_completed", false);
+                                    $stats = $pathCompletionStats[$path->id] ?? null;
+                                    $isCompleted = $stats && $stats['is_completed'];
                                 @endphp
                                 <div class="learning-path-item {{ $isCompleted ? 'completed' : '' }}">
                                     <div class="d-flex align-items-center">

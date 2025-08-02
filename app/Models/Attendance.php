@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
+use App\Traits\Date;
 
 class Attendance extends Model
 {
-    use HasFactory;
+    use HasFactory, Date;
 
     protected $fillable = [
         'enrollment_id',
@@ -97,7 +98,15 @@ class Attendance extends Model
      */
     public function getFormattedDateAttribute()
     {
-        return Carbon::parse($this->attendance_date)->format('d/m/Y');
+        return $this->formatDate('attendance_date');
+    }
+
+    /**
+     * Chuyển đổi ngày điểm danh từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setAttendanceDateAttribute($value)
+    {
+        $this->attributes['attendance_date'] = static::parseDate($value);
     }
 
     /**

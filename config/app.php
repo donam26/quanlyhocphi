@@ -69,7 +69,21 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    'timezone' => 'Asia/Ho_Chi_Minh',
+
+    /*
+    |--------------------------------------------------------------------------
+    | Application Date Format
+    |--------------------------------------------------------------------------
+    |
+    | This value determines the default date format that will be used throughout
+    | the application. This format will be used whenever dates are displayed or 
+    | processed unless overridden explicitly.
+    |
+    */
+
+    'date_format' => 'd/m/Y',
+    'datetime_format' => 'd/m/Y H:i:s',
 
     /*
     |--------------------------------------------------------------------------
@@ -82,7 +96,7 @@ return [
     |
     */
 
-    'locale' => 'en',
+    'locale' => 'vi',
 
     /*
     |--------------------------------------------------------------------------
