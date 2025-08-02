@@ -6,11 +6,19 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\LearningPath;
 use App\Models\LearningPathProgress;
+use App\Services\LearningPathService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class LearningPathController extends Controller
 {
+    protected $learningPathService;
+
+    public function __construct(LearningPathService $learningPathService)
+    {
+        $this->learningPathService = $learningPathService;
+    }
+
     /**
      * Hiển thị form để thêm lộ trình học tập cho khóa học
      */
@@ -32,7 +40,7 @@ class LearningPathController extends Controller
         ]);
         
         foreach ($validated['paths'] as $path) {
-            LearningPath::create([
+            $this->learningPathService->createLearningPath([
                 'course_item_id' => $courseItem->id,
                 'title' => $path['title'],
                 'description' => $path['description'] ?? null,
@@ -49,7 +57,7 @@ class LearningPathController extends Controller
      */
     public function edit(CourseItem $courseItem)
     {
-        $paths = $courseItem->learningPaths;
+        $paths = $this->learningPathService->getLearningPathsByCourse($courseItem);
         
         return view('learning-paths.edit', compact('courseItem', 'paths'));
     }
@@ -69,22 +77,27 @@ class LearningPathController extends Controller
         
         // Xóa các lộ trình không còn trong danh sách
         $existingPathIds = collect($validated['paths'])->pluck('id')->filter()->toArray();
-        LearningPath::where('course_item_id', $courseItem->id)
-            ->whereNotIn('id', $existingPathIds)
-            ->delete();
+        $currentPaths = $this->learningPathService->getLearningPathsByCourse($courseItem);
+        
+        foreach ($currentPaths as $path) {
+            if (!in_array($path->id, $existingPathIds)) {
+                $this->learningPathService->deleteLearningPath($path);
+            }
+        }
             
         // Cập nhật hoặc tạo mới lộ trình
         foreach ($validated['paths'] as $path) {
             if (!empty($path['id'])) {
                 // Cập nhật lộ trình hiện có
-                LearningPath::find($path['id'])->update([
+                $learningPath = $this->learningPathService->getLearningPath($path['id']);
+                $this->learningPathService->updateLearningPath($learningPath, [
                     'title' => $path['title'],
                     'description' => $path['description'] ?? null,
                     'order' => $path['order']
                 ]);
             } else {
                 // Tạo mới lộ trình
-                LearningPath::create([
+                $this->learningPathService->createLearningPath([
                     'course_item_id' => $courseItem->id,
                     'title' => $path['title'],
                     'description' => $path['description'] ?? null,
@@ -110,7 +123,7 @@ class LearningPathController extends Controller
             ], 403);
         }
         
-        // Tìm hoặc tạo bản ghi tiến độ
+        // Đảo trạng thái hoàn thành
         $progress = LearningPathProgress::firstOrCreate(
             [
                 'enrollment_id' => $enrollment->id,
@@ -118,10 +131,8 @@ class LearningPathController extends Controller
             ]
         );
         
-        // Đảo trạng thái hoàn thành
-        $progress->is_completed = !$progress->is_completed;
-        $progress->completed_at = $progress->is_completed ? now() : null;
-        $progress->save();
+        $newStatus = !$progress->is_completed;
+        $progress = $this->learningPathService->updateProgressStatus($enrollment, $learningPath, $newStatus);
         
         return response()->json([
             'status' => 'success',
@@ -159,17 +170,7 @@ class LearningPathController extends Controller
                 ->get();
             
             foreach ($enrollments as $enrollment) {
-                // Cập nhật hoặc tạo bản ghi tiến độ
-                LearningPathProgress::updateOrCreate(
-                    [
-                        'enrollment_id' => $enrollment->id,
-                        'learning_path_id' => $learningPath->id
-                    ],
-                    [
-                        'is_completed' => $newCompletionStatus,
-                        'completed_at' => $newCompletionStatus ? now() : null
-                    ]
-                );
+                $this->learningPathService->updateProgressStatus($enrollment, $learningPath, $newCompletionStatus);
             }
         }
         

@@ -2,40 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Attendance;
-use App\Models\CourseItem;
-use App\Models\Enrollment;
 use App\Models\Student;
+use App\Services\StudentService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
+    protected $studentService;
+    
+    public function __construct(StudentService $studentService)
+    {
+        $this->studentService = $studentService;
+    }
+
     /**
      * Hiển thị danh sách học viên
      */
     public function index(Request $request)
     {
-        $query = Student::with(['enrollments']);
-
-        // Tìm kiếm theo tên hoặc số điện thoại
-        if ($request->filled('search')) {
-            $query->search($request->search);
-        }
-
-        // Tìm kiếm theo ID học viên
-        if ($request->filled('student_id')) {
-            $query->where('id', $request->student_id);
-        }
-        
-        // Lọc theo khóa học
-        if ($request->filled('course_item_id')) {
-            $query->whereHas('enrollments', function($q) use ($request) {
-                $q->where('course_item_id', $request->course_item_id);
-            });
-        }
-
-        $students = $query->latest()->paginate(20)->appends($request->except('page'));
+        $filters = $request->only(['search', 'student_id', 'course_item_id']);
+        $students = $this->studentService->getStudents($filters);
         
         return view('students.index', compact('students'));
     }
@@ -53,7 +39,7 @@ class StudentController extends Controller
      */
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
             'email' => 'nullable|email|max:255',
@@ -64,7 +50,7 @@ class StudentController extends Controller
             'notes' => 'nullable|string',
         ]);
 
-        $student = Student::create($validatedData);
+        $student = $this->studentService->createStudent($validated);
 
         return redirect()->route('students.show', $student)
                         ->with('success', 'Thêm học viên thành công!');
@@ -75,12 +61,10 @@ class StudentController extends Controller
      */
     public function show(Student $student)
     {
-        $student->load([
-            'enrollments.courseItem',
-            'enrollments.payments',
-            'waitingLists.courseItem',
-            'attendances'
-        ]);
+        $student = $this->studentService->getStudentWithRelations(
+            $student->id, 
+            ['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem', 'attendances']
+        );
         
         return view('students.show', compact('student'));
     }
@@ -98,7 +82,7 @@ class StudentController extends Controller
      */
     public function update(Request $request, Student $student)
     {
-        $validatedData = $request->validate([
+        $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
             'email' => 'nullable|email|max:255',
@@ -109,33 +93,10 @@ class StudentController extends Controller
             'notes' => 'nullable|string',
             'gender' => 'nullable|string|in:male,female,other',
             'custom_field_keys.*' => 'nullable|string',
-            'custom_field_values.*' => 'nullable|string'
+            'custom_field_values.*' => 'nullable|string',
         ]);
 
-        // Xử lý trường thông tin tùy chỉnh
-        $customFields = [];
-        if ($request->has('custom_field_keys')) {
-            $keys = $request->input('custom_field_keys', []);
-            $values = $request->input('custom_field_values', []);
-            
-            foreach ($keys as $index => $key) {
-                if (!empty($key) && isset($values[$index])) {
-                    $customFields[$key] = $values[$index];
-                }
-            }
-        }
-
-        // Tạo mảng dữ liệu để update
-        $dataToUpdate = array_filter($validatedData, function($key) {
-            return !in_array($key, ['custom_field_keys', 'custom_field_values']);
-        }, ARRAY_FILTER_USE_KEY);
-
-        // Thêm trường custom_fields vào dữ liệu cập nhật
-        if (!empty($customFields)) {
-            $dataToUpdate['custom_fields'] = $customFields;
-        }
-
-        $student->update($dataToUpdate);
+        $this->studentService->updateStudent($student, $validated);
 
         return redirect()->route('students.show', $student)
                         ->with('success', 'Cập nhật thông tin học viên thành công!');
@@ -147,7 +108,7 @@ class StudentController extends Controller
     public function destroy(Student $student)
     {
         try {
-            $student->delete();
+            $this->studentService->deleteStudent($student);
             return redirect()->route('students.index')
                             ->with('success', 'Xóa học viên thành công!');
         } catch (\Exception $e) {
@@ -157,47 +118,21 @@ class StudentController extends Controller
     }
 
     /**
-     * Tìm kiếm học viên (API)
-     */
-    public function search(Request $request)
-    {
-        $term = $request->get('term');
-        
-        $students = Student::search($term)
-                          ->with(['enrollments.courseClass.course', 'waitingLists.courseItem'])
-                          ->limit(10)
-                          ->get();
-
-        return response()->json($students->map(function($student) {
-            return [
-                'id' => $student->id,
-                'full_name' => $student->full_name,
-                'phone' => $student->phone,
-                'current_classes' => $student->enrollments->map(function($enrollment) {
-                    return $enrollment->courseItem->name;
-                })->toArray(),
-            ];
-        }));
-    }
-
-    /**
      * Trang thống kê học viên
      */
     public function statistics()
     {
-        $stats = [
-            'total_students' => Student::count(),
-            'recent_registrations' => Student::where('created_at', '>=', now()->subDays(30))->count()
-        ];
-
+        $stats = $this->studentService->getStudentStatistics();
         return view('students.statistics', compact('stats'));
     }
 
     public function history($studentId)
     {
-        $student = Student::with(['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem'])
-                        ->findOrFail($studentId);
-                        
+        $student = $this->studentService->getStudentWithRelations(
+            $studentId, 
+            ['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem']
+        );
+        
         return view('search.student-history', compact('student'));
     }
 }

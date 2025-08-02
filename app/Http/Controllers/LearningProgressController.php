@@ -7,78 +7,25 @@ use App\Models\Enrollment;
 use App\Models\LearningPath;
 use App\Models\LearningPathProgress;
 use App\Models\Student;
+use App\Services\LearningProgressService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class LearningProgressController extends Controller
 {
+    protected $learningProgressService;
+
+    public function __construct(LearningProgressService $learningProgressService)
+    {
+        $this->learningProgressService = $learningProgressService;
+    }
+
     /**
      * Hiển thị trang quản lý tiến độ học tập
      */
     public function index(Request $request)
     {
-        // Lấy các khóa học đang hoạt động
-        $courseItems = CourseItem::where('is_leaf', true)
-                            ->where('active', true)
-                            ->orderBy('name')
-                            ->get();
-        
-        $incompleteCoursesData = [];
-        
-        foreach ($courseItems as $courseItem) {
-            // Lấy danh sách lộ trình học tập của khóa học
-            $learningPaths = $courseItem->learningPaths()->orderBy('order')->get();
-            
-            if ($learningPaths->isEmpty()) {
-                // Bỏ qua khóa học không có lộ trình
-                continue;
-            }
-            
-            // Đếm tổng số học viên đã đăng ký khóa học
-            $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
-                ->where('status', 'enrolled')
-                ->count();
-                
-            // Tính toán số lượng lộ trình đã hoàn thành
-            $completedCount = 0;
-            $totalPathways = $learningPaths->count();
-            
-            if ($totalStudents > 0) {
-                // Nếu có học viên đăng ký, tính toán hoàn thành dựa trên tiến độ học viên
-                foreach ($learningPaths as $path) {
-                    // Đếm số học viên đã hoàn thành path này
-                    $pathCompletedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
-                        $query->where('course_item_id', $courseItem->id)
-                            ->where('status', 'enrolled');
-                    })
-                    ->where('learning_path_id', $path->id)
-                    ->where('is_completed', true)
-                    ->count();
-                    
-                    // Một lộ trình được xem là hoàn thành khi tất cả học viên đều hoàn thành
-                    if ($pathCompletedCount >= $totalStudents && $totalStudents > 0) {
-                        $completedCount++;
-                    }
-                }
-                
-                // Tính phần trăm hoàn thành
-                $progressPercentage = $totalPathways > 0 ? round(($completedCount / $totalPathways) * 100) : 0;
-            } else {
-                // Nếu chưa có học viên đăng ký, đánh dấu là chưa hoàn thành (0%)
-                $progressPercentage = 0;
-            }
-            
-            // Thêm tất cả khóa học có lộ trình và chưa hoàn thành 100%
-            if ($progressPercentage < 100) {
-                $incompleteCoursesData[] = [
-                    'course' => $courseItem,
-                    'total_pathways' => $totalPathways,
-                    'completed_pathways' => $completedCount,
-                    'progress_percentage' => $progressPercentage,
-                    'total_students' => $totalStudents
-                ];
-            }
-        }
+        $incompleteCoursesData = $this->learningProgressService->getIncompleteCoursesData();
         
         return view('learning-progress.index', compact('incompleteCoursesData'));
     }
@@ -88,27 +35,16 @@ class LearningProgressController extends Controller
      */
     public function showStudentProgress(Request $request, Student $student)
     {
-        $enrollments = Enrollment::where('student_id', $student->id)
-                                ->where('status', 'enrolled')
-                                ->with('courseItem')
-                                ->get();
-        
         $selectedEnrollmentId = $request->input('enrollment_id');
-        $selectedEnrollment = null;
-        $learningPaths = collect([]);
-        $progress = collect([]);
+        $progressData = $this->learningProgressService->getStudentProgressData($student, $selectedEnrollmentId);
         
-        if ($selectedEnrollmentId) {
-            $selectedEnrollment = Enrollment::findOrFail($selectedEnrollmentId);
-            $learningPaths = $selectedEnrollment->courseItem->learningPaths()->orderBy('order')->get();
-            
-            // Lấy tiến độ học tập của học viên
-            $progress = LearningPathProgress::where('enrollment_id', $selectedEnrollmentId)
-                                            ->get()
-                                            ->keyBy('learning_path_id');
-        }
-        
-        return view('learning-progress.student', compact('student', 'enrollments', 'selectedEnrollment', 'learningPaths', 'progress'));
+        return view('learning-progress.student', [
+            'student' => $student,
+            'enrollments' => $progressData['enrollments'],
+            'selectedEnrollment' => $progressData['selectedEnrollment'],
+            'learningPaths' => $progressData['learningPaths'],
+            'progress' => $progressData['progress']
+        ]);
     }
 
     /**
@@ -116,34 +52,13 @@ class LearningProgressController extends Controller
      */
     public function showCourseProgress(CourseItem $courseItem)
     {
-        // Lấy danh sách lộ trình học tập của khóa học
-        $learningPaths = $courseItem->learningPaths()->orderBy('order')->get();
+        $progressData = $this->learningProgressService->getCourseProgressData($courseItem);
         
-        // Đếm tổng số học viên đã đăng ký khóa học
-        $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
-            ->where('status', 'enrolled')
-            ->count();
-
-        // Tính toán tiến độ đơn giản - chỉ xác định lộ trình nào đã hoàn thành
-        $pathCompletionStats = [];
-        
-        foreach ($learningPaths as $path) {
-            // Đếm số học viên đã hoàn thành path này
-            $completedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
-                $query->where('course_item_id', $courseItem->id)
-                    ->where('status', 'enrolled');
-            })
-            ->where('learning_path_id', $path->id)
-            ->where('is_completed', true)
-            ->count();
-            
-            $pathCompletionStats[$path->id] = [
-                'path' => $path,
-                'completed_count' => $completedCount
-            ];
-        }
-        
-        return view('learning-progress.course', compact('courseItem', 'learningPaths', 'pathCompletionStats'));
+        return view('learning-progress.course', [
+            'courseItem' => $progressData['courseItem'],
+            'learningPaths' => $progressData['learningPaths'],
+            'pathCompletionStats' => $progressData['pathCompletionStats']
+        ]);
     }
 
     /**
@@ -151,22 +66,13 @@ class LearningProgressController extends Controller
      */
     public function updateProgress(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
             'learning_path_id' => 'required|exists:learning_paths,id',
             'is_completed' => 'required|boolean'
         ]);
         
-        $progress = LearningPathProgress::updateOrCreate(
-            [
-                'enrollment_id' => $request->enrollment_id,
-                'learning_path_id' => $request->learning_path_id
-            ],
-            [
-                'is_completed' => $request->is_completed,
-                'completed_at' => $request->is_completed ? now() : null
-            ]
-        );
+        $progress = $this->learningProgressService->updateProgress($validated);
         
         return response()->json([
             'status' => 'success',
@@ -180,38 +86,21 @@ class LearningProgressController extends Controller
      */
     public function updateBulkProgress(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'progress_data' => 'required|array',
             'progress_data.*.enrollment_id' => 'required|exists:enrollments,id',
             'progress_data.*.learning_path_id' => 'required|exists:learning_paths,id',
             'progress_data.*.is_completed' => 'required|boolean'
         ]);
         
-        DB::beginTransaction();
-        
         try {
-            foreach ($request->progress_data as $item) {
-                LearningPathProgress::updateOrCreate(
-                    [
-                        'enrollment_id' => $item['enrollment_id'],
-                        'learning_path_id' => $item['learning_path_id']
-                    ],
-                    [
-                        'is_completed' => $item['is_completed'],
-                        'completed_at' => $item['is_completed'] ? now() : null
-                    ]
-                );
-            }
-            
-            DB::commit();
+            $this->learningProgressService->updateBulkProgress($validated['progress_data']);
             
             return response()->json([
                 'status' => 'success',
                 'message' => 'Đã cập nhật tiến độ học tập thành công'
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
-            
             return response()->json([
                 'status' => 'error',
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
@@ -224,48 +113,24 @@ class LearningProgressController extends Controller
      */
     public function updatePathStatus(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'path_id' => 'required|exists:learning_paths,id',
             'course_id' => 'required|exists:course_items,id',
             'is_completed' => 'required|boolean'
         ]);
         
-        $pathId = $request->path_id;
-        $courseId = $request->course_id;
-        $isCompleted = $request->is_completed;
-        
         try {
-            DB::beginTransaction();
-            
-            // Lấy tất cả học viên đăng ký khóa học này
-            $enrollments = Enrollment::where('course_item_id', $courseId)
-                ->where('status', 'enrolled')
-                ->get();
-             
-            
-            // Cập nhật trạng thái hoàn thành cho tất cả học viên
-            foreach ($enrollments as $enrollment) {
-                LearningPathProgress::updateOrCreate(
-                    [
-                        'enrollment_id' => $enrollment->id,
-                        'learning_path_id' => $pathId
-                    ],
-                    [
-                        'is_completed' => $isCompleted,
-                        'completed_at' => $isCompleted ? now() : null
-                    ]
-                );
-            }
-            
-            DB::commit();
+            $this->learningProgressService->updatePathStatus(
+                $validated['path_id'], 
+                $validated['course_id'], 
+                $validated['is_completed']
+            );
             
             return response()->json([
                 'success' => true,
                 'message' => 'Đã cập nhật trạng thái lộ trình học tập thành công!'
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
-            
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()

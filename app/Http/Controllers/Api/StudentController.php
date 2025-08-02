@@ -5,19 +5,45 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Enrollment;
+use App\Services\StudentService;
 use Illuminate\Http\Request;
 
 class StudentController extends Controller
 {
+    protected $studentService;
+    
+    public function __construct(StudentService $studentService)
+    {
+        $this->studentService = $studentService;
+    }
+
+    /**
+     * Tìm kiếm học viên
+     */
+    public function search(Request $request)
+    {
+        $term = $request->get('term');
+        
+        $students = $this->studentService->searchStudents($term);
+
+        return response()->json($students->map(function($student) {
+            return [
+                'id' => $student->id,
+                'full_name' => $student->full_name,
+                'phone' => $student->phone,
+                'current_classes' => $student->enrollments->map(function($enrollment) {
+                    return $enrollment->courseItem->name;
+                })->toArray(),
+            ];
+        }));
+    }
+
     /**
      * Lấy thông tin chi tiết của học viên
      */
     public function getInfo($id)
     {
-        $student = Student::with(['enrollments' => function($query) {
-                $query->with(['courseItem']);
-            }])
-            ->findOrFail($id);
+        $student = $this->studentService->getStudentWithRelations($id, ['enrollments.courseItem']);
             
         $enrollments = $student->enrollments->map(function($enrollment) {
             return [
