@@ -214,7 +214,7 @@ class CourseItemController extends Controller
         $node = [
             'id' => $item->id,
             'name' => $item->name,
-            'url' => route('course-items.show', $item->id),
+            'url' => route('course-items.tree', ['newly_added_id' => $item->id]),
             'code' => $item->code,
             'fee' => $item->fee,
             'is_leaf' => $item->is_leaf,
@@ -230,5 +230,30 @@ class CourseItemController extends Controller
         }
         
         return $node;
+    }
+
+    /**
+     * Lấy danh sách các khóa học có thể đăng ký (các lớp, không phải danh mục)
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function available()
+    {
+        try {
+            $courseItems = CourseItem::where('is_leaf', true)
+                ->where('active', true)
+                ->orderBy('name')
+                ->get(['id', 'name', 'fee']);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $courseItems
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => true,
+                'data' => []
+            ]);
+        }
     }
 } 

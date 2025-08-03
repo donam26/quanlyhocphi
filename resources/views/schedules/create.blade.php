@@ -10,7 +10,7 @@
             @if($courseItem)
                 <nav aria-label="breadcrumb">
                     <ol class="breadcrumb">
-                        <li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">{{ $courseItem->name }}</a></li>
+                        <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">{{ $courseItem->name }}</a></li>
                         <li class="breadcrumb-item"><a href="{{ route('course-items.schedules', $courseItem->id) }}">Lịch học</a></li>
                         <li class="breadcrumb-item active">Tạo mới</li>
                     </ol>

@@ -118,7 +118,9 @@ class ReportController extends Controller
             'courseValues' => $courseValues,
             'courseStats' => $reportData['course_stats'],
             'methodStats' => $reportData['method_stats'],
-            'courseItems' => $courseItems
+            'courseItems' => $courseItems,
+            'revenueByMethod' => $reportData['method_stats'],
+            'revenueByCourse' => $reportData['course_stats']
         ]);
     }
     
@@ -143,7 +145,15 @@ class ReportController extends Controller
             'totalCount' => $reportData['total_count'],
             'activeCount' => $reportData['active_count'],
             'recentCount' => $reportData['recent_count'],
-            'students' => $reportData['students']
+            'students' => $reportData['students'],
+            'studentsByGender' => $reportData['gender_stats'] ?? collect(),
+            'ageGroups' => $reportData['age_groups'] ?? [
+                'under_18' => 0,
+                '18_25' => 0,
+                '26_35' => 0,
+                '36_50' => 0,
+                'above_50' => 0
+            ]
         ]);
     }
     
@@ -167,6 +177,11 @@ class ReportController extends Controller
         $reportData = $this->reportService->getEnrollmentReport($filters);
         
         $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
+        
+        // Đảm bảo enrollments không null
+        if (!isset($reportData['enrollments'])) {
+            $reportData['enrollments'] = collect();
+        }
         
         return view('reports.enrollments', [
             'startDate' => $startDate,
@@ -204,6 +219,11 @@ class ReportController extends Controller
         $reportData = $this->reportService->getPaymentReport($filters);
         
         $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
+        
+        // Đảm bảo payments không null
+        if (!isset($reportData['payments'])) {
+            $reportData['payments'] = collect();
+        }
         
         return view('reports.payments', [
             'startDate' => $startDate,
@@ -245,6 +265,37 @@ class ReportController extends Controller
         $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
         $students = Student::orderBy('full_name')->get();
         
+        // Lấy thông tin khóa học nếu có
+        $courseItem = null;
+        if ($courseItemId) {
+            $courseItem = CourseItem::find($courseItemId);
+        }
+        
+        // Dữ liệu cho biểu đồ
+        $chartData = [];
+        if (isset($reportData['date_stats']) && $reportData['date_stats']->count() > 0) {
+            $chartData = [
+                'labels' => $reportData['date_stats']->pluck('date')->toArray(),
+                'present_data' => $reportData['date_stats']->pluck('present')->toArray(),
+                'absent_data' => $reportData['date_stats']->pluck('absent')->toArray(),
+                'late_data' => $reportData['date_stats']->pluck('late')->toArray()
+            ];
+        } else {
+            $chartData = [
+                'labels' => [],
+                'present_data' => [],
+                'absent_data' => [],
+                'late_data' => []
+            ];
+        }
+        
+        // Thống kê trạng thái điểm danh
+        $attendanceStats = [
+            'present' => $reportData['present_count'] ?? 0,
+            'absent' => $reportData['absent_count'] ?? 0,
+            'late' => $reportData['late_count'] ?? 0
+        ];
+        
         return view('reports.attendance', [
             'startDate' => $startDate,
             'endDate' => $endDate,
@@ -260,7 +311,11 @@ class ReportController extends Controller
             'studentStats' => $reportData['student_stats'],
             'attendances' => $reportData['attendances'],
             'courseItems' => $courseItems,
-            'students' => $students
+            'students' => $students,
+            'courses' => $courseItems,
+            'courseItem' => $courseItem,
+            'chartData' => $chartData,
+            'attendanceStats' => $attendanceStats
         ]);
     }
 }

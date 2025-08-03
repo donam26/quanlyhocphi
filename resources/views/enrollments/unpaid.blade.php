@@ -79,6 +79,11 @@
                                     <td class="text-end">{{ number_format($enrollmentData['paid']) }}đ</td>
                                     <td class="text-end text-danger fw-bold">{{ number_format($remainingAmount) }}đ</td>
                                     <td>
+                                        {{-- Thêm nút xem chi tiết --}}
+                                        <button type="button" class="btn btn-info btn-sm" onclick="showEnrollmentDetails({{ $enrollment->id }})" title="Xem chi tiết">
+                                            <i class="fas fa-eye me-1"></i> Chi tiết
+                                        </button>
+                                        
                                         {{-- Link trang thanh toán QR - luôn hiển thị, không phụ thuộc vào existingPayment --}}
                                         <a href="{{ $existingPayment ? route('payment.gateway.show', $existingPayment) : route('payment.gateway.direct', $enrollment) }}" class="btn btn-success btn-sm" title="Trang thanh toán">
                                             <i class="fas fa-qrcode me-1"></i> Trang thanh toán
@@ -103,10 +108,7 @@
                                             </form>
                                         @endif
                                         
-                                        {{-- Xem chi tiết --}}
-                                        <a href="{{ route('enrollments.show', $enrollment) }}" class="btn btn-info btn-sm mt-1" title="Xem chi tiết">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
+                                     
                                     </td>
                                 </tr>
                             @endforeach
@@ -125,100 +127,264 @@
 
 @push('scripts')
 <script>
-$(document).ready(function() {
-    $('#check-all').on('click', function() {
-        $('.check-item').prop('checked', $(this).prop('checked'));
-        toggleBulkActions();
-    });
-
-    $('.check-item').on('click', function() {
-        if ($('.check-item:checked').length === $('.check-item').length) {
-            $('#check-all').prop('checked', true);
-        } else {
-            $('#check-all').prop('checked', false);
-        }
-        toggleBulkActions();
-    });
-
-    function toggleBulkActions() {
-        if ($('.check-item:checked').length > 0) {
-            $('#bulk-remind-btn').prop('disabled', false);
-        } else {
-            $('#bulk-remind-btn').prop('disabled', true);
-        }
-    }
-
-    $('#bulk-reminder-form').on('submit', function(e) {
-        e.preventDefault();
-        var form = $(this);
-        var paymentIds = [];
-        var enrollmentIds = [];
+    document.addEventListener('DOMContentLoaded', function() {
+        // Xử lý checkbox chọn tất cả
+        document.getElementById('check-all').addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.check-item');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateBulkButtons();
+        });
         
-        // Phân loại các checkbox theo data-type
-        $('.check-item:checked').each(function() {
-            var id = $(this).val();
-            var type = $(this).data('type');
+        // Xử lý khi checkbox đơn lẻ thay đổi
+        document.querySelectorAll('.check-item').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateBulkButtons();
+            });
+        });
+        
+        // Cập nhật trạng thái các nút hành động hàng loạt
+        function updateBulkButtons() {
+            const checkedCount = document.querySelectorAll('.check-item:checked').length;
+            const bulkRemindBtn = document.getElementById('bulk-remind-btn');
             
-            if (type === 'payment') {
-                paymentIds.push(id);
-            } else if (type === 'enrollment') {
-                enrollmentIds.push(id);
+            if (checkedCount > 0) {
+                bulkRemindBtn.disabled = false;
+                
+                // Cập nhật danh sách ID cho form gửi nhắc nhở hàng loạt
+                const paymentIds = [];
+                const enrollmentIds = [];
+                
+                document.querySelectorAll('.check-item:checked').forEach(checkbox => {
+                    if (checkbox.dataset.type === 'payment') {
+                        paymentIds.push(checkbox.value);
+                    } else if (checkbox.dataset.type === 'enrollment') {
+                        enrollmentIds.push(checkbox.value);
+                    }
+                });
+                
+                document.querySelector('.bulk-payment-ids').value = paymentIds.join(',');
+            } else {
+                bulkRemindBtn.disabled = true;
             }
-        });
-
-        if (paymentIds.length === 0 && enrollmentIds.length === 0) {
-            alert('Vui lòng chọn ít nhất một học viên để gửi nhắc nhở');
-            return;
-        }
-        
-        // Tạo form động để gửi
-        var dynamicForm = $('<form>', {
-            'method': 'post',
-            'action': paymentIds.length > 0 && enrollmentIds.length === 0 
-                ? '{{ route("payments.send-reminder") }}'
-                : enrollmentIds.length > 0 && paymentIds.length === 0
-                ? '{{ route("payments.send-direct-reminder") }}'
-                : '{{ route("payments.send-combined-reminder") }}'
-        });
-        
-        // Thêm CSRF token
-        dynamicForm.append($('<input>', {
-            'type': 'hidden',
-            'name': '_token',
-            'value': '{{ csrf_token() }}'
-        }));
-        
-        // Thêm các payment_ids nếu có
-        if (paymentIds.length > 0) {
-            paymentIds.forEach(function(id) {
-                dynamicForm.append($('<input>', {
-                    'type': 'hidden',
-                    'name': 'payment_ids[]',
-                    'value': id
-                }));
-            });
-        }
-        
-        // Thêm các enrollment_ids nếu có
-        if (enrollmentIds.length > 0) {
-            enrollmentIds.forEach(function(id) {
-                dynamicForm.append($('<input>', {
-                    'type': 'hidden',
-                    'name': 'enrollment_ids[]',
-                    'value': id
-                }));
-            });
-        }
-        
-        // Cần xử lý case hỗn hợp (có cả payment và enrollment)
-        var totalCount = paymentIds.length + enrollmentIds.length;
-        
-        if(confirm('Bạn có chắc muốn gửi nhắc nhở cho ' + totalCount + ' học viên đã chọn?')) {
-            // Thêm form vào body và submit
-            $('body').append(dynamicForm);
-            dynamicForm.submit();
         }
     });
-});
+    
+    // Hiển thị chi tiết ghi danh trong modal
+    function showEnrollmentDetails(enrollmentId) {
+        // Hiển thị loading
+        document.getElementById('enrollmentDetailsContent').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status"></div>
+                <p class="mt-2">Đang tải thông tin...</p>
+            </div>
+        `;
+        
+        // Hiển thị modal
+        const modal = new bootstrap.Modal(document.getElementById('enrollmentDetailsModal'));
+        modal.show();
+        
+        // Tải thông tin ghi danh
+        fetch(`/api/enrollments/${enrollmentId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const enrollment = data.data;
+                    const student = enrollment.student;
+                    const courseItem = enrollment.course_item;
+                    const payments = enrollment.payments || [];
+                    
+                    // Tính toán số tiền đã đóng và còn lại
+                    let totalPaid = 0;
+                    payments.forEach(payment => {
+                        if (payment.status === 'confirmed') {
+                            totalPaid += parseFloat(payment.amount);
+                        }
+                    });
+                    
+                    const remainingAmount = parseFloat(enrollment.final_fee) - totalPaid;
+                    
+                    // Tạo HTML hiển thị chi tiết
+                    let html = `
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5 class="mb-3">Thông tin học viên</h5>
+                                <table class="table table-bordered">
+                                    <tr>
+                                        <th width="30%">Họ tên</th>
+                                        <td>${student.full_name}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Số điện thoại</th>
+                                        <td>${student.phone}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Email</th>
+                                        <td>${student.email || 'Không có'}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Địa chỉ</th>
+                                        <td>${student.address || 'Không có'}</td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h5 class="mb-3">Thông tin khóa học</h5>
+                                <table class="table table-bordered">
+                                    <tr>
+                                        <th width="30%">Khóa học</th>
+                                        <td>${courseItem.name}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Ngày ghi danh</th>
+                                        <td>${formatDate(enrollment.enrollment_date)}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Học phí</th>
+                                        <td>${formatCurrency(enrollment.final_fee)} đ</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Đã đóng</th>
+                                        <td class="text-success">${formatCurrency(totalPaid)} đ</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Còn lại</th>
+                                        <td class="text-danger fw-bold">${formatCurrency(remainingAmount)} đ</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <h5 class="mt-4 mb-3">Lịch sử thanh toán</h5>
+                    `;
+                    
+                    if (payments.length > 0) {
+                        html += `
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Mã GD</th>
+                                            <th>Ngày thanh toán</th>
+                                            <th>Số tiền</th>
+                                            <th>Phương thức</th>
+                                            <th>Trạng thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                        `;
+                        
+                        payments.forEach(payment => {
+                            html += `
+                                <tr>
+                                    <td>${payment.transaction_reference || 'PT' + String(payment.id).padStart(6, '0')}</td>
+                                    <td>${formatDate(payment.payment_date)}</td>
+                                    <td class="text-end">${formatCurrency(payment.amount)} đ</td>
+                                    <td>${getPaymentMethodText(payment.payment_method)}</td>
+                                    <td>${getPaymentStatusBadge(payment.status)}</td>
+                                </tr>
+                            `;
+                        });
+                        
+                        html += `
+                                    </tbody>
+                                </table>
+                            </div>
+                        `;
+                    } else {
+                        html += `<div class="alert alert-info">Chưa có lịch sử thanh toán nào.</div>`;
+                    }
+                    
+                    // Hiển thị nút tạo thanh toán mới
+                    html += `
+                        <div class="mt-4 text-center">
+                            <button type="button" class="btn btn-primary" onclick="createPayment(${enrollmentId})">
+                                <i class="fas fa-plus-circle me-2"></i>Tạo thanh toán mới
+                            </button>
+                        </div>
+                    `;
+                    
+                    document.getElementById('enrollmentDetailsContent').innerHTML = html;
+                } else {
+                    document.getElementById('enrollmentDetailsContent').innerHTML = `
+                        <div class="alert alert-danger">
+                            Không thể tải thông tin ghi danh. Vui lòng thử lại sau.
+                        </div>
+                    `;
+                }
+            })
+            .catch(error => {
+                document.getElementById('enrollmentDetailsContent').innerHTML = `
+                    <div class="alert alert-danger">
+                        Đã xảy ra lỗi: ${error.message}
+                    </div>
+                `;
+            });
+    }
+    
+    // Hàm tạo thanh toán mới
+    function createPayment(enrollmentId) {
+        // Đóng modal chi tiết
+        bootstrap.Modal.getInstance(document.getElementById('enrollmentDetailsModal')).hide();
+        
+        // Chuyển đến trang tạo thanh toán với enrollment_id
+        window.location.href = `/payments/create?enrollment_id=${enrollmentId}`;
+    }
+    
+    // Hàm định dạng tiền tệ
+    function formatCurrency(amount) {
+        return new Intl.NumberFormat('vi-VN').format(amount);
+    }
+    
+    // Hàm định dạng ngày tháng
+    function formatDate(dateString) {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('vi-VN');
+    }
+    
+    // Hàm lấy text phương thức thanh toán
+    function getPaymentMethodText(method) {
+        const methodMap = {
+            'cash': 'Tiền mặt',
+            'bank_transfer': 'Chuyển khoản',
+            'card': 'Thẻ',
+            'qr_code': 'Mã QR',
+            'sepay': 'SePay',
+            'other': 'Khác'
+        };
+        return methodMap[method] || method;
+    }
+    
+    // Hàm lấy badge trạng thái thanh toán
+    function getPaymentStatusBadge(status) {
+        const statusMap = {
+            'pending': '<span class="badge bg-warning">Chờ xác nhận</span>',
+            'confirmed': '<span class="badge bg-success">Đã xác nhận</span>',
+            'cancelled': '<span class="badge bg-danger">Đã hủy</span>',
+            'refunded': '<span class="badge bg-info">Đã hoàn tiền</span>'
+        };
+        return statusMap[status] || status;
+    }
 </script>
 @endpush 
+
+<!-- Modal chi tiết ghi danh -->
+<div class="modal fade" id="enrollmentDetailsModal" tabindex="-1" aria-labelledby="enrollmentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="enrollmentDetailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i>Chi tiết ghi danh
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="enrollmentDetailsContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div> 

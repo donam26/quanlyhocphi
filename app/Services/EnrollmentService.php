@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\LearningPathProgress;
-use App\Models\Payment;
 use App\Models\Student;
+use App\Models\CourseItem;
+use App\Models\LearningPathProgress;
+use App\Models\LearningPath;
+use App\Models\Payment;
+use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -20,7 +22,7 @@ class EnrollmentService
             $query->where('status', $filters['status']);
             
             // Nếu là status waiting và cần lọc theo cần liên hệ
-            if ($filters['status'] === Enrollment::STATUS_WAITING && isset($filters['needs_contact']) && $filters['needs_contact']) {
+            if ($filters['status'] === EnrollmentStatus::WAITING->value && isset($filters['needs_contact']) && $filters['needs_contact']) {
                 $query->whereNull('notes');
             }
         }
@@ -67,7 +69,7 @@ class EnrollmentService
             });
         }
         
-        if ($filters['status'] === Enrollment::STATUS_WAITING) {
+        if (isset($filters['status']) && $filters['status'] === EnrollmentStatus::WAITING->value) {
             return $query->latest('request_date')->paginate(isset($filters['per_page']) ? $filters['per_page'] : 15);
         }
         
@@ -125,7 +127,7 @@ class EnrollmentService
             }
             
             // Tạo tiến độ học tập nếu ghi danh trực tiếp
-            if ($data['status'] === 'enrolled' || $data['status'] === 'active' || $data['status'] === 'confirmed') {
+            if ($data['status'] === EnrollmentStatus::ACTIVE->value || $data['status'] === 'enrolled' || $data['status'] === 'confirmed') {
                 $this->createLearningPathProgress($enrollment);
             }
             
@@ -207,7 +209,8 @@ class EnrollmentService
     {
         return Enrollment::whereDoesntHave('payments')
             ->orWhereHas('payments', function($query) {
-                $query->groupBy('enrollment_id')
+                $query->select(DB::raw('SUM(amount) as total_paid'))
+                    ->groupBy('enrollment_id')
                     ->havingRaw('SUM(amount) < enrollments.final_fee');
             })
             ->with(['student', 'courseItem', 'payments'])
@@ -227,7 +230,7 @@ class EnrollmentService
     public function getWaitingListByCourse(CourseItem $courseItem)
     {
         return Enrollment::where('course_item_id', $courseItem->id)
-            ->where('status', 'waiting')
+            ->where('status', EnrollmentStatus::WAITING->value)
             ->with('student')
             ->get();
     }
@@ -238,7 +241,7 @@ class EnrollmentService
         
         try {
             $enrollment->update([
-                'status' => 'enrolled',
+                'status' => EnrollmentStatus::ACTIVE->value,
                 'enrollment_date' => now()
             ]);
             
@@ -275,7 +278,7 @@ class EnrollmentService
         return Enrollment::create([
             'student_id' => $data['student_id'],
             'course_item_id' => $data['course_item_id'],
-            'status' => 'waiting',
+            'status' => EnrollmentStatus::WAITING->value,
             'request_date' => now(),
             'notes' => $data['notes'] ?? null
         ]);
@@ -287,10 +290,10 @@ class EnrollmentService
             ->where('payments.status', 'confirmed')
             ->sum('payments.amount');
             
-        $totalFees = Enrollment::whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_CONFIRMED, 'enrolled'])->sum('final_fee');
+        $totalFees = Enrollment::whereIn('status', [EnrollmentStatus::ACTIVE->value, 'enrolled'])->sum('final_fee');
         $totalUnpaid = max(0, $totalFees - $totalPaid);
             
-        $pendingCount = Enrollment::whereIn('status', [Enrollment::STATUS_ACTIVE, Enrollment::STATUS_CONFIRMED, 'enrolled'])
+        $pendingCount = Enrollment::whereIn('status', [EnrollmentStatus::ACTIVE->value, 'enrolled'])
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
             ->count();
             
@@ -304,7 +307,7 @@ class EnrollmentService
     
     public function getNeedsContactEnrollments()
     {
-        return Enrollment::where('status', 'waiting')
+        return Enrollment::where('status', EnrollmentStatus::WAITING->value)
             ->whereNull('notes')
             ->with(['student', 'courseItem'])
             ->latest('request_date')
@@ -313,19 +316,19 @@ class EnrollmentService
     
     public function getWaitingList($filters = [])
     {
-        $query = Enrollment::where('status', 'waiting')
+        $query = Enrollment::where('status', EnrollmentStatus::WAITING->value)
             ->with(['student', 'courseItem']);
             
+        // Filters
         if (isset($filters['course_item_id'])) {
             $query->where('course_item_id', $filters['course_item_id']);
         }
         
         if (isset($filters['search'])) {
             $search = $filters['search'];
-            $query->whereHas('student', function ($q) use ($search) {
+            $query->whereHas('student', function($q) use ($search) {
                 $q->where('full_name', 'like', '%' . $search . '%')
-                  ->orWhere('phone', 'like', '%' . $search . '%')
-                  ->orWhere('email', 'like', '%' . $search . '%');
+                  ->orWhere('phone', 'like', '%' . $search . '%');
             });
         }
         

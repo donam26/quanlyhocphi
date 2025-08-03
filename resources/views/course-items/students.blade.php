@@ -8,9 +8,6 @@
 @endsection
 
 @section('page-actions')
-<a href="{{ route('course-items.add-student', $courseItem->id) }}" class="btn btn-success me-2">
-    <i class="fas fa-user-plus"></i> Thêm học viên
-</a>
 <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
     <i class="fas fa-file-excel"></i> Import Excel
 </button>
@@ -108,12 +105,7 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                                <a href="{{ route('students.show', $student['student']->id) }}" class="btn btn-sm btn-info" title="Xem chi tiết">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <a href="{{ route('students.edit', $student['student']->id) }}" class="btn btn-sm btn-primary" title="Chỉnh sửa học viên">
-                                    <i class="fas fa-edit"></i>
-                                </a>
+                               
                                 <a href="{{ route('enrollments.edit', $student['enrollment_id']) }}" class="btn btn-sm btn-warning" title="Chỉnh sửa đăng ký">
                                     <i class="fas fa-user-edit"></i>
                                 </a>

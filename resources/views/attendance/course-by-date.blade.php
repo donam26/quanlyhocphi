@@ -9,7 +9,7 @@
             <h2>Chi tiết điểm danh: {{ \Carbon\Carbon::parse($attendanceDate)->format('d/m/Y') }}</h2>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">{{ $courseItem->name }}</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">{{ $courseItem->name }}</a></li>
                     <li class="breadcrumb-item"><a href="{{ route('course-items.attendance', $courseItem->id) }}">Điểm danh</a></li>
                     <li class="breadcrumb-item active">{{ \Carbon\Carbon::parse($attendanceDate)->format('d/m/Y') }}</li>
                 </ol>

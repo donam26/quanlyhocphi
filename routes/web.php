@@ -28,9 +28,11 @@ Route::get('/', function () {
 Route::middleware(['auth', 'admin'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard/data', [DashboardController::class, 'getDataByTimeRange'])->name('dashboard.data');
 
     // Students
-    Route::resource('students', StudentController::class);
+    Route::get('students', [StudentController::class, 'index'])->name('students.index');
+    Route::delete('students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
     Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->name('students.enrollments');
     Route::get('students/{student}/payments', [StudentController::class, 'payments'])->name('students.payments');
 
@@ -43,7 +45,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');
     Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
     Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
-    Route::resource('course-items', CourseItemController::class);
+    Route::resource('course-items', CourseItemController::class)->except(['show']);
+    
 
     // Chức năng điểm danh theo khóa học
     Route::get('course-items/{courseItem}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
@@ -135,24 +138,22 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
 // Payment routes
 Route::middleware(['auth'])->group(function () {
+    // Thanh toán
     Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
-    Route::get('/payments/create', [PaymentController::class, 'create'])->name('payments.create');
     Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
-    Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('payments.show');
-    Route::get('/payments/{payment}/edit', [PaymentController::class, 'edit'])->name('payments.edit');
-    Route::put('/payments/{payment}', [PaymentController::class, 'update'])->name('payments.update');
     Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
-    Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.confirm');
-    Route::get('/payments/{payment}/receipt', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
+    Route::post('/payments/quick', [PaymentController::class, 'quickPayment'])->name('payments.quick');
+    Route::post('/payments/send-reminder', [PaymentController::class, 'sendReminder'])->name('payments.send-reminder');
     Route::get('/payments/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('payments.course');
-    Route::get('/payments/course/{courseItem}/export', [PaymentController::class, 'exportCoursePayments'])->name('payments.course.export');
+    Route::get('/payments/receipt/{payment}', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
     Route::get('/payments/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('payments.bulk-receipt');
-    Route::get('/enrollments/{enrollment}/payments', [PaymentController::class, 'getEnrollmentPayments'])->name('enrollments.payments');
+    Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.mark-confirmed');
+    Route::post('/payments/{payment}/refund', [PaymentController::class, 'refundPayment'])->name('payments.refund');
 });
 
 // Course item routes
 Route::middleware(['auth'])->group(function () {
-    Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
+    Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance.view');
     Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
     Route::get('/course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
     
@@ -167,9 +168,4 @@ Route::middleware(['auth'])->group(function () {
     
     // Tiến độ học tập
     Route::get('/learning-progress', [LearningProgressController::class, 'index'])->name('learning-progress.index');
-    Route::get('/learning-progress/students/{student}', [LearningProgressController::class, 'showStudentProgress'])->name('learning-progress.student');
-    Route::get('/learning-progress/courses/{courseItem}', [LearningProgressController::class, 'showCourseProgress'])->name('learning-progress.course');
-    Route::post('/learning-progress/update', [LearningProgressController::class, 'updateProgress'])->name('learning-progress.update');
-    Route::post('/learning-progress/update-bulk', [LearningProgressController::class, 'updateBulkProgress'])->name('learning-progress.update-bulk');
-    Route::post('/learning-progress/update-path-status', [LearningProgressController::class, 'updatePathStatus'])->name('learning-progress.update-path-status');
 });

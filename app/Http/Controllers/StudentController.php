@@ -31,7 +31,8 @@ class StudentController extends Controller
      */
     public function create()
     {
-        return view('students.create');
+        $provinces = \App\Models\Province::orderBy('name')->get();
+        return view('students.create', compact('provinces'));
     }
 
     /**
@@ -42,65 +43,28 @@ class StudentController extends Controller
         $validated = $request->validate([
             'full_name' => 'required|string|max:255',
             'date_of_birth' => 'required|date',
+            'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
-            'address' => 'nullable|string',
+            'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
             'notes' => 'nullable|string',
+            'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
+            'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+            'workplace' => 'nullable|string|max:255',
+            'experience_years' => 'nullable|integer|min:0',
         ]);
 
         $student = $this->studentService->createStudent($validated);
 
-        return redirect()->route('students.show', $student)
+        return redirect()->route('students.index')
                         ->with('success', 'Thêm học viên thành công!');
     }
 
-    /**
-     * Hiển thị chi tiết học viên
-     */
-    public function show(Student $student)
-    {
-        $student = $this->studentService->getStudentWithRelations(
-            $student->id, 
-            ['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem', 'attendances']
-        );
-        
-        return view('students.show', compact('student'));
-    }
+  
 
-    /**
-     * Hiển thị form chỉnh sửa học viên
-     */
-    public function edit(Student $student)
-    {
-        return view('students.edit', compact('student'));
-    }
-
-    /**
-     * Cập nhật thông tin học viên
-     */
-    public function update(Request $request, Student $student)
-    {
-        $validated = $request->validate([
-            'full_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
-            'email' => 'nullable|email|max:255',
-            'phone' => 'required|string|unique:students,phone,' . $student->id,
-            'address' => 'nullable|string',
-            'current_workplace' => 'nullable|string|max:255',
-            'accounting_experience_years' => 'nullable|integer|min:0',
-            'notes' => 'nullable|string',
-            'gender' => 'nullable|string|in:male,female,other',
-            'custom_field_keys.*' => 'nullable|string',
-            'custom_field_values.*' => 'nullable|string',
-        ]);
-
-        $this->studentService->updateStudent($student, $validated);
-
-        return redirect()->route('students.show', $student)
-                        ->with('success', 'Cập nhật thông tin học viên thành công!');
-    }
+  
 
     /**
      * Xóa học viên

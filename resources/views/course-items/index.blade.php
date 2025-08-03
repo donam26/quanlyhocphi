@@ -41,7 +41,7 @@
                             @foreach($rootItems as $item)
                                 <tr>
                                     <td>
-                                        <a href="{{ route('course-items.show', $item->id) }}">
+                                        <a href="{{ route('course-items.tree', $item->id) }}">
                                             {{ $item->name }}
                                         </a>
                                     </td>
@@ -56,13 +56,13 @@
                                     </td>
                                     <td>
                                         <div class="btn-group">
-                                            <a href="{{ route('course-items.show', $item->id) }}" class="btn btn-sm btn-info">
+                                            <a href="{{ route('course-items.tree', $item->id) }}" class="btn btn-sm btn-info">
                                                 <i class="fas fa-eye"></i>
                                             </a>
                                             <a href="{{ route('course-items.students', $item->id) }}" class="btn btn-sm btn-primary" title="Xem học viên">
                                                 <i class="fas fa-users"></i>
                                             </a>
-                                            <a href="{{ route('course-items.edit', $item->id) }}" class="btn btn-sm btn-primary">
+                                            <a href="{{ route('course-items.tree', $item->id) }}" class="btn btn-sm btn-primary">
                                                 <i class="fas fa-edit"></i>
                                             </a>
                                             <form action="{{ route('course-items.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Bạn có chắc muốn xóa ngành học này?');">

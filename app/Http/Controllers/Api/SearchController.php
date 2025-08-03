@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Services\SearchService;
 use Illuminate\Http\Request;
+use App\Models\Student;
 
 class SearchController extends Controller
 {
@@ -13,6 +14,33 @@ class SearchController extends Controller
     public function __construct(SearchService $searchService)
     {
         $this->searchService = $searchService;
+    }
+    
+    /**
+     * Tìm kiếm gợi ý tự động cho select2
+     */
+    public function autocomplete(Request $request)
+    {
+        $q = $request->get('q');
+        
+        if (empty($q) || strlen($q) < 2) {
+            return response()->json([]);
+        }
+        
+        $students = Student::where('full_name', 'like', "%{$q}%")
+            ->orWhere('phone', 'like', "%{$q}%")
+            ->orWhere('email', 'like', "%{$q}%")
+            ->limit(10)
+            ->get();
+        
+        $results = $students->map(function ($student) {
+            return [
+                'id' => $student->id, 
+                'text' => $student->full_name . ' - ' . $student->phone
+            ];
+        });
+        
+        return response()->json($results);
     }
     
     /**
@@ -53,8 +81,7 @@ class SearchController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không tìm thấy thông tin học viên',
-                'error' => $e->getMessage()
+                'message' => 'Không tìm thấy học viên hoặc có lỗi xảy ra: ' . $e->getMessage()
             ], 404);
         }
     }

@@ -26,4 +26,24 @@
 .tree-item .badge {
     margin-left: 5px;
     font-size: 0.75rem;
+}
+
+/* Fix hiển thị trạng thái ghi danh */
+.enrolled {
+    display: none;
+}
+
+.enrolled::after {
+    content: 'Đang học';
+    display: inline-block;
+    color: #fff;
+    background-color: #28a745;
+    padding: 0.25em 0.5em;
+    font-size: 0.75em;
+    font-weight: 700;
+    line-height: 1;
+    text-align: center;
+    white-space: nowrap;
+    vertical-align: baseline;
+    border-radius: 0.25em;
 } 

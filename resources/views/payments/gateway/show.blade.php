@@ -260,7 +260,7 @@ $(document).ready(function() {
                             <p class="mb-0">Mã giao dịch: ${data.transaction_reference || 'N/A'}</p>
                             <p class="mb-0">Thời gian: ${data.payment_date || 'N/A'}</p>
                             <hr>
-                            <a href="{{ route('students.show', $payment->enrollment->student_id) }}" class="btn btn-success">Về trang học viên</a>
+                            <a href="{{ route('search.index') }}" class="btn btn-success">Về trang tìm kiếm</a>
                         </div>
                     `);
                     $('#refresh-qr').hide();

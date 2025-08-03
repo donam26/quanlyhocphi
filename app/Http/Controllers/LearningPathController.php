@@ -48,8 +48,7 @@ class LearningPathController extends Controller
             ]);
         }
         
-        return redirect()->route('course-items.show', $courseItem)
-            ->with('success', 'Lộ trình học tập đã được tạo thành công!');
+        return redirect()->route('course-items.tree')->with('success', 'Đã tạo thành công lộ trình học tập!');
     }
     
     /**
@@ -106,8 +105,7 @@ class LearningPathController extends Controller
             }
         }
         
-        return redirect()->route('course-items.show', $courseItem)
-            ->with('success', 'Lộ trình học tập đã được cập nhật thành công!');
+        return redirect()->route('course-items.tree')->with('success', 'Đã cập nhật thành công lộ trình học tập!');
     }
     
     /**

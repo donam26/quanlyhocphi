@@ -65,9 +65,9 @@
                     <div class="d-flex gap-2">
                         <input type="date" name="date_to" class="form-control" 
                                value="{{ request('date_to') }}" placeholder="Đến ngày">
-                        <a href="{{ route('payments.create') }}" class="btn btn-primary">
+                        <button type="button" class="btn btn-primary create-payment-btn">
                             <i class="fas fa-plus me-1"></i>Ghi nhận
-                        </a>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -200,9 +200,173 @@
         @endif
     </div>
 </div>
+
+<!-- Modal tạo thanh toán mới -->
+<div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPaymentModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>Tạo phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="student_search">Tìm học viên</label>
+                            <select class="form-control select2" id="student_search"></select>
+                            <div class="form-text text-muted">Nhập tên hoặc số điện thoại để tìm học viên</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hiển thị thông tin ghi danh -->
+                <div id="enrollment_info" style="display: none;">
+                    <h5 class="border-bottom pb-2 mb-3">Thông tin ghi danh</h5>
+                    <div id="enrollment_details"></div>
+                </div>
+                    
+                <!-- Form thanh toán -->
+                <div id="payment_form" style="display: none;" class="mt-4">
+                    <h5 class="border-bottom pb-2 mb-3">Thông tin thanh toán</h5>
+                    <form id="createPaymentForm">
+                        @csrf
+                        <input type="hidden" name="enrollment_id" id="enrollment_id">
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="amount">Số tiền thanh toán <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" 
+                                            id="amount" name="amount" min="1000" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">VNĐ</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="payment_date">Ngày thanh toán <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" 
+                                        id="payment_date" name="payment_date" required 
+                                        value="{{ date('Y-m-d') }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="payment_method">Hình thức thanh toán <span class="text-danger">*</span></label>
+                                    <select class="form-control" 
+                                        id="payment_method" name="payment_method" required>
+                                        <option value="cash">Tiền mặt</option>
+                                        <option value="bank_transfer">Chuyển khoản</option>
+                                        <option value="card">Thẻ</option>
+                                        <option value="other">Khác</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="status">Trạng thái <span class="text-danger">*</span></label>
+                                    <select class="form-control" 
+                                        id="status" name="status" required>
+                                        <option value="pending">Chờ xác nhận</option>
+                                        <option value="confirmed" selected>Đã xác nhận</option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> Chọn "Chờ xác nhận" để học viên thanh toán qua mã QR, hoặc "Đã xác nhận" nếu bạn đã nhận được thanh toán
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="notes">Ghi chú</label>
+                                <input type="text" class="form-control" 
+                                    id="notes" name="notes">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Hủy
+                </button>
+                <button type="button" class="btn btn-primary" id="saveNewPaymentBtn" onclick="saveNewPayment()">
+                    <i class="fas fa-save me-2"></i>Lưu thanh toán
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chi tiết thanh toán -->
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-labelledby="paymentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentDetailsModalLabel">
+                    <i class="fas fa-receipt me-2"></i>Chi tiết phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="paymentDetailsContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="confirmPaymentBtn" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i>Xác nhận thanh toán
+                </button>
+                <button type="button" class="btn btn-warning" id="editPaymentBtn">
+                    <i class="fas fa-edit me-2"></i>Chỉnh sửa
+                </button>
+                <button type="button" class="btn btn-primary" id="printPaymentBtn">
+                    <i class="fas fa-print me-2"></i>In phiếu
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chỉnh sửa thanh toán -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1" aria-labelledby="editPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPaymentModalLabel">
+                    <i class="fas fa-edit me-2"></i>Chỉnh sửa phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editPaymentContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Hủy
+                </button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">
+                    <i class="fas fa-save me-2"></i>Lưu thay đổi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/payment.js') }}"></script>
 <script>
 $(document).ready(function() {
     // Cấu hình Select2 cho ô tìm kiếm thanh toán với AJAX

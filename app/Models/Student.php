@@ -17,17 +17,46 @@ class Student extends Model
         'email',
         'phone',
         'address',
+        'province_id',
         'current_workplace',
         'accounting_experience_years',
         'status',
         'notes',
-        'custom_fields'
+        'hard_copy_documents',
+        'education_level',
+        'workplace',
+        'experience_years'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
-        'custom_fields' => 'array'
+        'hard_copy_documents' => 'string',
+        'education_level' => 'string',
     ];
+
+    /**
+     * Quan hệ với tỉnh thành
+     */
+    public function province()
+    {
+        return $this->belongsTo(Province::class);
+    }
+
+    /**
+     * Lấy miền (khu vực) của học viên thông qua province
+     */
+    public function getRegionAttribute()
+    {
+        return $this->province ? $this->province->region : 'unknown';
+    }
+
+    /**
+     * Lấy tên miền (khu vực) của học viên thông qua province
+     */
+    public function getRegionNameAttribute()
+    {
+        return $this->province ? $this->province->region_name : 'Không xác định';
+    }
 
     /**
      * Format ngày sinh theo định dạng dd/mm/yyyy
@@ -69,7 +98,7 @@ class Student extends Model
     public function waitingLists()
     {
         return $this->hasMany(Enrollment::class)
-            ->where('status', 'waiting');
+            ->where('enrollments.status', 'waiting');
     }
 
     /**
@@ -93,7 +122,7 @@ class Student extends Model
      */
     public function activeEnrollments()
     {
-        return $this->enrollments()->where('status', 'enrolled');
+        return $this->enrollments()->where('enrollments.status', 'enrolled');
     }
 
     /**
@@ -101,7 +130,7 @@ class Student extends Model
      */
     public function getTotalPaidAmount()
     {
-        return $this->payments()->where('status', 'confirmed')->sum('amount');
+        return $this->payments()->where('payments.status', 'confirmed')->sum('amount');
     }
 
     /**
@@ -109,7 +138,7 @@ class Student extends Model
      */
     public function getTotalFeeAmount()
     {
-        return $this->enrollments()->where('status', 'enrolled')->sum('final_fee');
+        return $this->enrollments()->where('enrollments.status', 'enrolled')->sum('final_fee');
     }
 
     /**

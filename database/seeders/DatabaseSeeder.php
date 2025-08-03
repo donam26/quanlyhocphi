@@ -22,10 +22,10 @@ class DatabaseSeeder extends Seeder
         // Chạy các seeder theo thứ tự phụ thuộc
         $this->call([
             AdminUserSeeder::class, // Thêm admin user seeder đầu tiên
+            ProvinceSeeder::class,  // Seeder tỉnh thành
             CourseSeeder::class,
             SubCourseSeeder::class,
             StudentSeeder::class,
-            ComplexCourseSeeder::class, // Thêm seeder mới
         ]);
     }
 }

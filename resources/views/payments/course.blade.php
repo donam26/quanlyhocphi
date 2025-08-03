@@ -3,17 +3,182 @@
 @section('page-title', 'Thanh toán - ' . $courseItem->name)
 
 @section('breadcrumb')
-<li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">Khóa học</a></li>
+<li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
 <li class="breadcrumb-item active">Thanh toán</li>
 @endsection
 
 @section('page-actions')
-<a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-secondary">
+<a href="{{ route('course-items.tree') }}" class="btn btn-secondary">
     <i class="fas fa-arrow-left"></i> Quay lại
 </a>
 @endsection
 
 @section('content')
+<!-- Nội dung hiện tại -->
+
+<!-- Thêm các modal -->
+<!-- Modal chi tiết thanh toán -->
+<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-labelledby="paymentDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentDetailsModalLabel">
+                    <i class="fas fa-receipt me-2"></i>Chi tiết phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="paymentDetailsContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" id="confirmPaymentBtn" style="display: none;">
+                    <i class="fas fa-check-circle me-2"></i>Xác nhận thanh toán
+                </button>
+                <button type="button" class="btn btn-warning" id="editPaymentBtn">
+                    <i class="fas fa-edit me-2"></i>Chỉnh sửa
+                </button>
+                <button type="button" class="btn btn-primary" id="printPaymentBtn">
+                    <i class="fas fa-print me-2"></i>In phiếu
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal chỉnh sửa thanh toán -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1" aria-labelledby="editPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editPaymentModalLabel">
+                    <i class="fas fa-edit me-2"></i>Chỉnh sửa phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="editPaymentContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Hủy
+                </button>
+                <button type="button" class="btn btn-primary" id="savePaymentBtn">
+                    <i class="fas fa-save me-2"></i>Lưu thay đổi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal tạo thanh toán mới -->
+<div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createPaymentModalLabel">
+                    <i class="fas fa-plus-circle me-2"></i>Tạo phiếu thu
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="student_search">Tìm học viên</label>
+                            <select class="form-control select2" id="student_search"></select>
+                            <div class="form-text text-muted">Nhập tên hoặc số điện thoại để tìm học viên</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hiển thị thông tin ghi danh -->
+                <div id="enrollment_info" style="display: none;">
+                    <h5 class="border-bottom pb-2 mb-3">Thông tin ghi danh</h5>
+                    <div id="enrollment_details"></div>
+                </div>
+                    
+                <!-- Form thanh toán -->
+                <div id="payment_form" style="display: none;" class="mt-4">
+                    <h5 class="border-bottom pb-2 mb-3">Thông tin thanh toán</h5>
+                    <form id="createPaymentForm">
+                        @csrf
+                        <input type="hidden" name="enrollment_id" id="enrollment_id">
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="amount">Số tiền thanh toán <span class="text-danger">*</span></label>
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" 
+                                            id="amount" name="amount" min="1000" required>
+                                        <div class="input-group-append">
+                                            <span class="input-group-text">VNĐ</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="payment_date">Ngày thanh toán <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" 
+                                        id="payment_date" name="payment_date" required 
+                                        value="{{ date('Y-m-d') }}">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="payment_method">Hình thức thanh toán <span class="text-danger">*</span></label>
+                                    <select class="form-control" 
+                                        id="payment_method" name="payment_method" required>
+                                        <option value="cash">Tiền mặt</option>
+                                        <option value="bank_transfer">Chuyển khoản</option>
+                                        <option value="card">Thẻ</option>
+                                        <option value="other">Khác</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="col-md-6">
+                                <div class="form-group mb-3">
+                                    <label for="status">Trạng thái <span class="text-danger">*</span></label>
+                                    <select class="form-control" 
+                                        id="status" name="status" required>
+                                        <option value="pending">Chờ xác nhận</option>
+                                        <option value="confirmed" selected>Đã xác nhận</option>
+                                    </select>
+                                    <small class="form-text text-muted">
+                                        <i class="fas fa-info-circle"></i> Chọn "Chờ xác nhận" để học viên thanh toán qua mã QR, hoặc "Đã xác nhận" nếu bạn đã nhận được thanh toán
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="form-group mb-3">
+                                <label for="notes">Ghi chú</label>
+                                <input type="text" class="form-control" 
+                                    id="notes" name="notes">
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-2"></i>Hủy
+                </button>
+                <button type="button" class="btn btn-primary" id="saveNewPaymentBtn" onclick="saveNewPayment()">
+                    <i class="fas fa-save me-2"></i>Lưu thanh toán
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 <div class="container-fluid">
     <!-- Thống kê thanh toán -->
     <div class="row mb-4">
@@ -73,9 +238,9 @@
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Danh sách học viên</h5>
                     <div>
-                        <a href="{{ route('payments.course.export', $courseItem->id) }}" class="btn btn-sm btn-success">
+                        <button type="button" class="btn btn-sm btn-success" onclick="exportPayments({{ $courseItem->id }})">
                             <i class="fas fa-file-excel me-1"></i>Xuất Excel
-                        </a>
+                        </button>
                     </div>
                 </div>
                 <div class="card-body p-0">
@@ -125,7 +290,7 @@
                                         </td>
                                         <td>
                                             <span class="fw-bold">{{ number_format($enrollment->final_fee) }} đ</span>
-                                            <button class="btn btn-sm btn-link p-0 ms-1" onclick="editEnrollmentFee({{ $enrollment->id }}, {{ $enrollment->final_fee }})">
+                                            <button class="btn btn-sm btn-link p-0 ms-1" type="button" onclick="editEnrollmentFee({{ $enrollment->id }}, {{ $enrollment->final_fee }})">
                                                 <i class="fas fa-edit text-primary"></i>
                                             </button>
                                         </td>
@@ -138,17 +303,12 @@
                                             @endif
                                         </td>
                                         <td>
-                                            <div class="btn-group">
-                                                @if(!$isFullyPaid)
-                                                    <a href="{{ route('payments.create', ['enrollment_id' => $enrollment->id]) }}" class="btn btn-sm btn-success" title="Thêm thanh toán">
-                                                        <i class="fas fa-plus"></i>
-                                                    </a>
-                                                @endif
-                                                <a href="{{ route('students.show', $enrollment->student_id) }}" class="btn btn-sm btn-info" title="Chi tiết học viên">
-                                                    <i class="fas fa-user"></i>
-                                                </a>
-                                                <button class="btn btn-sm btn-primary" onclick="viewPaymentHistory({{ $enrollment->id }})" title="Lịch sử thanh toán">
-                                                    <i class="fas fa-history"></i>
+                                            <div class="d-flex gap-2">
+                                                <button type="button" class="btn btn-sm btn-primary btn-create-payment" data-enrollment-id="{{ $enrollment->id }}">
+                                                    <i class="fas fa-plus me-1"></i>Thanh toán
+                                                </button>
+                                                <button type="button" class="btn btn-sm btn-secondary" onclick="viewPaymentHistory({{ $enrollment->id }})">
+                                                    <i class="fas fa-history me-1"></i>Lịch sử
                                                 </button>
                                             </div>
                                         </td>
@@ -218,21 +378,34 @@
                                                 @endif
                                             </td>
                                             <td>
-                                                <div class="btn-group">
-                                                    <a href="{{ route('payments.show', $payment->id) }}" class="btn btn-sm btn-info" title="Chi tiết">
-                                                        <i class="fas fa-eye"></i>
-                                                    </a>
-                                                    <a href="{{ route('payments.receipt', $payment->id) }}" target="_blank" class="btn btn-sm btn-success" title="In biên lai">
-                                                        <i class="fas fa-print"></i>
-                                                    </a>
-                                                    @if($payment->status == 'pending')
-                                                        <form action="{{ route('payments.confirm', $payment->id) }}" method="POST" class="d-inline">
-                                                            @csrf
-                                                            <button type="submit" class="btn btn-sm btn-success" title="Xác nhận">
-                                                                <i class="fas fa-check"></i>
-                                                            </button>
-                                                        </form>
-                                                    @endif
+                                                <div class="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                        <i class="fas fa-ellipsis-v"></i>
+                                                    </button>
+                                                    <ul class="dropdown-menu">
+                                                        <li>
+                                                            <a href="#" class="dropdown-item" onclick="showPaymentDetails({{ $payment->id }}); return false;">
+                                                                <i class="fas fa-eye me-2"></i>Chi tiết
+                                                            </a>
+                                                        </li>
+                                                        <li>
+                                                            <a href="#" class="dropdown-item" onclick="editPayment({{ $payment->id }}); return false;">
+                                                                <i class="fas fa-edit me-2"></i>Chỉnh sửa
+                                                            </a>
+                                                        </li>
+                                                        <li>
+                                                            <a href="#" class="dropdown-item" onclick="printPayment({{ $payment->id }}); return false;">
+                                                                <i class="fas fa-print me-2"></i>In phiếu thu
+                                                            </a>
+                                                        </li>
+                                                        @if($payment->status == 'pending')
+                                                        <li>
+                                                            <a href="#" class="dropdown-item" onclick="confirmPayment({{ $payment->id }}); return false;">
+                                                                <i class="fas fa-check-circle me-2"></i>Xác nhận
+                                                            </a>
+                                                        </li>
+                                                        @endif
+                                                    </ul>
                                                 </div>
                                             </td>
                                         </tr>
@@ -252,6 +425,26 @@
     </div>
 </div>
 
+<!-- Modal lịch sử thanh toán -->
+<div class="modal fade" id="paymentHistoryModal" tabindex="-1" aria-labelledby="paymentHistoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="paymentHistoryModalLabel">
+                    <i class="fas fa-history me-2"></i>Lịch sử thanh toán
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="paymentHistoryContent">
+                <!-- Nội dung sẽ được thêm bằng JavaScript -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Modal chỉnh sửa học phí -->
 <div class="modal fade" id="editFeeModal" tabindex="-1" aria-labelledby="editFeeModalLabel" aria-hidden="true">
     <div class="modal-dialog">
@@ -260,72 +453,44 @@
                 <h5 class="modal-title" id="editFeeModalLabel">Chỉnh sửa học phí</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form id="editFeeForm" action="{{ route('enrollments.update-fee') }}" method="POST">
-                @csrf
-                <div class="modal-body">
-                    <input type="hidden" id="enrollment_id" name="enrollment_id">
-                    
-                    <div class="mb-3">
-                        <label for="original_fee" class="form-label">Học phí gốc</label>
-                        <input type="text" class="form-control" value="{{ number_format($courseItem->fee) }} đ" disabled>
-                    </div>
+            <div class="modal-body">
+                <form id="editFeeForm" action="{{ route('enrollments.update-fee') }}" method="POST">
+                    @csrf
+                    <input type="hidden" name="enrollment_id" id="enrollment_id">
                     
                     <div class="mb-3">
                         <label for="discount_type" class="form-label">Loại chiết khấu</label>
                         <select class="form-select" id="discount_type" name="discount_type">
-                            <option value="none">Không chiết khấu</option>
                             <option value="percentage">Phần trăm (%)</option>
-                            <option value="fixed">Số tiền cụ thể (đ)</option>
-                            <option value="custom">Tùy chỉnh học phí cuối</option>
+                            <option value="fixed">Số tiền cố định</option>
+                            <option value="custom" selected>Tùy chỉnh học phí</option>
                         </select>
                     </div>
                     
-                    <div id="discount_percentage_group" class="mb-3 d-none">
+                    <div class="mb-3 d-none" id="discount_percentage_group">
                         <label for="discount_percentage" class="form-label">Phần trăm chiết khấu (%)</label>
                         <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" min="0" max="100" step="0.1">
                     </div>
                     
-                    <div id="discount_amount_group" class="mb-3 d-none">
-                        <label for="discount_amount" class="form-label">Số tiền chiết khấu (đ)</label>
+                    <div class="mb-3 d-none" id="discount_amount_group">
+                        <label for="discount_amount" class="form-label">Số tiền chiết khấu</label>
                         <input type="number" class="form-control" id="discount_amount" name="discount_amount" min="0">
                     </div>
                     
-                    <div id="final_fee_group" class="mb-3 d-none">
-                        <label for="final_fee" class="form-label">Học phí cuối cùng (đ)</label>
-                        <input type="number" class="form-control" id="final_fee" name="final_fee" min="0">
+                    <div class="mb-3" id="final_fee_group">
+                        <label for="final_fee" class="form-label">Học phí cuối cùng</label>
+                        <input type="number" class="form-control" id="final_fee" name="final_fee" min="0" required>
                     </div>
                     
                     <div class="mb-3">
-                        <label for="reason" class="form-label">Lý do điều chỉnh</label>
-                        <textarea class="form-control" id="reason" name="reason" rows="3"></textarea>
+                        <label for="fee_notes" class="form-label">Ghi chú</label>
+                        <textarea class="form-control" id="fee_notes" name="fee_notes" rows="2"></textarea>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Modal lịch sử thanh toán -->
-<div class="modal fade" id="paymentHistoryModal" tabindex="-1" aria-labelledby="paymentHistoryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="paymentHistoryModalLabel">Lịch sử thanh toán</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="paymentHistoryContent">
-                <div class="text-center py-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
+                </form>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" onclick="document.getElementById('editFeeForm').submit()">Lưu thay đổi</button>
             </div>
         </div>
     </div>
@@ -340,94 +505,16 @@
 </style>
 
 @push('scripts')
+<script src="{{ asset('js/payment.js') }}"></script>
 <script>
-    function editEnrollmentFee(enrollmentId, currentFee) {
-        document.getElementById('enrollment_id').value = enrollmentId;
-        document.getElementById('final_fee').value = currentFee;
-        
-        // Reset form
-        document.getElementById('discount_type').value = 'custom';
-        document.getElementById('discount_percentage_group').classList.add('d-none');
-        document.getElementById('discount_amount_group').classList.add('d-none');
-        document.getElementById('final_fee_group').classList.remove('d-none');
-        
-        // Show modal
-        new bootstrap.Modal(document.getElementById('editFeeModal')).show();
-    }
-    
-    // Xử lý form submit bằng AJAX
-    document.getElementById('editFeeForm').addEventListener('submit', function(e) {
-        e.preventDefault(); // Ngăn không cho form chuyển trang
-        
-        // Lấy CSRF token từ meta tag
-        const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-        
-        // Tạo FormData từ form
-        const formData = new FormData(this);
-        const url = this.getAttribute('action');
-        
-        // Gọi API
-        fetch(url, {
-            method: 'POST',
-            body: formData,
-            headers: {
-                'X-CSRF-TOKEN': token,
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            },
-            credentials: 'same-origin'
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Lỗi khi cập nhật học phí');
-            }
-            return response.json();
-        })
-        .then(data => {
-            // Ẩn modal
-            bootstrap.Modal.getInstance(document.getElementById('editFeeModal')).hide();
-            
-            // Làm mới trang để hiển thị dữ liệu mới
-            location.reload();
-        })
-        .catch(error => {
-            alert('Lỗi: ' + error.message);
-        });
+$(document).ready(function() {
+    // Thay đổi nút tạo thanh toán để sử dụng modal
+    $('.btn-create-payment').on('click', function(e) {
+        e.preventDefault();
+        const enrollmentId = $(this).data('enrollment-id');
+        createPayment(enrollmentId);
     });
-    
-    document.getElementById('discount_type').addEventListener('change', function() {
-        const discountType = this.value;
-        
-        // Hide all input groups first
-        document.getElementById('discount_percentage_group').classList.add('d-none');
-        document.getElementById('discount_amount_group').classList.add('d-none');
-        document.getElementById('final_fee_group').classList.add('d-none');
-        
-        // Show the appropriate input based on selection
-        if (discountType === 'percentage') {
-            document.getElementById('discount_percentage_group').classList.remove('d-none');
-        } else if (discountType === 'fixed') {
-            document.getElementById('discount_amount_group').classList.remove('d-none');
-        } else if (discountType === 'custom') {
-            document.getElementById('final_fee_group').classList.remove('d-none');
-        }
-    });
-    
-    function viewPaymentHistory(enrollmentId) {
-        const modal = new bootstrap.Modal(document.getElementById('paymentHistoryModal'));
-        modal.show();
-        
-        // Load payment history
-        fetch(`/enrollments/${enrollmentId}/payments`)
-            .then(response => response.text())
-            .then(html => {
-                document.getElementById('paymentHistoryContent').innerHTML = html;
-            })
-            .catch(error => {
-                document.getElementById('paymentHistoryContent').innerHTML = 
-                    `<div class="alert alert-danger">Có lỗi xảy ra khi tải dữ liệu: ${error.message}</div>`;
-            });
-    }
+});
 </script>
 @endpush
 @endsection 

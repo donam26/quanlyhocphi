@@ -11,15 +11,7 @@
     
     <!-- Thông tin học viên -->
     <div class="card mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <div>
-                <i class="fas fa-user me-1"></i>
-                Thông tin học viên
-            </div>
-            <a href="{{ route('students.show', $student->id) }}" class="btn btn-sm btn-primary">
-                <i class="fas fa-user-edit me-1"></i> Chi tiết học viên
-            </a>
-        </div>
+       
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
@@ -200,10 +192,12 @@
                                         <td class="text-end">{{ number_format($totalPaid, 0, ',', '.') }} đ</td>
                                         <td class="text-end">{{ number_format($remainingAmount, 0, ',', '.') }} đ</td>
                                         <td>
-                                            @if($enrollment->status == 'enrolled')
+                                            @if($enrollment->status == 'enrolled' || $enrollment->status == 'active')
                                                 <span class="badge bg-success">Đang học</span>
                                             @elseif($enrollment->status == 'completed')
-                                                <span class="badge bg-primary">Đã hoàn thành</span>
+                                                <span class="badge bg-success">Đã hoàn thành</span>
+                                            @elseif($enrollment->status == 'waiting')
+                                                <span class="badge bg-warning text-dark">Danh sách chờ</span>
                                             @elseif($enrollment->status == 'on_hold')
                                                 <span class="badge bg-warning text-dark">Tạm dừng</span>
                                             @elseif($enrollment->status == 'cancelled')

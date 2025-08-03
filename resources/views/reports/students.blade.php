@@ -129,10 +129,12 @@
                                 @foreach($enrollmentCounts as $status)
                                 <tr>
                                     <td>
-                                        @if($status->status == 'enrolled')
+                                        @if($status->status == 'enrolled' || $status->status == 'active')
                                             <span class="badge bg-success">Đang học</span>
                                         @elseif($status->status == 'completed')
-                                            <span class="badge bg-primary">Đã hoàn thành</span>
+                                            <span class="badge bg-success">Đã hoàn thành</span>
+                                        @elseif($status->status == 'waiting')
+                                            <span class="badge bg-warning text-dark">Danh sách chờ</span>
                                         @elseif($status->status == 'cancelled')
                                             <span class="badge bg-danger">Đã hủy</span>
                                         @elseif($status->status == 'on_hold')
@@ -179,11 +181,7 @@
                             <tbody>
                                 @forelse($recentStudents as $student)
                                 <tr>
-                                    <td>
-                                        <a href="{{ route('students.show', $student->id) }}">
-                                            {{ $student->full_name }}
-                                        </a>
-                                    </td>
+                                    <td>{{ $student->full_name }}</td>
                                     <td>{{ $student->email }}</td>
                                     <td>{{ $student->phone }}</td>
                                     <td>{{ $student->created_at->format('d/m/Y') }}</td>
@@ -412,10 +410,10 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         const statusData = safeJsonParse('@json($enrollmentCounts->pluck('total', 'status')->toArray())', {});
         const statusLabels = Object.keys(statusData).map(status => {
-            if (status === 'enrolled') return 'Đang học';
-            if (status === 'completed') return 'Hoàn thành';
+            if (status === 'enrolled' || status === 'active') return 'Đang học';
+            if (status === 'completed') return 'Đã hoàn thành';
+            if (status === 'waiting') return 'Danh sách chờ';
             if (status === 'cancelled') return 'Đã hủy';
-            if (status === 'on_hold') return 'Tạm dừng';
             return status;
         });
         const statusValues = Object.values(statusData);

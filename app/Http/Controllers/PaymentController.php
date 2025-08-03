@@ -76,20 +76,6 @@ class PaymentController extends Controller
     }
 
     /**
-     * Hiển thị form thanh toán mới
-     */
-    public function create(Request $request)
-    {
-        $enrollment = null;
-        if ($request->filled('enrollment_id')) {
-            $enrollment = Enrollment::with(['student', 'courseItem'])
-                                   ->findOrFail($request->enrollment_id);
-        }
-
-        return view('payments.create', compact('enrollment'));
-    }
-
-    /**
      * Lưu thanh toán mới
      */
     public function store(Request $request)
@@ -107,30 +93,12 @@ class PaymentController extends Controller
         try {
             $payment = $this->paymentService->createPayment($validated);
             
-            return redirect()->route('payments.show', $payment)
+            return redirect()->route('payments.index')
                 ->with('success', 'Thanh toán đã được tạo thành công!');
         } catch (\Exception $e) {
             Log::error('Payment creation error: ' . $e->getMessage());
             return back()->withInput()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
         }
-    }
-
-    /**
-     * Hiển thị chi tiết thanh toán
-     */
-    public function show(Payment $payment)
-    {
-        $payment = $this->paymentService->getPayment($payment->id);
-        return view('payments.show', compact('payment'));
-    }
-
-    /**
-     * Hiển thị form chỉnh sửa thanh toán
-     */
-    public function edit(Payment $payment)
-    {
-        $payment = $this->paymentService->getPayment($payment->id);
-        return view('payments.edit', compact('payment'));
     }
 
     /**
@@ -150,7 +118,7 @@ class PaymentController extends Controller
         try {
             $payment = $this->paymentService->updatePayment($payment, $validated);
             
-            return redirect()->route('payments.show', $payment)
+            return redirect()->route('payments.index')
                 ->with('success', 'Thanh toán đã được cập nhật thành công!');
         } catch (\Exception $e) {
             Log::error('Payment update error: ' . $e->getMessage());
@@ -186,22 +154,6 @@ class PaymentController extends Controller
                 ->with('success', 'Thanh toán đã được xác nhận thành công!');
         } catch (\Exception $e) {
             Log::error('Payment confirmation error: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
-        }
-    }
-
-    /**
-     * Hủy thanh toán
-     */
-    public function cancel(Payment $payment)
-    {
-        try {
-            $payment = $this->paymentService->updatePayment($payment, ['status' => 'cancelled']);
-            
-            return redirect()->back()
-                ->with('success', 'Thanh toán đã được hủy thành công!');
-        } catch (\Exception $e) {
-            Log::error('Payment cancellation error: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
         }
     }

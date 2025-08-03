@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Models\CourseItem;
 use App\Models\LearningPathProgress;
+use App\Enums\EnrollmentStatus;
 
 class EnrollmentController extends Controller
 {
@@ -44,7 +45,11 @@ class EnrollmentController extends Controller
         // Tính toán thống kê
         $stats = $this->enrollmentService->getEnrollmentsPaymentStats();
         
-        $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->orderBy('name')->get();
+        $courseItems = CourseItem::where('is_leaf', true)
+            ->where('active', true)
+            ->orderBy('name')
+            ->get();
+            
         $students = Student::orderBy('full_name')->get();
 
         return view('enrollments.index', [
@@ -65,7 +70,33 @@ class EnrollmentController extends Controller
     {
         $enrollments = $this->enrollmentService->getUnpaidEnrollments();
         
-        return view('enrollments.unpaid', compact('enrollments'));
+        // Nhóm các ghi danh theo học viên
+        $studentEnrollments = [];
+        
+        foreach ($enrollments as $enrollment) {
+            $studentId = $enrollment->student_id;
+            $totalPaid = $enrollment->payments->sum('amount');
+            $remaining = $enrollment->final_fee - $totalPaid;
+            
+            if (!isset($studentEnrollments[$studentId])) {
+                $studentEnrollments[$studentId] = [
+                    'student' => $enrollment->student,
+                    'enrollments' => [],
+                    'total_remaining' => 0
+                ];
+            }
+            
+            $studentEnrollments[$studentId]['enrollments'][] = [
+                'enrollment' => $enrollment,
+                'fee' => $enrollment->final_fee,
+                'paid' => $totalPaid,
+                'remaining' => $remaining
+            ];
+            
+            $studentEnrollments[$studentId]['total_remaining'] += $remaining;
+        }
+        
+        return view('enrollments.unpaid', compact('studentEnrollments'));
     }
 
     /**
@@ -96,95 +127,57 @@ class EnrollmentController extends Controller
 
     /**
      * Hiển thị form ghi danh mới
+     * 
+     * @deprecated Sử dụng modal popup thay vì redirect
      */
     public function create()
     {
-        $students = Student::orderBy('full_name')->get();
-        $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->orderBy('name')->get();
-        
-        return view('enrollments.create', compact('students', 'courseItems'));
+        // Phương thức này không còn được sử dụng, chuyển sang modal popup
+        return redirect()->route('enrollments.index');
     }
 
     /**
      * Lưu ghi danh mới
+     * 
+     * @deprecated Sử dụng API endpoint thay vì form submit
      */
     public function store(Request $request)
     {
-        $validatedData = $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'course_item_id' => 'required|exists:course_items,id',
-            'enrollment_date' => 'required|date',
-            'status' => 'required|in:enrolled,waitlisted,on_hold,cancelled,completed,waiting',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string',
-            'payment_amount' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|string|in:cash,bank_transfer,card,qr_code,sepay,other',
-            'payment_date' => 'nullable|date',
-            'payment_notes' => 'nullable|string',
-            'custom_fields' => 'nullable|array',
-        ]);
-
-        try {
-            $enrollment = $this->enrollmentService->createEnrollment($validatedData);
-            
-            return redirect()->route('enrollments.show', $enrollment->id)
-                           ->with('success', 'Ghi danh thành công!');
-        } catch (\Exception $e) {
-            Log::error('Enrollment creation error: ' . $e->getMessage());
-            return back()->withInput()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
-        }
+        // Phương thức này không còn được sử dụng, chuyển sang API endpoint
+        return redirect()->route('enrollments.index');
     }
 
     /**
      * Hiển thị chi tiết ghi danh
+     * 
+     * @deprecated Sử dụng modal popup thay vì redirect
      */
     public function show(Enrollment $enrollment)
     {
-        $enrollment = $this->enrollmentService->getEnrollment($enrollment->id);
-        
-        return view('enrollments.show', compact('enrollment'));
+        // Phương thức này không còn được sử dụng, chuyển sang modal popup
+        return redirect()->route('enrollments.index');
     }
 
     /**
      * Hiển thị form chỉnh sửa ghi danh
+     * 
+     * @deprecated Sử dụng modal popup thay vì redirect
      */
     public function edit(Enrollment $enrollment)
     {
-        $students = Student::orderBy('full_name')->get();
-        $courseItems = CourseItem::where('is_leaf', true)
-                            ->where('active', true)
-                            ->orderBy('name')
-                            ->get();
-        
-        return view('enrollments.edit', compact('enrollment', 'students', 'courseItems'));
+        // Phương thức này không còn được sử dụng, chuyển sang modal popup
+        return redirect()->route('enrollments.index');
     }
 
     /**
-     * Cập nhật thông tin ghi danh
+     * Cập nhật ghi danh
+     * 
+     * @deprecated Sử dụng API endpoint thay vì form submit
      */
     public function update(Request $request, Enrollment $enrollment)
     {
-        $validatedData = $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'course_item_id' => 'required|exists:course_items,id',
-            'enrollment_date' => 'required|date',
-            'status' => 'required|in:enrolled,waitlisted,on_hold,cancelled,completed',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string',
-            'custom_fields' => 'nullable|array',
-        ]);
-        
-        try {
-            $this->enrollmentService->updateEnrollment($enrollment, $validatedData);
-            
-            return redirect()->route('enrollments.show', $enrollment->id)
-                           ->with('success', 'Ghi danh đã được cập nhật thành công!');
-        } catch (\Exception $e) {
-            Log::error('Enrollment update error: ' . $e->getMessage());
-            return back()->withInput()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
-        }
+        // Phương thức này không còn được sử dụng, chuyển sang API endpoint
+        return redirect()->route('enrollments.index');
     }
 
     /**
@@ -249,7 +242,7 @@ class EnrollmentController extends Controller
     public function confirmFromWaiting(Enrollment $enrollment)
     {
         try {
-            if ($enrollment->status !== 'waiting') {
+            if ($enrollment->status !== EnrollmentStatus::WAITING->value) {
                 return redirect()->back()
                     ->withErrors(['error' => 'Chỉ có thể xác nhận từ trạng thái chờ!']);
             }
@@ -257,7 +250,7 @@ class EnrollmentController extends Controller
             $enrollment = $this->enrollmentService->moveFromWaitingToEnrolled($enrollment);
             
             return redirect()->route('enrollments.show', $enrollment->id)
-                ->with('success', 'Đã chuyển trạng thái sang Đã ghi danh thành công!');
+                ->with('success', 'Đã chuyển trạng thái sang Đang học thành công!');
         } catch (\Exception $e) {
             Log::error('Enrollment confirmation error: ' . $e->getMessage());
             return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
@@ -274,7 +267,7 @@ class EnrollmentController extends Controller
         ]);
         
         try {
-            if ($enrollment->status !== 'waiting') {
+            if ($enrollment->status !== EnrollmentStatus::WAITING->value) {
                 return redirect()->back()
                     ->withErrors(['error' => 'Chỉ có thể thêm ghi chú cho trạng thái chờ!']);
             }

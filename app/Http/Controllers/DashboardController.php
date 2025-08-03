@@ -14,61 +14,102 @@ class DashboardController extends Controller
         $this->dashboardService = $dashboardService;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        // Lấy thông tin tổng quan
-        $summary = $this->dashboardService->getSummary();
+        // Xác định khoảng thời gian theo tham số, mặc định là theo ngày
+        $timeRange = $request->get('time_range', 'day');
         
-        // Lấy hoạt động gần đây
-        $recentActivities = $this->dashboardService->getRecentActivities(10);
+        // Kiểm tra tham số hợp lệ
+        if (!in_array($timeRange, ['day', 'month', 'quarter', 'year', 'total'])) {
+            $timeRange = 'day';
+        }
         
-        // Lấy lịch học sắp tới
-        $upcomingSchedules = $this->dashboardService->getUpcomingSchedules(5);
+        // Lấy tất cả dữ liệu dashboard theo khoảng thời gian
+        $dashboardData = $this->dashboardService->getDashboardData($timeRange);
         
-        // Lấy biểu đồ doanh thu
-        $revenueChartData = $this->dashboardService->getRevenueChart(6);
-        
-        // Lấy top khóa học
-        $topCourses = $this->dashboardService->getTopCourses(10);
-        
-        // Lấy thông tin thanh toán chưa xử lý
-        $pendingPayments = $this->dashboardService->getPendingPayments();
-        
-        // Định dạng dữ liệu biểu đồ doanh thu
-        $formattedRevenueChart = [
-            'labels' => collect($revenueChartData)->pluck('month')->toArray(),
-            'data' => collect($revenueChartData)->pluck('revenue')->toArray()
-        ];
-        
-        // Định dạng dữ liệu biểu đồ khóa học
-        $enrollmentsByCourse = [
-            'labels' => collect($topCourses)->pluck('name')->toArray(),
-            'data' => collect($topCourses)->pluck('students_count')->toArray()
-        ];
-
         return view('dashboard.index', [
+            'timeRange' => $timeRange,
             'stats' => [
-                'students_count' => $summary['total_students'],
-                'courses_count' => $summary['total_courses'],
-                'enrollments_count' => $summary['active_enrollments'],
-                'new_students' => $summary['new_students']
+                'students_count' => $dashboardData['summary']['total_students'],
+                'courses_count' => $dashboardData['summary']['total_courses'],
+                'enrollments_count' => $dashboardData['summary']['active_enrollments'],
+                'waitings_count' => $dashboardData['summary']['waitings_count'],
+                'new_students' => $dashboardData['summary']['new_students']
             ],
             'financialStats' => [
-                'total_fee' => $summary['total_revenue'],
-                'total_paid' => $summary['total_revenue'],
-                'total_pending' => $pendingPayments['total_pending'],
-                'payment_rate' => $summary['revenue_growth'],
-                'recent_payments' => $recentActivities->filter(function($item) {
-                    return $item['type'] === 'payment';
-                })->take(5)
+                'total_revenue' => $dashboardData['summary']['total_revenue'],
+                'current_period_revenue' => $dashboardData['revenue_by_time']['total'],
+                'total_pending' => $dashboardData['pending_payments']['total_pending'],
+                'payment_rate' => $dashboardData['summary']['revenue_growth'],
+                'total_remaining' => $dashboardData['pending_payments']['total_pending']
             ],
-            'unPaidCount' => $pendingPayments['count'],
-            'revenueChartData' => $formattedRevenueChart,
-            'enrollmentsByCourse' => $enrollmentsByCourse,
-            'newStudents' => collect($recentActivities)->filter(function($item) {
-                return $item['type'] === 'enrollment';
-            })->take(5),
-            'waitingContact' => $pendingPayments['enrollments']
+            'revenueByTime' => $dashboardData['revenue_by_time'],
+            'revenueByCourses' => $dashboardData['revenue_by_courses'],
+            'studentsByCourses' => $dashboardData['students_by_courses'],
+            'studentsByGender' => $dashboardData['students_by_gender'],
+            'studentsByAge' => $dashboardData['students_by_age'],
+            'studentsByLearningMode' => $dashboardData['students_by_learning_mode'],
+            'studentsByRegion' => $dashboardData['students_by_region'],
+            'waitingList' => $dashboardData['waiting_list'],
+            'recentPayments' => $dashboardData['recent_payments'],
+            'unPaidCount' => $dashboardData['pending_payments']['count'],
+            'waitingEnrollments' => $dashboardData['pending_payments']['enrollments']
         ]);
+    }
+    
+    /**
+     * API lấy dữ liệu dashboard theo khoảng thời gian
+     */
+    public function getDataByTimeRange(Request $request)
+    {
+        // Xác định khoảng thời gian theo tham số
+        $timeRange = $request->get('time_range', 'day');
+        
+        // Kiểm tra tham số hợp lệ
+        if (!in_array($timeRange, ['day', 'month', 'quarter', 'year', 'total'])) {
+            $timeRange = 'day';
+        }
+        
+        // Nếu có courseItemId, lọc dữ liệu theo khóa học
+        $courseItemId = $request->get('course_item_id');
+        
+        // Lấy dữ liệu theo loại yêu cầu
+        $dataType = $request->get('data_type', 'revenue');
+        $data = [];
+        
+        switch($dataType) {
+            case 'revenue':
+                $data = $this->dashboardService->getRevenueByTimeRange($timeRange);
+                break;
+                
+            case 'revenue_by_courses':
+                $data = $this->dashboardService->getRevenueByCoursesWithRatio($timeRange);
+                break;
+                
+            case 'students_by_courses':
+                $data = $this->dashboardService->getStudentsByCoursesWithRatio($timeRange);
+                break;
+                
+            case 'students_by_gender':
+                $data = $this->dashboardService->getStudentsByGender($timeRange);
+                break;
+                
+            case 'students_by_age':
+                $data = $this->dashboardService->getStudentsByAgeGroup($timeRange, $courseItemId);
+                break;
+                
+            case 'students_by_learning_mode':
+                $data = $this->dashboardService->getStudentsByLearningMode($timeRange, $courseItemId);
+                break;
+                
+            case 'students_by_region':
+                $data = $this->dashboardService->getStudentsByRegion($timeRange, $courseItemId);
+                break;
+                
+            default:
+                $data = $this->dashboardService->getRevenueByTimeRange($timeRange);
+        }
+        
+        return response()->json($data);
     }
 }

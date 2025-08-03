@@ -5,18 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Date;
+use App\Enums\EnrollmentStatus;
 
 class Enrollment extends Model
 {
     use HasFactory, Date;
-
-    // Các trạng thái đăng ký
-    const STATUS_PENDING = 'pending';    // Chờ xử lý
-    const STATUS_WAITING = 'waiting';    // Trong danh sách chờ
-    const STATUS_CONFIRMED = 'confirmed'; // Đã xác nhận
-    const STATUS_ACTIVE = 'active';      // Đang học
-    const STATUS_COMPLETED = 'completed'; // Đã hoàn thành
-    const STATUS_CANCELLED = 'cancelled'; // Đã hủy
 
     protected $fillable = [
         'student_id',
@@ -110,29 +103,20 @@ class Enrollment extends Model
     }
 
     /**
-     * Kiểm tra xem có khoản thanh toán đang chờ xác nhận không
+     * Lấy trạng thái dưới dạng enum
      */
-    public function getHasPendingPaymentAttribute()
+    public function getStatusEnum(): ?EnrollmentStatus
     {
-        return $this->payments()->where('status', 'pending')->exists();
+        return EnrollmentStatus::fromString($this->status);
     }
-    
+
     /**
-     * Lấy tiến độ của lộ trình học tập
+     * Lấy badge HTML cho trạng thái
      */
-    public function getPathProgressPercentageAttribute()
+    public function getStatusBadgeAttribute(): string
     {
-        $paths = $this->courseItem->learningPaths;
-        
-        if ($paths->count() === 0) {
-            return 100;
-        }
-        
-        $completedPaths = $this->learningPathProgress()
-            ->where('is_completed', true)
-            ->count();
-            
-        return round(($completedPaths / $paths->count()) * 100);
+        $status = $this->getStatusEnum();
+        return $status ? $status->badge() : '<span class="badge bg-secondary">' . $this->status . '</span>';
     }
 
     /**
@@ -140,11 +124,11 @@ class Enrollment extends Model
      */
     public function isWaiting()
     {
-        return $this->status === self::STATUS_WAITING;
+        return $this->status === EnrollmentStatus::WAITING->value;
     }
 
     /**
-     * Cập nhật trạng thái và lưu trạng thái trước đó
+     * Cập nhật trạng thái ghi danh
      */
     public function updateStatus($newStatus)
     {
@@ -152,30 +136,19 @@ class Enrollment extends Model
         $this->status = $newStatus;
         $this->last_status_change = now();
         
-        if ($newStatus === self::STATUS_CONFIRMED) {
+        if ($newStatus === EnrollmentStatus::ACTIVE->value) {
             $this->confirmation_date = now();
         }
         
-        $this->save();
-        
-        return $this;
+        return $this->save();
     }
-    
+
     /**
-     * Danh sách các enrollment đang trong danh sách chờ
+     * Scope cho danh sách chờ
      */
     public function scopeWaitingList($query)
     {
-        return $query->where('status', self::STATUS_WAITING);
-    }
-    
-    /**
-     * Danh sách các enrollment cần liên hệ
-     */
-    public function scopeNeedsContact($query)
-    {
-        return $query->where('status', self::STATUS_WAITING)
-            ->whereNull('notes');
+        return $query->where('status', EnrollmentStatus::WAITING->value);
     }
 
     /**
@@ -187,19 +160,19 @@ class Enrollment extends Model
     }
 
     /**
-     * Format ngày yêu cầu theo định dạng dd/mm/yyyy
+     * Format ngày yêu cầu theo định dạng dd/mm/yyyy HH:MM
      */
     public function getFormattedRequestDateAttribute()
     {
-        return $this->formatDateTime('request_date');
+        return $this->request_date ? $this->request_date->format('d/m/Y H:i') : null;
     }
 
     /**
-     * Format ngày xác nhận theo định dạng dd/mm/yyyy
+     * Format ngày xác nhận theo định dạng dd/mm/yyyy HH:MM
      */
     public function getFormattedConfirmationDateAttribute()
     {
-        return $this->formatDateTime('confirmation_date');
+        return $this->confirmation_date ? $this->confirmation_date->format('d/m/Y H:i') : null;
     }
 
     /**

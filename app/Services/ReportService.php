@@ -206,6 +206,19 @@ class ReportService
             ];
         });
         
+        // Thống kê theo ngày
+        $dateStats = $attendances->groupBy(function($item) {
+            return Carbon::parse($item->attendance_date)->format('Y-m-d');
+        })->map(function($group) {
+            return [
+                'date' => Carbon::parse($group->first()->attendance_date)->format('d/m/Y'),
+                'total' => $group->count(),
+                'present' => $group->where('status', 'present')->count(),
+                'absent' => $group->where('status', 'absent')->count(),
+                'late' => $group->where('status', 'late')->count()
+            ];
+        })->values();
+        
         return [
             'total_count' => $attendances->count(),
             'present_count' => $attendances->where('status', 'present')->count(),
@@ -214,7 +227,8 @@ class ReportService
             'status_stats' => $statusStats,
             'course_stats' => $courseStats,
             'student_stats' => $studentStats,
-            'attendances' => $attendances
+            'attendances' => $attendances,
+            'date_stats' => $dateStats
         ];
     }
 

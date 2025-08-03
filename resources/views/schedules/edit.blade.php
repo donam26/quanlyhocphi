@@ -9,7 +9,7 @@
             <h2>Chỉnh sửa lịch học</h2>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('course-items.show', $schedule->courseItem->id) }}">{{ $schedule->courseItem->name }}</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">{{ $schedule->courseItem->name }}</a></li>
                     <li class="breadcrumb-item"><a href="{{ route('course-items.schedules', $schedule->courseItem->id) }}">Lịch học</a></li>
                     <li class="breadcrumb-item active">Chỉnh sửa</li>
                 </ol>

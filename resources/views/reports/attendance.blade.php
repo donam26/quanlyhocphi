@@ -32,7 +32,7 @@
     </div>
 </div>
 
-@if($courseItem)
+@if(isset($courseItem) && $courseItem)
     <div class="row mb-4">
         <div class="col-md-4">
             <div class="card bg-primary text-white h-100">
@@ -228,7 +228,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    @if($courseItem && isset($chartData))
+    @if(isset($courseItem) && isset($chartData))
     // Màu sắc chung
     const colors = {
         success: 'rgba(40, 167, 69, 0.7)',

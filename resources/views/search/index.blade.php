@@ -176,9 +176,7 @@
                                                             <a href="{{ route('search.student-history', $detail['student']->id) }}" class="btn btn-info">
                                                                 <i class="fas fa-history me-1"></i> Xem lịch sử chi tiết
                                                             </a>
-                                                            <a href="{{ route('students.show', $detail['student']->id) }}" class="btn btn-secondary">
-                                                                <i class="fas fa-user me-1"></i> Chi tiết học viên
-                                                            </a>
+                                                           
                                                         </div>
                                                     </div>
                                                 </div>
@@ -214,12 +212,16 @@
                                                                 <td class="text-end">{{ number_format($enrollment['total_paid'], 0, ',', '.') }} đ</td>
                                                                 <td class="text-end">{{ number_format($enrollment['remaining_amount'], 0, ',', '.') }} đ</td>
                                                                 <td>
-                                                                    @if($enrollment['status'] == 'Đang học')
+                                                                    @if($enrollment['status'] == 'Đang học' || $enrollment['status'] == 'enrolled' || $enrollment['status'] == 'active')
                                                                         <span class="badge bg-success">Đang học</span>
-                                                                    @elseif($enrollment['status'] == 'Đã hoàn thành')
-                                                                        <span class="badge bg-primary">Đã hoàn thành</span>
-                                                                    @elseif($enrollment['status'] == 'Tạm dừng')
+                                                                    @elseif($enrollment['status'] == 'Đã hoàn thành' || $enrollment['status'] == 'completed')
+                                                                        <span class="badge bg-success">Đã hoàn thành</span>
+                                                                    @elseif($enrollment['status'] == 'Danh sách chờ' || $enrollment['status'] == 'waiting')
+                                                                        <span class="badge bg-warning text-dark">Danh sách chờ</span>
+                                                                    @elseif($enrollment['status'] == 'Tạm dừng' || $enrollment['status'] == 'on_hold')
                                                                         <span class="badge bg-warning text-dark">Tạm dừng</span>
+                                                                    @elseif($enrollment['status'] == 'Đã hủy' || $enrollment['status'] == 'cancelled')
+                                                                        <span class="badge bg-danger">Đã hủy</span>
                                                                     @else
                                                                         <span class="badge bg-secondary">{{ $enrollment['status'] }}</span>
                                                                     @endif

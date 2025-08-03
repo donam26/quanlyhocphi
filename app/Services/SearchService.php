@@ -24,7 +24,7 @@ class SearchService
         // Lấy kết quả với các quan hệ
         $students = $query->with(['enrollments' => function($query) {
                 $query->with(['courseItem', 'payments' => function($query) {
-                    $query->where('status', 'confirmed')->orderBy('payment_date', 'desc');
+                    $query->where('payments.status', 'confirmed')->orderBy('payment_date', 'desc');
                 }]);
             }])
             ->paginate(10);
@@ -65,7 +65,7 @@ class SearchService
             // Lấy danh sách chờ của học viên
             $waitingLists = Enrollment::where('student_id', $student->id)
                 ->with('courseItem')
-                ->where('status', 'waiting')
+                ->where('enrollments.status', 'waiting')
                 ->get();
                 
             $waitingListData = [];

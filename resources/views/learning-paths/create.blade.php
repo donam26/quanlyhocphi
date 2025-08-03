@@ -5,7 +5,7 @@
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4>Thêm lộ trình học tập cho "{{ $courseItem->name }}"</h4>
-            <a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-sm btn-secondary">
+            <a href="{{ route('course-items.tree') }}" class="btn btn-sm btn-secondary">
                 <i class="fas fa-arrow-left"></i> Quay lại
             </a>
         </div>

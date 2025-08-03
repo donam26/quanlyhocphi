@@ -9,7 +9,7 @@
             <h2>Lịch học: {{ $courseItem->name }}</h2>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">Khóa học</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
                     <li class="breadcrumb-item active">Lịch học</li>
                 </ol>
             </nav>
@@ -18,7 +18,7 @@
             <a href="{{ route('schedules.create', ['course_item_id' => $courseItem->id]) }}" class="btn btn-primary">
                 <i class="fas fa-plus-circle"></i> Tạo lịch học mới
             </a>
-            <a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-secondary">
+            <a href="{{ route('course-items.tree') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Quay lại
             </a>
         </div>

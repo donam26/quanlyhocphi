@@ -9,13 +9,13 @@
             <h2>Điểm danh: {{ $courseItem->name }}</h2>
             <nav aria-label="breadcrumb">
                 <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('course-items.show', $courseItem->id) }}">Khóa học</a></li>
+                    <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
                     <li class="breadcrumb-item active">Điểm danh</li>
                 </ol>
             </nav>
         </div>
         <div class="col-md-4 text-end">
-            <a href="{{ route('course-items.show', $courseItem->id) }}" class="btn btn-secondary">
+            <a href="{{ route('course-items.tree') }}" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Quay lại
             </a>
         </div>

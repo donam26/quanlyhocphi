@@ -87,9 +87,9 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Hiển thị thông tin chi tiết về course item
+     * API lấy thông tin chi tiết khóa học
      */
-    public function show($id)
+    public function getCourseDetails($id)
     {
         $courseItem = $this->courseItemService->getCourseItemWithRelations($id, [
             'children' => function($query) {
@@ -97,62 +97,61 @@ class CourseItemController extends Controller
             }, 
             'learningPaths' => function($query) {
                 $query->orderBy('order');
-            }
+            },
+            'enrollments', 
+            'parent'
         ]);
         
-        // Lấy đường dẫn từ gốc đến item này
-        $breadcrumbs = $courseItem->ancestors()->push($courseItem);
-        
-        // Nếu là khóa học lá có lộ trình, chuẩn bị dữ liệu về tình trạng hoàn thành
-        $pathCompletionStats = [];
-        if ($courseItem->is_leaf && $courseItem->learningPaths->count() > 0) {
-            // Đếm tổng số học viên đã đăng ký khóa học
-            $totalStudents = \App\Models\Enrollment::where('course_item_id', $courseItem->id)
-                ->where('status', 'enrolled')
-                ->count();
-                
-            foreach ($courseItem->learningPaths as $path) {
-                // Đếm số học viên đã hoàn thành path này
-                $completedCount = \App\Models\LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
-                    $query->where('course_item_id', $courseItem->id)
-                        ->where('status', 'enrolled');
-                })
-                ->where('learning_path_id', $path->id)
-                ->where('is_completed', true)
-                ->count();
-                
-                // Một path được coi là hoàn thành nếu có ít nhất 1 học viên hoàn thành
-                $isCompleted = $completedCount > 0;
-                
-                $pathCompletionStats[$path->id] = [
-                    'completed_count' => $completedCount,
-                    'is_completed' => $isCompleted
-                ];
-                
-                // Lưu trạng thái vào session để đảm bảo đồng bộ với LearningProgressController
-                session()->put("learning_path_{$path->id}_completed", $isCompleted);
-            }
+        // Tính toán đường dẫn
+        $path = '';
+        $ancestors = $courseItem->ancestors();
+        if ($ancestors->count() > 0) {
+            $path = $ancestors->pluck('name')->implode(' > ');
         }
         
-        return view('course-items.show', compact('courseItem', 'breadcrumbs', 'pathCompletionStats'));
-    }
-
-    /**
-     * Hiển thị form chỉnh sửa
-     */
-    public function edit($id)
-    {
-        $courseItem = $this->courseItemService->getCourseItem($id);
+        // Tính tổng số học viên đã đăng ký
+        $enrollmentCount = $courseItem->enrollments->count();
         
-        // Lấy danh sách các item có thể làm cha (để hiển thị dropdown)
-        $possibleParents = CourseItem::where('is_leaf', false)
-                                ->where('id', '!=', $id) // Không thể là cha của chính nó
-                                ->where('active', true)
-                                ->orderBy('level')
-                                ->orderBy('name')
-                                ->get();
+        // Tính tổng doanh thu từ khóa học
+        $totalRevenue = $courseItem->enrollments->sum('final_fee');
         
-        return view('course-items.edit', compact('courseItem', 'possibleParents'));
+        // Chuẩn bị dữ liệu lộ trình học tập
+        $learningPaths = $courseItem->learningPaths->map(function($path) use ($courseItem) {
+            // Đếm số học viên đã hoàn thành path này
+            $completedCount = \App\Models\LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
+                $query->where('course_item_id', $courseItem->id)
+                    ->where('status', 'enrolled');
+            })
+            ->where('learning_path_id', $path->id)
+            ->where('is_completed', true)
+            ->count();
+            
+            return [
+                'id' => $path->id,
+                'title' => $path->title,
+                'description' => $path->description,
+                'order' => $path->order,
+                'completed_count' => $completedCount
+            ];
+        });
+        
+        // Trả về dữ liệu chi tiết
+        return response()->json([
+            'id' => $courseItem->id,
+            'name' => $courseItem->name,
+            'parent_id' => $courseItem->parent_id,
+            'level' => $courseItem->level,
+            'is_leaf' => $courseItem->is_leaf,
+            'fee' => $courseItem->fee,
+            'active' => $courseItem->active,
+            'is_special' => $courseItem->is_special,
+            'custom_fields' => $courseItem->custom_fields,
+            'path' => $path,
+            'enrollment_count' => $enrollmentCount,
+            'total_revenue' => $totalRevenue,
+            'learning_paths' => $learningPaths,
+            'children' => $courseItem->children
+        ]);
     }
 
     /**
@@ -210,7 +209,7 @@ class CourseItemController extends Controller
         
         // Nếu không phải AJAX request, chuyển hướng như trước
         if ($courseItem->parent_id) {
-            return redirect()->route('course-items.show', $courseItem->parent_id)
+            return redirect()->route('course-items.tree')
                     ->with('success', 'Đã cập nhật thành công!');
         }
         
