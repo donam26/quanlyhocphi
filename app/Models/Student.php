@@ -25,7 +25,9 @@ class Student extends Model
         'hard_copy_documents',
         'education_level',
         'workplace',
-        'experience_years'
+        'experience_years',
+        'place_of_birth',
+        'nation',
     ];
 
     protected $casts = [

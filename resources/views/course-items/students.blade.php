@@ -17,6 +17,23 @@
 @endsection
 
 @section('content')
+    <div class="row mb-4">
+        <div class="col-xl-3 col-md-6">
+            <div class="card bg-primary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="me-3">
+                            <div class="text-white-75 small">
+                                Tổng số học viên
+                                <h3 class="text-lg fw-bold">{{ $totalStudents }}</h3>
+                            </div>
+                        </div>
+                            <i class="fas fa-users fa-2x text-white-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 <div class="card">
     <div class="card-body">
         @if(session('success'))
@@ -25,7 +42,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
-        
+
         @if($errors->any())
             <div class="alert alert-danger alert-dismissible fade show">
                 <ul class="mb-0">
@@ -36,14 +53,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
-        
         @if($is_special)
             <div class="alert alert-info alert-dismissible fade show">
-                <strong><i class="fas fa-info-circle"></i> Khóa học đặc biệt:</strong> 
+                <strong><i class="fas fa-info-circle"></i> Khóa học đặc biệt:</strong>
                 Khóa học này có các trường thông tin tùy chỉnh bổ sung.
                 @if($custom_fields && count($custom_fields) > 0)
                     <div class="mt-2">
-                        <strong>Các trường thông tin tùy chỉnh:</strong> 
+                        <strong>Các trường thông tin tùy chỉnh:</strong>
                         @foreach($custom_fields as $field_key => $field_value)
                             <span class="badge bg-primary me-1">{{ $field_key }}</span>
                         @endforeach
@@ -52,7 +68,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
             </div>
         @endif
-        
+
         <div class="table-responsive">
             <table class="table table-striped">
                 <thead>
@@ -92,8 +108,8 @@
                         @endif
                         <td>
                             @if($student['has_notes'])
-                            <button type="button" class="btn btn-sm btn-info" 
-                                   data-bs-toggle="modal" 
+                            <button type="button" class="btn btn-sm btn-info"
+                                   data-bs-toggle="modal"
                                    data-bs-target="#viewNotesModal"
                                    data-student-name="{{ $student['student']->full_name }}"
                                    data-notes="{{ json_encode($student['payment_notes']) }}">
@@ -105,7 +121,7 @@
                         </td>
                         <td>
                             <div class="btn-group">
-                               
+
                                 <a href="{{ route('enrollments.edit', $student['enrollment_id']) }}" class="btn btn-sm btn-warning" title="Chỉnh sửa đăng ký">
                                     <i class="fas fa-user-edit"></i>
                                 </a>
@@ -114,9 +130,9 @@
                                     <i class="fas fa-money-bill"></i>
                                 </a>
                                 @endif
-                                <button type="button" class="btn btn-sm btn-warning" 
-                                        data-bs-toggle="modal" 
-                                        data-bs-target="#moveToWaitingList" 
+                                <button type="button" class="btn btn-sm btn-warning"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#moveToWaitingList"
                                         data-enrollment-id="{{ $student['enrollment_id'] }}"
                                         data-student-name="{{ $student['student']->full_name }}"
                                         title="Chuyển sang danh sách chờ">
@@ -145,13 +161,13 @@
                 <div class="modal-body">
                     <input type="hidden" id="enrollment_id" name="enrollment_id">
                     <p>Bạn đang chuyển học viên <strong id="student-name"></strong> sang danh sách chờ.</p>
-                    
+
                     <div class="mb-3">
                         <label for="reason" class="form-label">Lý do chuyển sang danh sách chờ <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
                         <div class="form-text">Lý do sẽ được ghi vào hồ sơ của học viên.</div>
                     </div>
-                    
+
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         Lưu ý: Sau khi chuyển sang danh sách chờ, học viên sẽ không thể tham gia các hoạt động của lớp học nữa.
@@ -185,7 +201,7 @@
                             Chỉ chấp nhận file Excel (.xlsx, .xls) hoặc CSV
                         </div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="discount_percentage" class="form-label">Giảm giá (%)</label>
                         <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" min="0" max="100" value="0">
@@ -193,7 +209,7 @@
                             Áp dụng % giảm giá cho tất cả học viên import trong file này
                         </div>
                     </div>
-                    
+
                     <div class="alert alert-info">
                         <h6 class="mb-2">Định dạng file Excel:</h6>
                         <p class="mb-1">- Dòng đầu tiên là tiêu đề cột</p>
@@ -256,29 +272,29 @@
             var button = $(event.relatedTarget);
             var enrollmentId = button.data('enrollment-id');
             var studentName = button.data('student-name');
-            
+
             var modal = $(this);
             modal.find('#enrollment_id').val(enrollmentId);
             modal.find('#student-name').text(studentName);
         });
-        
+
         // Xử lý khi mở modal xem ghi chú
         $('#viewNotesModal').on('show.bs.modal', function(event) {
             var button = $(event.relatedTarget);
             var studentName = button.data('student-name');
             var notes = button.data('notes');
-            
+
             // Parse notes từ JSON nếu cần thiết
             if (typeof notes === 'string') {
                 notes = JSON.parse(notes);
             }
-            
+
             var modal = $(this);
             modal.find('#note-student-name').text(studentName);
-            
+
             // Xóa dữ liệu cũ
             modal.find('#notes-table-body').empty();
-            
+
             // Thêm dữ liệu mới
             notes.forEach(function(note) {
                 var statusBadge = '';
@@ -289,7 +305,7 @@
                 } else {
                     statusBadge = '<span class="badge bg-danger">Đã hủy</span>';
                 }
-                
+
                 var row = '<tr>' +
                     '<td>' + note.date + '</td>' +
                     '<td>' + new Intl.NumberFormat('vi-VN').format(note.amount) + ' VND</td>' +
@@ -297,10 +313,10 @@
                     '<td>' + statusBadge + '</td>' +
                     '<td>' + note.notes + '</td>' +
                     '</tr>';
-                    
+
                 modal.find('#notes-table-body').append(row);
             });
         });
     });
 </script>
-@endpush 
+@endpush

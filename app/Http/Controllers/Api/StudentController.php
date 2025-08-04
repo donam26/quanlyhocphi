@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Province;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
@@ -17,41 +18,45 @@ class StudentController extends Controller
     public function index()
     {
         $students = Student::with('province')->get();
-        
+
         return response()->json([
             'success' => true,
             'data' => $students
         ]);
     }
-    
+
     /**
      * Lấy chi tiết học viên
      */
     public function show($id)
     {
         $student = Student::with('province')->find($id);
-        
+
         if (!$student) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy học viên'
             ], 404);
         }
-        
+
         return response()->json([
             'success' => true,
             'data' => $student
         ]);
     }
-    
+
     /**
      * Tạo học viên mới
      */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'full_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date_format:Y-m-d',
+            'first_name' => 'required|string|max:255',
+            'name' => 'required|string|max:255',
+            'date_of_birth' => 'nullable|string',
+            'place_of_birth' => 'nullable|string|max:255',
+            'nation' => 'nullable|string|max:255',
+
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
@@ -64,35 +69,39 @@ class StudentController extends Controller
             'workplace' => 'nullable|string|max:255',
             'experience_years' => 'nullable|integer|min:0',
         ]);
-        
+
+        $validated['full_name'] = trim($validated['first_name'] . ' ' . $validated['name']);
         $student = Student::create($validated);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Tạo học viên thành công',
             'data' => $student->load('province')
         ], 201);
     }
-    
+
     /**
      * Cập nhật thông tin học viên
      */
     public function update(Request $request, $id)
     {
         $student = Student::find($id);
-        
+
         if (!$student) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy học viên'
             ], 404);
         }
-        
+
         // Debug thông tin request
         Log::info('Student update request data:', $request->all());
-        
+
         $validated = $request->validate([
-            'full_name' => 'nullable|string|max:255',
+            'first_name' => 'nullable|string|max:255',
+            'name' => 'nullable|string|max:255',
+            'place_of_birth' => 'nullable|string|max:255',
+            'nation' => 'nullable|string|max:255',
             'date_of_birth' => 'nullable|date_format:Y-m-d',
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
@@ -106,35 +115,44 @@ class StudentController extends Controller
             'workplace' => 'nullable|string|max:255',
             'experience_years' => 'nullable|integer|min:0',
         ]);
-        
+
         // Debug thông tin đã validate
         Log::info('Student update validated data:', $validated);
-        
+
+        if (isset($validated['first_name']) || isset($validated['name'])) {
+            // Cập nhật tên đầy đủ nếu có thay đổi
+            $validated['full_name'] = trim(($validated['first_name'] ?? $student->first_name) . ' ' . ($validated['name'] ?? $student->name));
+        } else {
+            // Giữ nguyên tên đầy đủ nếu không có thay đổi
+            $validated['full_name'] = $student->full_name;
+        }
+
+        // Cập nhật tên đầy đủ nếu có thay đổi
         $student->update($validated);
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Cập nhật học viên thành công',
             'data' => $student->fresh('province')
         ]);
     }
-    
+
     /**
      * Lấy thông tin học viên theo tỉnh thành
      */
     public function getByProvince($provinceId)
     {
         $province = Province::find($provinceId);
-        
+
         if (!$province) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy tỉnh thành'
             ], 404);
         }
-        
+
         $students = Student::where('province_id', $provinceId)->get();
-        
+
         return response()->json([
             'success' => true,
             'data' => [
@@ -143,7 +161,7 @@ class StudentController extends Controller
             ]
         ]);
     }
-    
+
     /**
      * Lấy thông tin học viên theo vùng miền
      */
@@ -155,11 +173,11 @@ class StudentController extends Controller
                 'message' => 'Vùng miền không hợp lệ'
             ], 400);
         }
-        
+
         $students = Student::whereHas('province', function ($query) use ($region) {
             $query->where('region', $region);
         })->with('province')->get();
-        
+
         return response()->json([
             'success' => true,
             'region' => $region,
@@ -173,7 +191,7 @@ class StudentController extends Controller
             'data' => $students
         ]);
     }
-    
+
     /**
      * Lấy thông tin chi tiết ghi danh của học viên
      */
@@ -181,38 +199,38 @@ class StudentController extends Controller
     {
         $student = Student::with(['enrollments.courseItem', 'enrollments.payments'])
             ->find($id);
-            
+
         if (!$student) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy học viên'
             ], 404);
         }
-        
+
         return response()->json([
             'success' => true,
             'data' => $student
         ]);
     }
-    
+
     /**
      * Lấy thông tin cơ bản của học viên
      */
     public function getInfo($id)
     {
         $student = Student::with([
-            'province', 
-            'enrollments.courseItem', 
+            'province',
+            'enrollments.courseItem',
             'enrollments.payments'
         ])->find($id);
-        
+
         if (!$student) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy học viên'
             ], 404);
         }
-        
+
         // Thêm thông tin bổ sung cho mỗi ghi danh
         foreach ($student->enrollments as $enrollment) {
             $enrollment->formatted_enrollment_date = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : null;
@@ -220,10 +238,10 @@ class StudentController extends Controller
             $enrollment->total_paid = $enrollment->getTotalPaidAmount();
             $enrollment->remaining_amount = $enrollment->getRemainingAmount();
         }
-        
+
         return response()->json([
             'success' => true,
             'data' => $student
         ]);
     }
-} 
+}

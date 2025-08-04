@@ -32,6 +32,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
 
     // Students
     Route::get('students', [StudentController::class, 'index'])->name('students.index');
+    Route::get('/students/create', [StudentController::class, 'create'])->name('students.create');
     Route::delete('students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
     Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->name('students.enrollments');
     Route::get('students/{student}/payments', [StudentController::class, 'payments'])->name('students.payments');
@@ -46,7 +47,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
     Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
     Route::resource('course-items', CourseItemController::class)->except(['show']);
-    
+
 
     // Chức năng điểm danh theo khóa học
     Route::get('course-items/{courseItem}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance');
@@ -65,7 +66,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('enrollments', EnrollmentController::class);
     Route::post('enrollments/update-fee', [EnrollmentController::class, 'updateFee'])->name('enrollments.update-fee');
     Route::get('unpaid-enrollments', [EnrollmentController::class, 'unpaidList'])->name('enrollments.unpaid');
-    
+
     // Danh sách chờ (Waitlist) - tích hợp trong Enrollment
     Route::get('waiting-list', [EnrollmentController::class, 'waitingList'])->name('enrollments.waiting-list');
     Route::get('waiting-list/needs-contact', [EnrollmentController::class, 'needsContact'])->name('enrollments.needs-contact');
@@ -128,7 +129,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/enrollments', [ReportController::class, 'enrollmentReport'])->name('enrollments');
         Route::get('/payments', [ReportController::class, 'paymentReport'])->name('payments');
         Route::get('/attendance', [ReportController::class, 'attendanceReport'])->name('attendance');
-        
+
         // Route xuất báo cáo
         Route::get('/revenue/export', [ReportController::class, 'exportRevenueReport'])->name('revenue.export');
         Route::get('/payments/export', [ReportController::class, 'exportPaymentReport'])->name('payments.export');
@@ -160,7 +161,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance.view');
     Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
     Route::get('/course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
-    
+
     // Lịch học
     Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
     Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
@@ -169,7 +170,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->name('schedules.update');
     Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
     Route::get('/course-items/{courseItem}/schedules', [ScheduleController::class, 'showCourseSchedule'])->name('course-items.schedules');
-    
+
     // Tiến độ học tập
     Route::get('/learning-progress', [LearningProgressController::class, 'index'])->name('learning-progress.index');
 });

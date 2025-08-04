@@ -36,8 +36,8 @@
                     </div>
                     @if(request('search'))
                     <small class="form-text text-muted mt-1">
-                        <i class="fas fa-info-circle"></i> 
-                        Kết quả tìm kiếm cho "{{ request('search') }}" - 
+                        <i class="fas fa-info-circle"></i>
+                        Kết quả tìm kiếm cho "{{ request('search') }}" -
                         @if(preg_match('/^\d+$/', request('search')))
                             Đang tìm theo số điện thoại
                         @else
@@ -166,7 +166,7 @@
                                     $completedEnrollments = $student->enrollments->where('status', 'completed');
                                     $waitingEnrollments = $student->enrollments->where('status', 'waiting');
                                 @endphp
-                                
+
                                 @if($activeEnrollments->count() > 0)
                                     <span class="badge bg-success">Đang học ({{ $activeEnrollments->count() }})</span>
                                 @elseif($completedEnrollments->count() > 0)
@@ -182,24 +182,24 @@
                                         return $e->getRemainingAmount() > 0;
                                     })->count();
                                 @endphp
-                                
+
                                 @if($unpaidCount > 0)
                                     <br><span class="badge bg-warning mt-1">Chưa TT: {{ $unpaidCount }}</span>
                                 @endif
                             </td>
                             <td onclick="event.stopPropagation()">
                                 <div class="btn-group">
-                                    <button type="button" class="btn btn-sm btn-outline-primary" 
-                                            onclick="showStudentDetails({{ $student->id }})" 
+                                    <button type="button" class="btn btn-sm btn-outline-primary"
+                                            onclick="showStudentDetails({{ $student->id }})"
                                             title="Chi tiết">
                                         <i class="fas fa-eye"></i>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-warning" 
-                                            onclick="editStudent({{ $student->id }})" 
+                                    <button type="button" class="btn btn-sm btn-outline-warning"
+                                            onclick="editStudent({{ $student->id }})"
                                             title="Chỉnh sửa">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button type="button" class="btn btn-sm btn-outline-success" 
+                                    <button type="button" class="btn btn-sm btn-outline-success"
                                             onclick="enrollStudent({{ $student->id }})"
                                             title="Ghi danh">
                                         <i class="fas fa-user-plus"></i>
@@ -221,9 +221,9 @@
                 <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">Chưa có học viên nào</h5>
                 <p class="text-muted">Hãy thêm học viên đầu tiên để bắt đầu</p>
-                <a href="{{ route('students.create') }}" class="btn btn-primary">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createStudentModal">
                     <i class="fas fa-plus me-2"></i>Thêm học viên mới
-                </a>
+                </button>
             </div>
         @endif
     </div>
@@ -244,7 +244,7 @@
                         <span class="visually-hidden">Đang tải...</span>
                     </div>
                 </div>
-                
+
                 <!-- Chi tiết học viên -->
                 <div id="student-details" style="display: none;">
                     <div class="row">
@@ -253,9 +253,9 @@
                             <p class="text-muted">Mã học viên: <span id="student-id"></span></p>
                         </div>
                     </div>
-                    
+
                     <hr>
-                    
+
                     <div class="row mt-3">
                         <!-- Thông tin cá nhân -->
                         <div class="col-md-6">
@@ -285,11 +285,21 @@
                                             <th>Địa chỉ:</th>
                                             <td id="student-address"></td>
                                         </tr>
+                                        <tr>
+                                            <th>
+                                                Dân tộc:
+                                            </th>
+                                            <td id="student-nation"></td>
+                                        </tr>
+                                        <tr>
+                                            <th>Nơi sinh:</th>
+                                            <td id="student-place-of-birth"></td>
+                                        </tr>
                                     </table>
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Thông tin bổ sung -->
                         <div class="col-md-6">
                             <div class="card mb-3">
@@ -311,7 +321,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <!-- Ghi chú -->
                     <div id="student-notes-section" class="card mb-3">
                         <div class="card-header bg-light">
@@ -321,7 +331,7 @@
                             <p id="student-notes"></p>
                         </div>
                     </div>
-                    
+
                     <!-- Trường tùy chỉnh -->
                     <div id="student-custom-fields-section" class="card mb-3">
                         <div class="card-header bg-light">
@@ -331,7 +341,7 @@
                             <!-- Các trường tùy chỉnh sẽ được thêm vào đây -->
                         </div>
                     </div>
-                    
+
                     <!-- Khóa học đã đăng ký -->
                     <div id="student-enrollments-section" class="card mb-3">
                         <div class="card-header bg-light">
@@ -373,14 +383,14 @@
                         <span class="visually-hidden">Đang tải...</span>
                     </div>
                 </div>
-                
+
                 <!-- Edit form -->
                 <div id="edit-student-form" style="display: none;">
                     <form id="studentEditForm" method="POST">
                         @csrf
                         <!-- Sử dụng POST method -->
                         <input type="hidden" id="edit-student-id" name="id">
-                        
+
                         <!-- Thông tin cơ bản -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -388,32 +398,49 @@
                                     <i class="fas fa-user me-2"></i>Thông tin cơ bản
                                 </h6>
                             </div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                                <input type="text" name="full_name" id="edit-full-name" class="form-control" required>
-                                <div class="invalid-feedback" id="edit-full-name-error"></div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Họ <span class="text-danger">*</span></label>
+                                <input type="text" name="first_name" id="edit-full-name" class="form-control" required>
+                                <div class="invalid-feedback" id="edit-first-name-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tên</label>
+                                <input type="text" name="name" id="edit-name" class="form-control">
+                                <div class="invalid-feedback" id="edit-name-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
                                 <input type="text" name="phone" id="edit-phone" class="form-control" required>
                                 <div class="invalid-feedback" id="edit-phone-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Ngày sinh</label>
                                 <input type="date" name="date_of_birth" id="edit-date-of-birth" class="form-control">
                                 <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nơi sinh</label>
+                                <input type="text" name="place_of_birth" id="edit-place-of-birth" class="form-control">
+                                <div class="invalid-feedback" id="edit-place-of-birth-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Dân tộc</label>
+                                <input type="text" name="nation" id="edit-nation" class="form-control">
+                                <div class="invalid-feedback" id="edit-nation-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Email</label>
                                 <input type="email" name="email" id="edit-email" class="form-control">
                                 <div class="invalid-feedback" id="edit-email-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Giới tính</label>
                                 <select name="gender" id="edit-gender" class="form-select">
                                     <option value="">Chọn giới tính</option>
@@ -423,8 +450,8 @@
                                 </select>
                                 <div class="invalid-feedback" id="edit-gender-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Tỉnh/Thành phố</label>
                                 <select name="province_id" id="edit-province" class="form-select">
                                     <option value="">-- Chọn tỉnh thành --</option>
@@ -432,7 +459,7 @@
                                 <div class="invalid-feedback" id="edit-province-error"></div>
                             </div>
                         </div>
-                        
+
                         <!-- Thông tin bổ sung -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -440,20 +467,20 @@
                                     <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
                                 </h6>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
                                 <input type="text" name="current_workplace" id="edit-current-workplace" class="form-control">
                                 <div class="invalid-feedback" id="edit-current-workplace-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Số năm kinh nghiệm kế toán</label>
                                 <input type="number" name="accounting_experience_years" id="edit-experience" class="form-control" min="0">
                                 <div class="invalid-feedback" id="edit-experience-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Hồ sơ bản cứng</label>
                                 <select name="hard_copy_documents" id="edit-hard-copy-documents" class="form-select">
                                     <option value="">-- Chọn trạng thái --</option>
@@ -463,7 +490,7 @@
                                 <div class="invalid-feedback" id="edit-hard-copy-documents-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Bằng cấp</label>
                                 <select name="education_level" id="edit-education-level" class="form-select">
                                     <option value="">-- Chọn bằng cấp --</option>
@@ -476,19 +503,19 @@
                                 <div class="invalid-feedback" id="edit-education-level-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Đơn vị công tác</label>
                                 <input type="text" name="workplace" id="edit-workplace" class="form-control">
                                 <div class="invalid-feedback" id="edit-workplace-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Thời gian kinh nghiệm (năm)</label>
                                 <input type="number" name="experience_years" id="edit-experience-years" class="form-control" min="0">
                                 <div class="invalid-feedback" id="edit-experience-years-error"></div>
                             </div>
                         </div>
-                        
+
                         <!-- Ghi chú -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -525,13 +552,13 @@
                         <span class="visually-hidden">Đang tải...</span>
                     </div>
                 </div>
-                
+
                 <!-- Enrollment form -->
                 <div id="enroll-student-form" style="display: none;">
                     <form id="enrollmentForm" method="POST" action="javascript:void(0);" onsubmit="return false;">
                         @csrf
                         <input type="hidden" id="enroll-student-id" name="student_id">
-                        
+
                         <!-- Thông tin học viên -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -540,7 +567,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Thông tin khóa học -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -548,7 +575,7 @@
                                     <i class="fas fa-book me-2"></i>Thông tin khóa học
                                 </h6>
                             </div>
-                            
+
                             <div class="col-md-12">
                                 <div class="mb-3">
                                     <label for="course_item_id" class="form-label">Chọn khóa học <span class="text-danger">*</span></label>
@@ -557,15 +584,15 @@
                                     </select>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="enrollment_date" class="form-label">Ngày đăng ký <span class="text-danger">*</span></label>
-                                    <input type="date" name="enrollment_date" id="enrollment_date" class="form-control" 
+                                    <input type="date" name="enrollment_date" id="enrollment_date" class="form-control"
                                            value="{{ date('Y-m-d') }}" required>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="status" class="form-label">Trạng thái <span class="text-danger">*</span></label>
@@ -578,7 +605,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Thông tin học phí -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -586,7 +613,7 @@
                                     <i class="fas fa-file-invoice-dollar me-2"></i>Học phí và chiết khấu
                                 </h6>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="final_fee_display" class="form-label">Học phí cuối cùng</label>
@@ -594,24 +621,24 @@
                                     <input type="hidden" name="final_fee" id="final_fee">
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="discount_percentage" class="form-label">Chiết khấu (%)</label>
-                                    <input type="number" name="discount_percentage" id="discount_percentage" class="form-control" 
+                                    <input type="number" name="discount_percentage" id="discount_percentage" class="form-control"
                                            min="0" max="100" step="0.1">
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="discount_amount" class="form-label">Chiết khấu (VND)</label>
-                                    <input type="number" name="discount_amount" id="discount_amount" class="form-control" 
+                                    <input type="number" name="discount_amount" id="discount_amount" class="form-control"
                                            min="0" step="1000">
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Ghi chú -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -649,12 +676,12 @@
                         <span class="visually-hidden">Đang tải...</span>
                     </div>
                 </div>
-                
+
                 <!-- Create form -->
                 <div id="create-student-form">
                     <form id="studentCreateForm" method="POST">
                         @csrf
-                        
+
                         <!-- Thông tin cơ bản -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -662,32 +689,50 @@
                                     <i class="fas fa-user me-2"></i>Thông tin cơ bản
                                 </h6>
                             </div>
-                            
-                            <div class="col-md-6">
-                                <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                                <input type="text" name="full_name" id="create-full-name" class="form-control" required>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Họ <span class="text-danger">*</span></label>
+                                <input type="text" name="first_name" id="create-full-name" class="form-control" required>
                                 <div class="invalid-feedback" id="create-full-name-error"></div>
                             </div>
-                            
+
                             <div class="col-md-6">
-                                <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                                <label for="name" class="form-label">Tên</label>
+                                <input type="text" name="name" id="create-name" class="form-control">
+                                <div class="invalid-feedback" id="create-name-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Số điện thoại</label>
                                 <input type="text" name="phone" id="create-phone" class="form-control" required>
                                 <div class="invalid-feedback" id="create-phone-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Ngày sinh</label>
                                 <input type="date" name="date_of_birth" id="create-date-of-birth" class="form-control">
                                 <div class="invalid-feedback" id="create-date-of-birth-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Nơi sinh</label>
+                                <input type="text" name="place_of_birth" id="create-place-of-birth" class="form-control">
+                                <div class="invalid-feedback" id="create-place-of-birth-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Dân tộc</label>
+                                <input type="text" name="nation" id="create-nation" class="form-control">
+                                <div class="invalid-feedback" id="create-nation-error"></div>
+                            </div>
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Email</label>
                                 <input type="email" name="email" id="create-email" class="form-control">
                                 <div class="invalid-feedback" id="create-email-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Giới tính</label>
                                 <select name="gender" id="create-gender" class="form-select">
                                     <option value="">Chọn giới tính</option>
@@ -697,8 +742,8 @@
                                 </select>
                                 <div class="invalid-feedback" id="create-gender-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Tỉnh/Thành phố</label>
                                 <select name="province_id" id="create-province" class="form-select">
                                     <option value="">-- Chọn tỉnh thành --</option>
@@ -706,7 +751,7 @@
                                 <div class="invalid-feedback" id="create-province-error"></div>
                             </div>
                         </div>
-                        
+
                         <!-- Thông tin bổ sung -->
                         <div class="row mb-4">
                             <div class="col-12">
@@ -714,20 +759,20 @@
                                     <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
                                 </h6>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
                                 <input type="text" name="current_workplace" id="create-current-workplace" class="form-control">
                                 <div class="invalid-feedback" id="create-current-workplace-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Số năm kinh nghiệm kế toán</label>
                                 <input type="number" name="accounting_experience_years" id="create-experience" class="form-control" min="0">
                                 <div class="invalid-feedback" id="create-experience-error"></div>
                             </div>
-                            
-                            <div class="col-md-6">
+
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Hồ sơ bản cứng</label>
                                 <select name="hard_copy_documents" id="create-hard-copy-documents" class="form-select">
                                     <option value="">-- Chọn trạng thái --</option>
@@ -737,7 +782,7 @@
                                 <div class="invalid-feedback" id="create-hard-copy-documents-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Bằng cấp</label>
                                 <select name="education_level" id="create-education-level" class="form-select">
                                     <option value="">-- Chọn bằng cấp --</option>
@@ -750,21 +795,32 @@
                                 <div class="invalid-feedback" id="create-education-level-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Đơn vị công tác</label>
                                 <input type="text" name="workplace" id="create-workplace" class="form-control">
                                 <div class="invalid-feedback" id="create-workplace-error"></div>
                             </div>
 
-                            <div class="col-md-6">
+                            <div class="col-md-6 mb-3">
                                 <label class="form-label">Thời gian kinh nghiệm (năm)</label>
                                 <input type="number" name="experience_years" id="create-experience-years" class="form-control" min="0">
                                 <div class="invalid-feedback" id="create-experience-years-error"></div>
                             </div>
                         </div>
-                        
+
                         <!-- Ghi chú -->
                         <div class="row mb-4">
+{{--                            <div class="col-md-6">--}}
+{{--                                <label for="user_note_id">--}}
+{{--                                    Người ghi chú--}}
+{{--                                </label>--}}
+{{--                                <select name="user_note_id" id="create-user-note-id" class="form-select">--}}
+{{--                                    <option value="">-- Chọn người ghi chú --</option>--}}
+{{--                                    @foreach($users as $user)--}}
+{{--                                        <option value="{{ $user->id }}">{{ $user->name }}</option>--}}
+{{--                                    @endforeach--}}
+{{--                                </select>--}}
+{{--                            </div>--}}
                             <div class="col-12">
                                 <label class="form-label">Ghi chú</label>
                                 <textarea name="notes" id="create-notes" class="form-control" rows="3"></textarea>
@@ -865,13 +921,13 @@ $(document).ready(function() {
 
 // Hàm khởi tạo select2 cho tỉnh thành với AJAX
 function initProvinceSelect2() {
-    // Xóa các select2 hiện có để tránh lỗi 
+    // Xóa các select2 hiện có để tránh lỗi
     try {
         $('#create-province, #edit-province').select2('destroy');
     } catch (e) {
         // Không làm gì nếu select2 chưa được áp dụng
     }
-    
+
     // Áp dụng select2 cho từng element cụ thể
     $('#create-province, #edit-province').each(function() {
         $(this).select2({
@@ -934,5 +990,4 @@ function getRegionName(region) {
     }
 }
 </script>
-@endpush 
- 
+@endpush

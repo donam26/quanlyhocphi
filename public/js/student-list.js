@@ -4,14 +4,14 @@ let currentStudentId = null;
 // Hiển thị chi tiết học viên trong modal popup
 window.showStudentDetails = function(studentId) {
     currentStudentId = studentId;
-    
+
     // Hiển thị modal
     $('#viewStudentModal').modal('show');
-    
+
     // Hiển thị loading và ẩn nội dung
     $('#student-loading').show();
     $('#student-details').hide();
-    
+
     // Lấy thông tin học viên qua AJAX
     $.ajax({
         url: `/api/students/${studentId}/info`,
@@ -21,31 +21,35 @@ window.showStudentDetails = function(studentId) {
                 showToast('Không thể tải thông tin học viên', 'error');
                 return;
             }
-            
+
             const student = data.data;
-            
+
             // Cập nhật thông tin cơ bản
             $('#student-name').text(student.full_name);
             $('#student-id').text(student.id);
-            
+
             // Thông tin cá nhân
             $('#student-gender').text(formatGender(student.gender));
             $('#student-dob').text(student.formatted_date_of_birth || 'Chưa có');
             $('#student-phone').text(student.phone);
             $('#student-email').text(student.email || 'Chưa có');
-            
+
             // Tỉnh thành
             let addressText = '';
             if (student.province) {
                 addressText = student.province.name + ' (' + getRegionName(student.province.region) + ')';
             }
             $('#student-address').text(addressText || 'Chưa có');
-            
+
             // Thông tin bổ sung
             $('#student-workplace').text(student.current_workplace || 'Chưa có');
-            $('#student-experience').text(student.accounting_experience_years 
+            $('#student-experience').text(student.accounting_experience_years
                 ? student.accounting_experience_years + ' năm' : 'Chưa có');
-            
+
+            $('#student-place-of-birth').text(student.place_of_birth || 'Chưa có');
+            $('#student-nation').text(student.nation || 'Chưa có');
+
+
             // Hiển thị ghi chú
             if (student.notes) {
                 $('#student-notes-section').show();
@@ -53,16 +57,16 @@ window.showStudentDetails = function(studentId) {
             } else {
                 $('#student-notes-section').hide();
             }
-            
+
             // Xử lý các trường thông tin đặc biệt
             let customFieldsHtml = '<table class="table table-sm">';
-            
+
             // Hiển thị trường Hồ sơ bản cứng
             customFieldsHtml += `<tr>
                 <th width="40%">Hồ sơ bản cứng:</th>
                 <td>${student.hard_copy_documents === 'submitted' ? 'Đã nộp' : student.hard_copy_documents === 'not_submitted' ? 'Chưa nộp' : '-'}</td>
             </tr>`;
-                
+
             // Hiển thị trường Bằng cấp
             let educationText = '-';
             if (student.education_level) {
@@ -79,24 +83,24 @@ window.showStudentDetails = function(studentId) {
                 <th width="40%">Bằng cấp:</th>
                 <td>${educationText}</td>
             </tr>`;
-            
+
             // Hiển thị trường Đơn vị công tác
             customFieldsHtml += `<tr>
                 <th width="40%">Đơn vị công tác:</th>
                 <td>${student.workplace || '-'}</td>
             </tr>`;
-            
+
             // Hiển thị trường Thời gian kinh nghiệm
             customFieldsHtml += `<tr>
                 <th width="40%">Thời gian kinh nghiệm:</th>
                 <td>${student.experience_years ? student.experience_years + ' năm' : '-'}</td>
             </tr>`;
-                
+
             customFieldsHtml += '</table>';
-            
+
             $('#student-custom-fields').html(customFieldsHtml);
             $('#student-custom-fields-section').show();
-            
+
             // Hiển thị khóa học đã đăng ký
             if (student.enrollments && student.enrollments.length > 0) {
                 let enrollmentsHtml = '<div class="list-group">';
@@ -105,7 +109,7 @@ window.showStudentDetails = function(studentId) {
                     const paymentBadge = enrollment.is_fully_paid
                         ? '<span class="badge bg-success ms-1">Đã thanh toán</span>'
                         : '<span class="badge bg-danger ms-1">Chưa thanh toán</span>';
-                        
+
                     enrollmentsHtml += `<div class="list-group-item">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-1">${enrollment.course_item.name}</h6>
@@ -119,17 +123,17 @@ window.showStudentDetails = function(studentId) {
                     </div>`;
                 });
                 enrollmentsHtml += '</div>';
-                
+
                 $('#student-enrollments').html(enrollmentsHtml);
                 $('#student-enrollments-section').show();
             } else {
                 $('#student-enrollments').html('<p class="text-muted">Học viên chưa đăng ký khóa học nào.</p>');
                 $('#student-enrollments-section').show();
             }
-            
+
             // Cập nhật các nút hành động
             $('#btn-add-enrollment').attr('href', `/enrollments/create?student_id=${studentId}`);
-            
+
             // Ẩn loading và hiện nội dung
             $('#student-loading').hide();
             $('#student-details').show();
@@ -144,17 +148,17 @@ window.showStudentDetails = function(studentId) {
 // Chỉnh sửa học viên
 window.editStudent = function(studentId) {
     currentStudentId = studentId;
-    
+
     // Đóng modal xem chi tiết nếu đang mở
     $('#viewStudentModal').modal('hide');
-    
+
     // Mở modal chỉnh sửa
     $('#editStudentModal').modal('show');
-    
+
     // Hiển thị loading và ẩn form
     $('#edit-student-loading').show();
     $('#edit-student-form').hide();
-    
+
     // Lấy thông tin học viên
     $.ajax({
         url: `/api/students/${studentId}/info`,
@@ -164,16 +168,16 @@ window.editStudent = function(studentId) {
                 showToast('Không thể tải thông tin học viên', 'error');
                 return;
             }
-            
+
             const student = data.data;
-            
+
             // Điền thông tin vào form
             $('#edit-student-id').val(student.id);
             $('#edit-full-name').val(student.full_name);
             $('#edit-phone').val(student.phone);
             $('#edit-email').val(student.email);
             $('#edit-gender').val(student.gender || '');
-            
+
             if (student.date_of_birth) {
                 const date = new Date(student.date_of_birth);
                 const year = date.getFullYear();
@@ -181,35 +185,35 @@ window.editStudent = function(studentId) {
                 const day = date.getDate().toString().padStart(2, '0');
                 $('#edit-date-of-birth').val(`${year}-${month}-${day}`);
             }
-            
+
             $('#edit-notes').val(student.notes);
             $('#edit-current-workplace').val(student.current_workplace);
             $('#edit-experience').val(student.accounting_experience_years);
-            
+
             // Cập nhật các trường mới
             $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
             $('#edit-education-level').val(student.education_level || '');
             $('#edit-workplace').val(student.workplace || '');
             $('#edit-experience-years').val(student.experience_years || '');
-            
+
             // Xử lý tỉnh thành
             setTimeout(function() {
                 if (student.province) {
                     // Tạo option mới cho province và thêm vào select
                     const option = new Option(
-                        student.province.name + ' (' + getRegionName(student.province.region) + ')', 
-                        student.province.id, 
-                        true, 
+                        student.province.name + ' (' + getRegionName(student.province.region) + ')',
+                        student.province.id,
+                        true,
                         true
                     );
-                    
+
                     // Chờ select2 được khởi tạo xong
                     $('#edit-province').empty().append(option).trigger('change');
                 } else {
                     $('#edit-province').empty().val(null).trigger('change');
                 }
             }, 300);
-            
+
             // Ẩn loading và hiện form
             $('#edit-student-loading').hide();
             $('#edit-student-form').show();
@@ -224,22 +228,22 @@ window.editStudent = function(studentId) {
 // Lưu thay đổi thông tin học viên
 $(document).on('click', '#save-student-btn', function() {
     const studentId = $('#edit-student-id').val();
-    
+
     // Thu thập dữ liệu từ form
     const formData = new FormData(document.getElementById('studentEditForm'));
-    
+
     // Không cần thu thập trường tùy chỉnh nữa vì đã có các trường cụ thể
-    
+
     // Debug formData
     console.log('Form data to be sent:');
     for (let pair of formData.entries()) {
         console.log(pair[0] + ': ' + pair[1]);
     }
-    
+
     // Hiển thị loading
     $('#save-student-btn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...');
     $('#save-student-btn').prop('disabled', true);
-    
+
     // Gửi request cập nhật
     $.ajax({
         url: `/api/students/${studentId}/update`,
@@ -252,7 +256,7 @@ $(document).on('click', '#save-student-btn', function() {
                 // Đóng modal và hiển thị thông báo
                 $('#editStudentModal').modal('hide');
                 showToast('Cập nhật thông tin học viên thành công');
-                
+
                 // Reload trang sau 1s
                 setTimeout(function() {
                     window.location.reload();
@@ -266,25 +270,25 @@ $(document).on('click', '#save-student-btn', function() {
             // Hiển thị lỗi validation
             if (xhr.status === 422 && xhr.responseJSON) {
                 const errors = xhr.responseJSON.errors;
-                
+
                 // Reset các lỗi trước đó
                 $('.is-invalid').removeClass('is-invalid');
-                
+
                 // Hiển thị lỗi mới
                 Object.keys(errors).forEach(key => {
                     const errorMessage = errors[key][0];
                     const inputField = $(`#edit-${key.replace('_', '-')}`);
                     const errorField = $(`#edit-${key.replace('_', '-')}-error`);
-                    
+
                     inputField.addClass('is-invalid');
                     errorField.text(errorMessage);
                 });
-                
+
                 showToast('Vui lòng kiểm tra lại thông tin', 'error');
             } else {
                 showToast('Có lỗi xảy ra khi cập nhật học viên', 'error');
             }
-            
+
             resetSaveButton();
         }
     });
@@ -318,7 +322,7 @@ function addCustomField(key = '', value = '') {
             </div>
         </div>
     `;
-    
+
     $('#edit-custom-fields-container').append(fieldHtml);
 }
 
@@ -331,13 +335,13 @@ function resetSaveButton() {
 // Format giới tính
 function formatGender(gender) {
     if (!gender) return 'Không xác định';
-    
+
     const genders = {
         'male': 'Nam',
         'female': 'Nữ',
         'other': 'Khác'
     };
-    
+
     return genders[gender] || 'Không xác định';
 }
 
@@ -385,34 +389,34 @@ function showToast(message, type = 'success') {
             </div>
         </div>
     `);
-    
+
     $('.toast-container').append(toast);
     const bsToast = new bootstrap.Toast(toast, {
         delay: 3000
     });
-    
+
     bsToast.show();
-    
+
     // Xóa toast sau khi ẩn
     toast.on('hidden.bs.toast', function() {
         $(this).remove();
     });
-} 
+}
 
 // Ghi danh học viên
 window.enrollStudent = function(studentId) {
     currentStudentId = studentId;
-    
+
     // Đóng modal xem chi tiết nếu đang mở
     $('#viewStudentModal').modal('hide');
-    
+
     // Mở modal ghi danh
     $('#enrollStudentModal').modal('show');
-    
+
     // Hiển thị loading và ẩn form
     $('#enroll-student-loading').show();
     $('#enroll-student-form').hide();
-    
+
     // Lấy thông tin học viên
     $.ajax({
         url: `/api/students/${studentId}/info`,
@@ -422,13 +426,13 @@ window.enrollStudent = function(studentId) {
                 showToast('Không thể tải thông tin học viên', 'error');
                 return;
             }
-            
+
             const student = data.data;
-            
+
             // Điền thông tin vào form
             $('#enroll-student-id').val(student.id);
             $('#enroll-student-name').text(student.full_name);
-            
+
             // Tải danh sách khóa học
             $.ajax({
                 url: '/api/course-items/available',
@@ -438,15 +442,15 @@ window.enrollStudent = function(studentId) {
                         const courseSelect = $('#course_item_id');
                         courseSelect.empty();
                         courseSelect.append('<option value="">-- Chọn khóa học --</option>');
-                        
+
                         courseData.data.forEach(function(course) {
                             courseSelect.append(`<option value="${course.id}" data-fee="${course.fee}">${course.name}</option>`);
                         });
-                        
+
                         // Ẩn loading và hiện form
                         $('#enroll-student-loading').hide();
                         $('#enroll-student-form').show();
-                        
+
                         // Thiết lập sự kiện tính học phí
                         setupFeeCalculation();
                     } else {
@@ -491,7 +495,7 @@ function setupFeeCalculation() {
         } else if (!isNaN(discountAmount) && discountAmount > 0) {
             finalFee -= discountAmount;
         }
-        
+
         finalFee = Math.max(0, finalFee);
 
         $('#final_fee').val(finalFee);
@@ -534,11 +538,11 @@ function setupFeeCalculation() {
 $(document).on('click', '#save-enrollment-btn', function() {
     // Thu thập dữ liệu từ form
     const formData = new FormData(document.getElementById('enrollmentForm'));
-    
+
     // Hiển thị loading
     $('#save-enrollment-btn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xử lý...');
     $('#save-enrollment-btn').prop('disabled', true);
-    
+
     // Gửi request tạo ghi danh mới
     $.ajax({
         url: '/api/enrollments',
@@ -551,7 +555,7 @@ $(document).on('click', '#save-enrollment-btn', function() {
                 // Đóng modal và hiển thị thông báo
                 $('#enrollStudentModal').modal('hide');
                 showToast('Đăng ký khóa học thành công');
-                
+
                 // Reload trang sau 1s
                 setTimeout(function() {
                     window.location.reload();
@@ -565,10 +569,10 @@ $(document).on('click', '#save-enrollment-btn', function() {
             // Hiển thị lỗi validation
             if (xhr.status === 422 && xhr.responseJSON) {
                 const errors = xhr.responseJSON.errors;
-                
+
                 // Reset các lỗi trước đó
                 $('.is-invalid').removeClass('is-invalid');
-                
+
                 Object.keys(errors).forEach(key => {
                     const errorMessage = errors[key][0];
                     showToast(errorMessage, 'error');
@@ -576,7 +580,7 @@ $(document).on('click', '#save-enrollment-btn', function() {
             } else {
                 showToast('Có lỗi xảy ra khi đăng ký khóa học', 'error');
             }
-            
+
             resetEnrollButton();
         }
     });
@@ -586,7 +590,7 @@ $(document).on('click', '#save-enrollment-btn', function() {
 function resetEnrollButton() {
     $('#save-enrollment-btn').html('<i class="fas fa-user-plus me-1"></i> Đăng ký khóa học');
     $('#save-enrollment-btn').prop('disabled', false);
-} 
+}
 
 // Tạo học viên mới
 $(document).ready(function() {
@@ -617,7 +621,7 @@ function addCreateCustomField(key = '', value = '') {
             </div>
         </div>
     `;
-    
+
     $('#create-custom-fields-container').append(fieldHtml);
 }
 
@@ -626,12 +630,12 @@ function createNewStudent() {
     // Hiển thị loading
     $('#save-new-student-btn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang xử lý...');
     $('#save-new-student-btn').prop('disabled', true);
-    
+
     // Thu thập dữ liệu từ form
     const formData = new FormData(document.getElementById('studentCreateForm'));
-    
+
     // Không cần thu thập trường tùy chỉnh nữa vì đã có các trường cụ thể
-    
+
     // Gửi request tạo học viên mới
     $.ajax({
         url: '/api/students/create',
@@ -644,11 +648,11 @@ function createNewStudent() {
                 // Đóng modal và hiển thị thông báo
                 $('#createStudentModal').modal('hide');
                 showToast('Tạo học viên mới thành công');
-                
+
                 // Reset form
                 document.getElementById('studentCreateForm').reset();
                 $('#create-custom-fields-container').empty();
-                
+
                 // Reload trang sau 1s
                 setTimeout(function() {
                     window.location.reload();
@@ -662,24 +666,24 @@ function createNewStudent() {
             // Hiển thị lỗi validation
             if (xhr.status === 422 && xhr.responseJSON) {
                 const errors = xhr.responseJSON.errors;
-                
+
                 // Reset các lỗi trước đó
                 $('.is-invalid').removeClass('is-invalid');
-                
+
                 Object.keys(errors).forEach(key => {
                     const errorMessage = errors[key][0];
                     const inputField = $(`#create-${key.replace('_', '-')}`);
                     const errorField = $(`#create-${key.replace('_', '-')}-error`);
-                    
+
                     inputField.addClass('is-invalid');
                     errorField.text(errorMessage);
                 });
-                
+
                 showToast('Vui lòng kiểm tra lại thông tin', 'error');
             } else {
                 showToast('Có lỗi xảy ra khi tạo học viên mới', 'error');
             }
-            
+
             resetCreateButton();
         }
     });
@@ -689,4 +693,4 @@ function createNewStudent() {
 function resetCreateButton() {
     $('#save-new-student-btn').html('<i class="fas fa-save me-1"></i> Lưu học viên');
     $('#save-new-student-btn').prop('disabled', false);
-} 
+}

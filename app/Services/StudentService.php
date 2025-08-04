@@ -10,7 +10,7 @@ class StudentService
     public function getStudents(array $filters = [])
     {
         $query = Student::with(['enrollments']);
-        
+
         if (isset($filters['search'])) {
             $query->search($filters['search']);
         }
@@ -18,7 +18,7 @@ class StudentService
         if (isset($filters['student_id'])) {
             $query->where('id', $filters['student_id']);
         }
-        
+
         if (isset($filters['course_item_id'])) {
             $query->whereHas('enrollments', function($q) use ($filters) {
                 $q->where('course_item_id', $filters['course_item_id']);
@@ -51,7 +51,7 @@ class StudentService
         if (isset($data['custom_field_keys'])) {
             $keys = $data['custom_field_keys'];
             $values = $data['custom_field_values'] ?? [];
-            
+
             foreach ($keys as $index => $key) {
                 if (!empty($key) && isset($values[$index])) {
                     $customFields[$key] = $values[$index];
@@ -93,4 +93,4 @@ class StudentService
                     ->limit(10)
                     ->get();
     }
-} 
+}
