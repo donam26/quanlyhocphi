@@ -13,13 +13,13 @@ class CourseItemController extends Controller
 {
     protected $courseItemService;
     protected $importService;
-    
+
     public function __construct(CourseItemService $courseItemService, ImportService $importService)
     {
         $this->courseItemService = $courseItemService;
         $this->importService = $importService;
     }
-    
+
     /**
      * Hiển thị danh sách cây khóa học
      */
@@ -27,7 +27,7 @@ class CourseItemController extends Controller
     {
         // Lấy các ngành học (cấp 1)
         $rootItems = $this->courseItemService->getRootCourseItems();
-        
+
         return view('course-items.index', compact('rootItems'));
     }
 
@@ -39,18 +39,18 @@ class CourseItemController extends Controller
         // Nếu đang tạo con của item khác, lấy item cha
         $parentId = $request->query('parent_id');
         $parentItem = null;
-        
+
         if ($parentId) {
             $parentItem = $this->courseItemService->getCourseItem($parentId);
         }
-        
+
         // Lấy danh sách các item có thể làm cha (để hiển thị dropdown)
         $possibleParents = CourseItem::where('is_leaf', false)
                                 ->where('active', true)
                                 ->orderBy('level')
                                 ->orderBy('name')
                                 ->get();
-        
+
         return view('course-items.create', compact('parentItem', 'possibleParents'));
     }
 
@@ -68,7 +68,7 @@ class CourseItemController extends Controller
         ]);
 
         $courseItem = $this->courseItemService->createCourseItem($validated);
-        
+
         // Nếu request từ modal trong trang tree, chuyển hướng về trang tree với tham số newly_added_id
         if ($request->ajax() || $request->header('X-Requested-With') == 'XMLHttpRequest' || $request->expectsJson()) {
             return response()->json([
@@ -76,12 +76,12 @@ class CourseItemController extends Controller
                 'redirect' => route('course-items.tree', ['newly_added_id' => $courseItem->id])
             ]);
         }
-        
+
         if ($request->parent_id) {
             return redirect()->route('course-items.tree', ['newly_added_id' => $courseItem->id])
                     ->with('success', 'Đã thêm thành công khóa học con mới!');
         }
-        
+
         return redirect()->route('course-items.tree', ['newly_added_id' => $courseItem->id])
                 ->with('success', 'Đã thêm thành công ngành học mới!');
     }
@@ -94,27 +94,27 @@ class CourseItemController extends Controller
         $courseItem = $this->courseItemService->getCourseItemWithRelations($id, [
             'children' => function($query) {
                 $query->where('active', true)->orderBy('order_index');
-            }, 
+            },
             'learningPaths' => function($query) {
                 $query->orderBy('order');
             },
-            'enrollments', 
+            'enrollments',
             'parent'
         ]);
-        
+
         // Tính toán đường dẫn
         $path = '';
         $ancestors = $courseItem->ancestors();
         if ($ancestors->count() > 0) {
             $path = $ancestors->pluck('name')->implode(' > ');
         }
-        
+
         // Tính tổng số học viên đã đăng ký
         $enrollmentCount = $courseItem->enrollments->count();
-        
+
         // Tính tổng doanh thu từ khóa học
         $totalRevenue = $courseItem->enrollments->sum('final_fee');
-        
+
         // Chuẩn bị dữ liệu lộ trình học tập
         $learningPaths = $courseItem->learningPaths->map(function($path) use ($courseItem) {
             // Đếm số học viên đã hoàn thành path này
@@ -125,7 +125,7 @@ class CourseItemController extends Controller
             ->where('learning_path_id', $path->id)
             ->where('is_completed', true)
             ->count();
-            
+
             return [
                 'id' => $path->id,
                 'title' => $path->title,
@@ -134,7 +134,7 @@ class CourseItemController extends Controller
                 'completed_count' => $completedCount
             ];
         });
-        
+
         // Trả về dữ liệu chi tiết
         return response()->json([
             'id' => $courseItem->id,
@@ -165,7 +165,7 @@ class CourseItemController extends Controller
         if ($request->parent_id == $id) {
             if ($request->ajax() || $request->expectsJson()) {
                 return response()->json([
-                    'success' => false, 
+                    'success' => false,
                     'errors' => ['parent_id' => 'Không thể chọn chính nó làm cha']
                 ], 422);
             }
@@ -206,13 +206,13 @@ class CourseItemController extends Controller
                 'course_item' => $courseItem
             ]);
         }
-        
+
         // Nếu không phải AJAX request, chuyển hướng như trước
         if ($courseItem->parent_id) {
             return redirect()->route('course-items.tree')
                     ->with('success', 'Đã cập nhật thành công!');
         }
-        
+
         // Nếu là khóa chính, chuyển về trang cây khóa học
         return redirect()->route('course-items.tree')
                 ->with('success', 'Đã cập nhật thành công!');
@@ -224,22 +224,22 @@ class CourseItemController extends Controller
     public function destroy($id)
     {
         $courseItem = $this->courseItemService->getCourseItem($id);
-        
+
         // Lấy ID của parent để redirect sau khi xóa
         $parentId = $courseItem->parent_id;
-        
+
         // Xóa đệ quy tất cả các khóa con và lớp học liên quan
         $this->courseItemService->deleteCourseItem($courseItem);
-        
+
         if ($parentId) {
             return redirect()->route('course-items.tree', ['newly_added_id' => $parentId])
                     ->with('success', 'Đã xóa thành công!');
         }
-        
+
         return redirect()->route('course-items.tree')
                 ->with('success', 'Đã xóa thành công!');
     }
-    
+
     /**
      * Cập nhật thứ tự hiển thị
      */
@@ -250,9 +250,9 @@ class CourseItemController extends Controller
             'items.*.id' => 'required|exists:course_items,id',
             'items.*.order' => 'required|integer|min:0',
         ]);
-        
+
         $this->courseItemService->updateCourseItemOrder($request->items);
-        
+
         return response()->json(['success' => true]);
     }
 
@@ -262,10 +262,10 @@ class CourseItemController extends Controller
     public function toggleActive($id)
     {
         $this->courseItemService->toggleCourseItemActive($id);
-        
+
         return back()->with('success', 'Đã cập nhật trạng thái hoạt động!');
     }
-    
+
     /**
      * Hiển thị cấu trúc cây khóa học
      */
@@ -279,14 +279,14 @@ class CourseItemController extends Controller
                                 $query->where('active', true)->orderBy('order_index');
                             }])
                             ->get();
-        
+
         // Kiểm tra xem có đang xem một tab cụ thể không
         $currentRootItem = null;
         $rootId = $request->query('root_id');
         if ($rootId) {
             $currentRootItem = $rootItems->where('id', $rootId)->first();
         }
-        
+
         return view('course-items.tree', compact('rootItems', 'currentRootItem'));
     }
 
@@ -299,10 +299,10 @@ class CourseItemController extends Controller
             'excel_file' => 'required|file|mimes:xlsx,xls,csv',
             'discount_percentage' => 'nullable|numeric|min:0|max:100'
         ]);
-        
+
         // Lấy phần trăm giảm giá (nếu có)
         $discountPercentage = $request->discount_percentage ?? 0;
-        
+
         try {
             // Import từ Excel
             $result = $this->importService->importStudentsFromExcel(
@@ -310,7 +310,7 @@ class CourseItemController extends Controller
                 $id,
                 $discountPercentage
             );
-            
+
             return redirect()->route('course-items.students', $id)
                     ->with('success', $result['message']);
         } catch (\Exception $e) {
@@ -326,7 +326,7 @@ class CourseItemController extends Controller
         try {
             // Tạo và lưu template
             $filePath = $this->importService->exportStudentTemplate();
-            
+
             return response()->download($filePath, 'template_import_hoc_vien.xlsx')
                     ->deleteFileAfterSend(true);
         } catch (\Exception $e) {
@@ -342,32 +342,34 @@ class CourseItemController extends Controller
     public function showStudents($id)
     {
         $courseItem = $this->courseItemService->getCourseItem($id);
-        
+
         // Lấy tất cả ID của khóa học con thuộc ngành này
         $courseItemIds = [$id];
-        
+
         // Lấy tất cả ID con sử dụng phương thức của repository
         $this->getAllChildrenIds($courseItem, $courseItemIds);
-        
+
         // Lấy tất cả học viên đã đăng ký các khóa học này
         $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseItemIds)
             ->with(['student', 'courseItem', 'payments' => function($query) {
                 $query->orderBy('payment_date', 'desc');
             }])
             ->get();
-        
+
+        $totalStudents = $enrollments->pluck('student_id')->unique()->count();
+
         $students = $enrollments->map(function($enrollment) {
             // Lấy thông tin thanh toán mới nhất
             $latestPayment = $enrollment->payments->where('status', 'confirmed')->first();
-            
+
             // Xác định trạng thái thanh toán
             $paymentStatus = $enrollment->isFullyPaid() ? 'Đã đóng đủ' : 'Chưa đóng đủ';
-            
+
             // Xác định phương thức thanh toán và người thu
             $paymentMethod = 'Chưa thanh toán';
             $collector = 'N/A';
             $paymentNotes = [];
-            
+
             // Lấy tất cả ghi chú từ các khoản thanh toán
             foreach ($enrollment->payments as $payment) {
                 if ($payment->notes) {
@@ -380,17 +382,17 @@ class CourseItemController extends Controller
                     ];
                 }
             }
-            
+
             if ($latestPayment) {
                 // Nếu có thanh toán, lấy thông tin phương thức
                 $paymentMethod = $this->getPaymentMethodText($latestPayment->payment_method);
-                
+
                 // Xác định người thu tiền
-                $collector = $latestPayment->payment_method == 'sepay' ? 'SEPAY' : 
-                           ($latestPayment->notes && str_contains($latestPayment->notes, 'Người thu:') ? 
+                $collector = $latestPayment->payment_method == 'sepay' ? 'SEPAY' :
+                           ($latestPayment->notes && str_contains($latestPayment->notes, 'Người thu:') ?
                              substr($latestPayment->notes, strpos($latestPayment->notes, 'Người thu:') + 11) : 'N/A');
             }
-            
+
             // Trả về thông tin học viên kèm custom_fields từ đăng ký
             return [
                 'student' => $enrollment->student,
@@ -406,20 +408,21 @@ class CourseItemController extends Controller
                 'remaining_amount' => $enrollment->getRemainingAmount(),
                 'payment_notes' => $paymentNotes,
                 'has_notes' => count($paymentNotes) > 0,
-                'custom_fields' => $enrollment->custom_fields
+                'custom_fields' => $enrollment->custom_fields,
             ];
         });
-        
+
         return view('course-items.students', [
             'courseItem' => $courseItem,
             'students' => $students,
             'enrollmentCount' => $enrollments->count(),
             'studentCount' => $enrollments->pluck('student_id')->unique()->count(),
             'is_special' => $courseItem->is_special,
-            'custom_fields' => $courseItem->is_special ? $courseItem->custom_fields : null
+            'custom_fields' => $courseItem->is_special ? $courseItem->custom_fields : null,
+            'totalStudents' => $totalStudents,
         ]);
     }
-    
+
     /**
      * Chuyển đổi mã phương thức thanh toán thành text hiển thị
      */
@@ -448,14 +451,14 @@ class CourseItemController extends Controller
     {
         $term = $request->input('q');
         $rootId = $request->input('root_id');
-        
+
         // Nếu từ khóa tìm kiếm quá ngắn, trả về mảng rỗng
         if (strlen($term) < 2) {
             return response()->json([]);
         }
-        
+
         $results = $this->courseItemService->searchCourseItems($term, $rootId);
-        
+
         return response()->json($results);
     }
 
@@ -466,13 +469,13 @@ class CourseItemController extends Controller
     {
         $courseItem = $this->courseItemService->getCourseItem($id);
         $students = \App\Models\Student::orderBy('full_name')->get();
-        
+
         return view('course-items.add-student', [
             'courseItem' => $courseItem,
             'students' => $students
         ]);
     }
-    
+
     /**
      * Thêm học viên vào khóa học
      */
@@ -487,23 +490,23 @@ class CourseItemController extends Controller
             'status' => 'required|in:enrolled,completed,dropped',
             'notes' => 'nullable|string'
         ]);
-        
+
         $courseItem = $this->courseItemService->getCourseItem($id);
-        
+
         // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
         $existingEnrollment = \App\Models\Enrollment::where('student_id', $request->student_id)
                                       ->where('course_item_id', $id)
                                       ->first();
-        
+
         if ($existingEnrollment) {
             return back()
                 ->withInput()
                 ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
         }
-        
+
         try {
             DB::beginTransaction();
-            
+
             // Tạo ghi danh mới
             $enrollment = \App\Models\Enrollment::create([
                 'student_id' => $request->student_id,
@@ -515,7 +518,7 @@ class CourseItemController extends Controller
                 'status' => $request->status,
                 'notes' => $request->notes
             ]);
-            
+
             // Nếu có thanh toán ban đầu
             if ($request->filled('payment_amount') && $request->payment_amount > 0) {
                 $payment = \App\Models\Payment::create([
@@ -528,14 +531,14 @@ class CourseItemController extends Controller
                     'notes' => $request->payment_notes ?? 'Thanh toán khi ghi danh'
                 ]);
             }
-            
+
             DB::commit();
-            
+
             return redirect()->route('course-items.students', $id)
                            ->with('success', 'Thêm học viên vào khóa học thành công!');
         } catch (\Exception $e) {
             DB::rollBack();
-            
+
             return back()
                 ->withInput()
                 ->withErrors(['error' => 'Đã xảy ra lỗi: ' . $e->getMessage()]);
@@ -553,7 +556,7 @@ class CourseItemController extends Controller
             'status' => 'waiting'
         ]);
     }
-    
+
     /**
      * Lấy tất cả ID của các khóa học con
      */

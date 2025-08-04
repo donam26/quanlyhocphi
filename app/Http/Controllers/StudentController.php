@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 class StudentController extends Controller
 {
     protected $studentService;
-    
+
     public function __construct(StudentService $studentService)
     {
         $this->studentService = $studentService;
@@ -22,7 +22,7 @@ class StudentController extends Controller
     {
         $filters = $request->only(['search', 'student_id', 'course_item_id']);
         $students = $this->studentService->getStudents($filters);
-        
+
         return view('students.index', compact('students'));
     }
 
@@ -62,9 +62,9 @@ class StudentController extends Controller
                         ->with('success', 'Thêm học viên thành công!');
     }
 
-  
 
-  
+
+
 
     /**
      * Xóa học viên
@@ -93,10 +93,10 @@ class StudentController extends Controller
     public function history($studentId)
     {
         $student = $this->studentService->getStudentWithRelations(
-            $studentId, 
+            $studentId,
             ['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem']
         );
-        
+
         return view('search.student-history', compact('student'));
     }
 }

@@ -55,17 +55,17 @@ function initStudentSearch() {
 // Hiển thị chi tiết ghi danh trong modal popup
 window.showEnrollmentDetails = function(enrollmentId) {
     currentEnrollmentId = enrollmentId;
-    
+
     // Hiển thị modal
     $('#viewEnrollmentModal').modal('show');
-    
+
     // Hiển thị loading và ẩn nội dung
     $('#enrollment-loading').show();
     $('#enrollment-details').hide();
-    
+
     // Cập nhật ID hiện tại vào modal
     $('#enrollment-id').text(enrollmentId);
-    
+
     // Lấy thông tin ghi danh qua AJAX
     $.ajax({
         url: `/api/enrollments/${enrollmentId}`,
@@ -75,28 +75,28 @@ window.showEnrollmentDetails = function(enrollmentId) {
                 showToast('Không thể tải thông tin ghi danh', 'error');
                 return;
             }
-            
+
             const enrollment = response.data;
-            
+
             // Cập nhật thông tin cơ bản
             $('#enrollment-student').text(enrollment.student.full_name + ' - ' + enrollment.student.phone);
             $('#enrollment-course').text(enrollment.course_item.name);
             $('#enrollment-date').text(enrollment.formatted_enrollment_date || 'N/A');
             $('#enrollment-status').html(getEnrollmentStatusBadge(enrollment.status));
-            
+
             // Cập nhật thông tin thanh toán
             $('#enrollment-fee').text(formatCurrency(enrollment.final_fee) + ' đ');
             $('#enrollment-paid').text(formatCurrency(enrollment.total_paid) + ' đ');
-            
+
             const remaining = enrollment.remaining_amount;
             $('#enrollment-remaining').text(formatCurrency(remaining) + ' đ');
             $('#enrollment-remaining').toggleClass('text-danger', remaining > 0);
             $('#enrollment-remaining').toggleClass('text-success', remaining <= 0);
-            
-            $('#enrollment-payment-status').html(enrollment.is_fully_paid ? 
-                '<span class="badge bg-success">Đã thanh toán đủ</span>' : 
+
+            $('#enrollment-payment-status').html(enrollment.is_fully_paid ?
+                '<span class="badge bg-success">Đã thanh toán đủ</span>' :
                 '<span class="badge bg-warning">Còn thiếu</span>');
-            
+
             // Cập nhật ghi chú
             if (enrollment.notes) {
                 $('#enrollment-notes').text(enrollment.notes);
@@ -104,12 +104,12 @@ window.showEnrollmentDetails = function(enrollmentId) {
             } else {
                 $('#enrollment-notes-section').hide();
             }
-            
+
             // Cập nhật thanh toán
             if (enrollment.payments && enrollment.payments.length > 0) {
                 let paymentsHtml = '<div class="table-responsive"><table class="table table-sm">';
                 paymentsHtml += '<thead><tr><th>Ngày</th><th>Số tiền</th><th>Phương thức</th><th>Trạng thái</th></tr></thead><tbody>';
-                
+
                 enrollment.payments.forEach(function(payment) {
                     const formattedDate = payment.payment_date ? formatDate(payment.payment_date) : 'N/A';
                     const formattedAmount = formatCurrency(payment.amount) + ' đ';
@@ -120,7 +120,7 @@ window.showEnrollmentDetails = function(enrollmentId) {
                         case 'sepay': methodText = 'SEPAY'; break;
                         default: methodText = payment.payment_method;
                     }
-                    
+
                     let statusBadge = '';
                     switch(payment.status) {
                         case 'confirmed': statusBadge = '<span class="badge bg-success">Đã xác nhận</span>'; break;
@@ -129,7 +129,7 @@ window.showEnrollmentDetails = function(enrollmentId) {
                         case 'refunded': statusBadge = '<span class="badge bg-info">Đã hoàn tiền</span>'; break;
                         default: statusBadge = `<span class="badge bg-secondary">${payment.status}</span>`;
                     }
-                    
+
                     paymentsHtml += `<tr>
                         <td>${formattedDate}</td>
                         <td>${formattedAmount}</td>
@@ -137,21 +137,21 @@ window.showEnrollmentDetails = function(enrollmentId) {
                         <td>${statusBadge}</td>
                     </tr>`;
                 });
-                
+
                 paymentsHtml += '</tbody></table></div>';
                 $('#enrollment-payments').html(paymentsHtml);
                 $('#enrollment-payments-section').show();
-                
+
                 // Cập nhật link thêm thanh toán
                 $('#btn-add-payment').attr('href', `/payments/create?enrollment_id=${enrollmentId}`);
             } else {
                 $('#enrollment-payments').html('<p class="text-muted">Chưa có thanh toán nào.</p>');
                 $('#enrollment-payments-section').show();
             }
-            
+
             // Cập nhật nút chỉnh sửa
             $('#btn-edit-enrollment').attr('onclick', `editEnrollment(${enrollmentId})`);
-            
+
             // Ẩn loading và hiện nội dung
             $('#enrollment-loading').hide();
             $('#enrollment-details').show();
@@ -167,17 +167,17 @@ window.showEnrollmentDetails = function(enrollmentId) {
 // Chỉnh sửa ghi danh
 window.editEnrollment = function(enrollmentId) {
     currentEnrollmentId = enrollmentId;
-    
+
     // Đóng modal xem chi tiết nếu đang mở
     $('#viewEnrollmentModal').modal('hide');
-    
+
     // Mở modal chỉnh sửa
     $('#editEnrollmentModal').modal('show');
-    
+
     // Hiển thị loading và ẩn form
     $('#edit-enrollment-loading').show();
     $('#enrollmentEditForm').hide();
-    
+
     // Lấy thông tin ghi danh
     $.ajax({
         url: `/api/enrollments/${enrollmentId}`,
@@ -187,15 +187,15 @@ window.editEnrollment = function(enrollmentId) {
                 showToast('Không thể tải thông tin ghi danh', 'error');
                 return;
             }
-            
+
             const enrollment = response.data;
-            
+
             // Cập nhật ID vào form
             $('#edit-enrollment-id').val(enrollment.id);
             $('#edit-student-name').text(enrollment.student.full_name);
             $('#edit-course-item-id').val(enrollment.course_item_id);
             $('#edit-course-fee').val(enrollment.course_item.fee);
-            
+
             // Format và set ngày ghi danh
             if (enrollment.enrollment_date) {
                 const date = new Date(enrollment.enrollment_date);
@@ -206,20 +206,20 @@ window.editEnrollment = function(enrollmentId) {
             } else {
                 $('#edit-enrollment-date').val('');
             }
-            
+
             // Cập nhật trạng thái
             $('#edit-status').val(enrollment.status);
-            
+
             // Cập nhật học phí và giảm giá
             $('#edit-discount-percentage').val(enrollment.discount_percentage || 0);
             $('#edit-discount-amount').val(enrollment.discount_amount || 0);
             $('#edit-final-fee').val(enrollment.final_fee);
             $('#edit-final-fee-display').val(formatCurrency(enrollment.final_fee));
             $('#edit-notes').val(enrollment.notes);
-            
+
             // Thiết lập tính toán học phí
             setupFeeCalculation();
-            
+
             // Ẩn loading và hiện form
             $('#edit-enrollment-loading').hide();
             $('#enrollmentEditForm').show();
@@ -241,10 +241,10 @@ window.createEnrollment = function() {
 $(document).on('click', '#save-enrollment-btn', function() {
     // Disable nút để tránh click nhiều lần
     resetSaveButton(true);
-    
+
     const enrollmentId = $('#edit-enrollment-id').val();
     const formData = new FormData(document.getElementById('enrollmentEditForm'));
-    
+
     $.ajax({
         url: `/api/enrollments/${enrollmentId}`,
         method: 'POST',
@@ -256,7 +256,7 @@ $(document).on('click', '#save-enrollment-btn', function() {
                 // Đóng modal và hiển thị thông báo
                 $('#editEnrollmentModal').modal('hide');
                 showToast('Cập nhật ghi danh thành công');
-                
+
                 // Reload trang sau 1s
                 setTimeout(function() {
                     window.location.reload();
@@ -268,25 +268,25 @@ $(document).on('click', '#save-enrollment-btn', function() {
         },
         error: function(xhr) {
             if (xhr.status === 422 && xhr.responseJSON) {
-                const errors = xhr.responseJSON.errors;
-                
+                const errors = xhr.responseJSON?.errors;
+
                 // Reset lỗi trước đó
                 $('.is-invalid').removeClass('is-invalid');
-                
+
                 Object.keys(errors).forEach(key => {
                     const errorMessage = errors[key][0];
                     const inputField = $(`#edit-${key.replace('_', '-')}`);
                     const errorField = $(`#edit-${key.replace('_', '-')}-error`);
-                    
+
                     inputField.addClass('is-invalid');
                     errorField.text(errorMessage);
                 });
-                
+
                 showToast('Vui lòng kiểm tra lại thông tin', 'error');
             } else {
                 showToast('Có lỗi xảy ra khi cập nhật ghi danh', 'error');
             }
-            
+
             resetSaveButton();
         }
     });
@@ -296,11 +296,11 @@ $(document).on('click', '#save-enrollment-btn', function() {
 $(document).on('click', '#save-new-enrollment-btn', function() {
     // Disable nút để tránh click nhiều lần
     resetCreateButton(true);
-    
+
     const formData = new FormData(document.getElementById('enrollmentCreateForm'));
-    
+
     $.ajax({
-        url: '/api/enrollments/create',
+        url: '/api/enrollments',
         method: 'POST',
         data: formData,
         processData: false,
@@ -310,10 +310,10 @@ $(document).on('click', '#save-new-enrollment-btn', function() {
                 // Đóng modal và hiển thị thông báo
                 $('#createEnrollmentModal').modal('hide');
                 showToast('Tạo ghi danh mới thành công');
-                
+
                 // Reset form
                 document.getElementById('enrollmentCreateForm').reset();
-                
+
                 // Reload trang sau 1s
                 setTimeout(function() {
                     window.location.reload();
@@ -325,25 +325,25 @@ $(document).on('click', '#save-new-enrollment-btn', function() {
         },
         error: function(xhr) {
             if (xhr.status === 422 && xhr.responseJSON) {
-                const errors = xhr.responseJSON.errors;
-                
+                const errors = xhr.responseJSON?.errors;
+
                 // Reset lỗi trước đó
                 $('.is-invalid').removeClass('is-invalid');
-                
+
                 Object.keys(errors).forEach(key => {
                     const errorMessage = errors[key][0];
                     const inputField = $(`#create-${key.replace('_', '-')}`);
                     const errorField = $(`#create-${key.replace('_', '-')}-error`);
-                    
+
                     inputField.addClass('is-invalid');
                     errorField.text(errorMessage);
                 });
-                
+
                 showToast('Vui lòng kiểm tra lại thông tin', 'error');
             } else {
                 showToast('Có lỗi xảy ra khi tạo ghi danh mới', 'error');
             }
-            
+
             resetCreateButton();
         }
     });
@@ -353,38 +353,38 @@ $(document).on('click', '#save-new-enrollment-btn', function() {
 function setupFeeCalculation() {
     // Lấy giá gốc từ trường ẩn
     const baseFee = parseFloat($('#edit-course-fee').val()) || 0;
-    
+
     function calculateFinalFee() {
         let finalFee = baseFee;
-        
+
         const discountPercent = parseFloat($('#edit-discount-percentage').val()) || 0;
         const discountAmount = parseFloat($('#edit-discount-amount').val()) || 0;
-        
+
         if (discountPercent > 0) {
             finalFee = finalFee * (1 - discountPercent / 100);
         } else if (discountAmount > 0) {
             finalFee = finalFee - discountAmount;
         }
-        
+
         // Đảm bảo không âm
         finalFee = Math.max(0, finalFee);
-        
+
         // Cập nhật các trường hiển thị
         $('#edit-final-fee').val(finalFee);
         $('#edit-final-fee-display').val(formatCurrency(finalFee));
     }
-    
+
     // Gán sự kiện
     $('#edit-discount-percentage').on('input', function() {
         $('#edit-discount-amount').val(0);
         calculateFinalFee();
     });
-    
+
     $('#edit-discount-amount').on('input', function() {
         $('#edit-discount-percentage').val(0);
         calculateFinalFee();
     });
-    
+
     // Tính toán ban đầu
     calculateFinalFee();
 }
@@ -453,14 +453,14 @@ function showToast(message, type = 'success') {
             </div>
         </div>
     `);
-    
+
     $('.toast-container').append(toast);
     const bsToast = new bootstrap.Toast(toast, {
         delay: 3000
     });
-    
+
     bsToast.show();
-    
+
     // Xóa toast sau khi ẩn
     toast.on('hidden.bs.toast', function() {
         $(this).remove();
@@ -470,7 +470,7 @@ function showToast(message, type = 'success') {
 // Khởi tạo Select2 khi trang đã tải
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM fully loaded, initializing enrollment.js');
-    
+
     // Đợi 500ms để đảm bảo jQuery và Select2 đã tải xong
     setTimeout(function() {
         initStudentSearch();

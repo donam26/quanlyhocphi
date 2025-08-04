@@ -39,7 +39,7 @@ class EnrollmentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()
+                'errors' => $validator->errors()->first()
             ], 422);
         }
 
@@ -47,27 +47,27 @@ class EnrollmentController extends Controller
         $existingEnrollment = Enrollment::where('student_id', $request->student_id)
             ->where('course_item_id', $request->course_item_id)
             ->first();
-            
+
         if ($existingEnrollment) {
             return response()->json([
                 'success' => false,
                 'message' => 'Học viên này đã đăng ký khóa học này rồi'
-            ], 422);
+            ], 200);
         }
 
         try {
             DB::beginTransaction();
-            
+
             // Tạo dữ liệu ghi danh mới
             $enrollmentData = $request->only([
                 'student_id', 'course_item_id', 'enrollment_date', 'status',
                 'discount_percentage', 'discount_amount', 'notes'
             ]);
-            
+
             $enrollment = $this->enrollmentService->createEnrollment($enrollmentData);
-            
+
             DB::commit();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Đăng ký khóa học thành công',
@@ -76,7 +76,7 @@ class EnrollmentController extends Controller
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error('API Enrollment creation error: ' . $e->getMessage());
-            
+            logger('123');
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
@@ -92,7 +92,7 @@ class EnrollmentController extends Controller
         try {
             $student = Student::findOrFail($studentId);
             $enrollments = $this->enrollmentService->getStudentEnrollments($student);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $enrollments
@@ -114,20 +114,20 @@ class EnrollmentController extends Controller
             $enrollment = Enrollment::with(['student', 'courseItem', 'payments' => function($query) {
                 $query->orderBy('payment_date', 'desc');
             }])->findOrFail($id);
-            
+
             // Thêm thông tin bổ sung
             $enrollment->formatted_enrollment_date = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : null;
             $enrollment->total_paid = $enrollment->getTotalPaidAmount();
             $enrollment->remaining_amount = $enrollment->getRemainingAmount();
             $enrollment->is_fully_paid = $enrollment->isFullyPaid();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $enrollment
             ]);
         } catch (\Exception $e) {
             Log::error('Enrollment API error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
@@ -142,7 +142,7 @@ class EnrollmentController extends Controller
     {
         try {
             $enrollment = Enrollment::findOrFail($id);
-            
+
             $validator = Validator::make($request->all(), [
                 'enrollment_date' => 'required|date',
                 'status' => 'required|in:active,waiting,completed,cancelled',
@@ -151,20 +151,20 @@ class EnrollmentController extends Controller
                 'final_fee' => 'required|numeric|min:0',
                 'notes' => 'nullable|string',
             ]);
-            
+
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
                     'errors' => $validator->errors()
                 ], 422);
             }
-            
+
             // Cập nhật thông tin
             $enrollment->update($request->only([
-                'enrollment_date', 'status', 'discount_percentage', 
+                'enrollment_date', 'status', 'discount_percentage',
                 'discount_amount', 'final_fee', 'notes'
             ]));
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Cập nhật ghi danh thành công',
@@ -185,7 +185,7 @@ class EnrollmentController extends Controller
     {
         try {
             $enrollment = Enrollment::with(['payments.enrollment', 'student', 'courseItem'])->findOrFail($id);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -195,11 +195,11 @@ class EnrollmentController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Enrollment payments API error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
             ], 500);
         }
     }
-} 
+}
