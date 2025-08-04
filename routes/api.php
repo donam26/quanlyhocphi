@@ -46,6 +46,7 @@ Route::post('/payments/bulk-action', [PaymentController::class, 'bulkAction'])->
 Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirmPayment']);
 Route::post('/payments/{payment}/refund', [PaymentController::class, 'refundPayment']);
 Route::get('/payments/{payment}', [PaymentController::class, 'getPaymentInfo']);
+Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('api.payments.show');
 
 // Thanh toán
 Route::prefix('payments')->group(function () {

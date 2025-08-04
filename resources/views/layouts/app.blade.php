@@ -317,14 +317,14 @@
             <div class="nav-section">
                 <div class="nav-section-title">THANH TOÁN</div>
                 
-                <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') && !request()->routeIs('payments.send-reminder') ? 'active' : '' }}">
-                    <i class="fas fa-credit-card"></i>
-                    Thanh toán
-                </a>
-                
                 <a href="{{ route('enrollments.unpaid') }}" class="nav-link {{ request()->routeIs('enrollments.unpaid') || request()->is('unpaid-enrollments') ? 'active' : '' }}">
                     <i class="fas fa-exclamation-triangle"></i>
                     Chưa thanh toán
+                </a>
+                
+                <a href="{{ route('payments.index') }}" class="nav-link {{ request()->routeIs('payments.*') && !request()->routeIs('payments.send-reminder') ? 'active' : '' }}">
+                    <i class="fas fa-credit-card"></i>
+                    Lịch sử
                 </a>
             </div>
 

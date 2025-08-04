@@ -39,8 +39,11 @@ class CourseItemService
         $level = 1; // Mặc định là cấp cao nhất
         $isLeaf = false;
         
-        if ($data['parent_id']) {
-            $parentItem = CourseItem::findOrFail($data['parent_id']);
+        // Sử dụng null coalescing operator để tránh lỗi undefined key
+        $parentId = $data['parent_id'] ?? null;
+        
+        if ($parentId) {
+            $parentItem = CourseItem::findOrFail($parentId);
             $level = $parentItem->level + 1;
             
             // Nếu có giá tiền, đánh dấu là nút lá
@@ -51,22 +54,22 @@ class CourseItemService
         
         // Lấy order_index cao nhất trong cùng cấp và parent
         $maxOrder = CourseItem::where('level', $level)
-                        ->when($data['parent_id'], function($query) use ($data) {
-                            return $query->where('parent_id', $data['parent_id']);
+                        ->when($parentId, function($query) use ($parentId) {
+                            return $query->where('parent_id', $parentId);
                         })
                         ->max('order_index') ?? 0;
         
         // Nếu không phải nút lá, đảm bảo fee = 0
-        $fee = $data['is_leaf'] ? ($data['fee'] ?? 0) : 0;
+        $fee = ($data['is_leaf'] ?? false) ? ($data['fee'] ?? 0) : 0;
         
         $courseItemData = [
             'name' => $data['name'],
-            'parent_id' => $data['parent_id'],
+            'parent_id' => $parentId,
             'fee' => $fee,
             'level' => $level,
-            'is_leaf' => $data['is_leaf'],
+            'is_leaf' => $data['is_leaf'] ?? false,
             'order_index' => $maxOrder + 1,
-            'active' => $data['active'],
+            'active' => $data['active'] ?? true,
         ];
         
         return CourseItem::create($courseItemData);
@@ -107,15 +110,15 @@ class CourseItemService
         }
         
         // Nếu không phải nút lá, đảm bảo fee = 0
-        $fee = $data['is_leaf'] ? ($data['fee'] ?? 0) : 0;
+        $fee = ($data['is_leaf'] ?? false) ? ($data['fee'] ?? 0) : 0;
         
         $updateData = [
             'name' => $data['name'],
             'parent_id' => $parentId,
             'fee' => $fee,
             'level' => $level,
-            'is_leaf' => $data['is_leaf'],
-            'active' => $data['active'],
+            'is_leaf' => $data['is_leaf'] ?? false,
+            'active' => $data['active'] ?? true,
             'is_special' => isset($data['is_special']) ? $data['is_special'] : false,
             'custom_fields' => !empty($customFields) ? $customFields : null,
         ];

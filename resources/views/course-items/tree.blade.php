@@ -91,7 +91,7 @@
                                                         </button>
                                                     </form> --}}
                                                     <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                        onclick="setupAddModal({{ $childItem->id }}, '{{ $childItem->name }}')">
+                                                        onclick="setupAddModal({{ $childItem->id }}, {{ json_encode($childItem->name) }})">
                                                         <i class="fas fa-plus"></i>
                                                     </button>
                                                     <a href="{{ route('course-items.students', $childItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
@@ -101,7 +101,7 @@
                                                         onclick="setupEditModal({{ $childItem->id }})">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $childItem->id }}, '{{ $childItem->name }}')">
+                                                    <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $childItem->id }}, {{ json_encode($childItem->name) }})">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 </div>
@@ -130,7 +130,7 @@
                                                     </button>
                                                 </form> --}}
                                                 <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                    onclick="setupAddModal({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                    onclick="setupAddModal({{ $rootItem->id }}, {{ json_encode($rootItem->name) }})">
                                                     <i class="fas fa-plus"></i>
                                                 </button>
                                                 @if($rootItem->is_leaf)
@@ -148,7 +148,7 @@
                                                     onclick="setupEditModal({{ $rootItem->id }})">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $rootItem->id }}, '{{ $rootItem->name }}')">
+                                                <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $rootItem->id }}, {{ json_encode($rootItem->name) }})">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </div>
@@ -290,6 +290,9 @@
             <form action="{{ route('course-items.store') }}" method="POST">
                 @csrf
                 <div class="modal-body">
+                    <!-- Thêm hidden field parent_id với giá trị null cho ngành gốc -->
+                    <input type="hidden" name="parent_id" value="">
+                    
                     <div class="mb-3">
                         <label for="root-item-name" class="form-label">Tên ngành <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="root-item-name" name="name" required>

@@ -551,11 +551,116 @@ function viewPaymentHistory(enrollmentId) {
     
     // Tải lịch sử thanh toán
     fetch(`/api/enrollments/${enrollmentId}/payments`)
-        .then(response => response.text())
-        .then(html => {
-            document.getElementById('paymentHistoryContent').innerHTML = html;
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const enrollment = data.data.enrollment;
+                const payments = data.data.payments;
+                
+                let html = `
+                    <div class="mb-4">
+                        <h6>Thông tin ghi danh</h6>
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <p><strong>Học viên:</strong> ${enrollment.student.full_name}</p>
+                                <p><strong>Khóa học:</strong> ${enrollment.course_item.name}</p>
+                                <p><strong>Học phí:</strong> ${formatCurrency(enrollment.final_fee)} đ</p>
+                                <p><strong>Trạng thái:</strong> 
+                                    <span class="badge bg-${enrollment.status === 'active' ? 'success' : 'warning'}">${enrollment.status}</span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                if (payments && payments.length > 0) {
+                    html += `
+                        <h6>Lịch sử thanh toán (${payments.length} giao dịch)</h6>
+                        <div class="table-responsive">
+                            <table class="table table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Ngày thanh toán</th>
+                                        <th>Số tiền</th>
+                                        <th>Phương thức</th>
+                                        <th>Trạng thái</th>
+                                        <th>Ghi chú</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    payments.forEach(payment => {
+                        html += `
+                            <tr>
+                                <td>${formatDate(payment.payment_date)}</td>
+                                <td class="fw-bold">${formatCurrency(payment.amount)} đ</td>
+                                <td>${getPaymentMethodText(payment.payment_method)}</td>
+                                <td>
+                                    <span class="badge bg-${payment.status === 'confirmed' ? 'success' : (payment.status === 'pending' ? 'warning' : 'danger')}">
+                                        ${getPaymentStatusText(payment.status)}
+                                    </span>
+                                </td>
+                                <td>${payment.notes || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                    
+                    html += `
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    
+                    // Tính tổng đã thanh toán
+                    const totalPaid = payments.filter(p => p.status === 'confirmed').reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                    const remaining = parseFloat(enrollment.final_fee) - totalPaid;
+                    
+                    html += `
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <div class="card bg-info text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Tổng học phí</h6>
+                                        <h5>${formatCurrency(enrollment.final_fee)} đ</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Đã thanh toán</h6>
+                                        <h5>${formatCurrency(totalPaid)} đ</h5>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-${remaining > 0 ? 'warning' : 'success'} text-white">
+                                    <div class="card-body text-center">
+                                        <h6>Còn lại</h6>
+                                        <h5>${formatCurrency(remaining)} đ</h5>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            Chưa có lịch sử thanh toán nào cho ghi danh này.
+                        </div>
+                    `;
+                }
+                
+                document.getElementById('paymentHistoryContent').innerHTML = html;
+            } else {
+                document.getElementById('paymentHistoryContent').innerHTML = 
+                    `<div class="alert alert-danger">Có lỗi xảy ra: ${data.message}</div>`;
+            }
         })
         .catch(error => {
+            console.error('Error:', error);
             document.getElementById('paymentHistoryContent').innerHTML = 
                 `<div class="alert alert-danger">Có lỗi xảy ra khi tải dữ liệu: ${error.message}</div>`;
         });

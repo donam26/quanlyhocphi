@@ -64,39 +64,56 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Hiển thị danh sách học viên chưa thanh toán đủ học phí
+     * Hiển thị danh sách lớp học chưa thanh toán đủ học phí
      */
     public function unpaidList()
     {
         $enrollments = $this->enrollmentService->getUnpaidEnrollments();
         
-        // Nhóm các ghi danh theo học viên
-        $studentEnrollments = [];
+        // Nhóm các ghi danh theo khóa học (lớp)
+        $courseEnrollments = [];
         
         foreach ($enrollments as $enrollment) {
-            $studentId = $enrollment->student_id;
-            $totalPaid = $enrollment->payments->sum('amount');
+            $courseItemId = $enrollment->course_item_id;
+            $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
             $remaining = $enrollment->final_fee - $totalPaid;
             
-            if (!isset($studentEnrollments[$studentId])) {
-                $studentEnrollments[$studentId] = [
-                    'student' => $enrollment->student,
+            if (!isset($courseEnrollments[$courseItemId])) {
+                $courseEnrollments[$courseItemId] = [
+                    'course_item' => $enrollment->courseItem,
                     'enrollments' => [],
-                    'total_remaining' => 0
+                    'total_students' => 0,
+                    'total_fee' => 0,
+                    'total_paid' => 0,
+                    'total_remaining' => 0,
+                    'unpaid_students' => 0
                 ];
             }
             
-            $studentEnrollments[$studentId]['enrollments'][] = [
+            $courseEnrollments[$courseItemId]['enrollments'][] = [
                 'enrollment' => $enrollment,
+                'student' => $enrollment->student,
                 'fee' => $enrollment->final_fee,
                 'paid' => $totalPaid,
                 'remaining' => $remaining
             ];
             
-            $studentEnrollments[$studentId]['total_remaining'] += $remaining;
+            $courseEnrollments[$courseItemId]['total_students']++;
+            $courseEnrollments[$courseItemId]['total_fee'] += $enrollment->final_fee;
+            $courseEnrollments[$courseItemId]['total_paid'] += $totalPaid;
+            $courseEnrollments[$courseItemId]['total_remaining'] += $remaining;
+            
+            if ($remaining > 0) {
+                $courseEnrollments[$courseItemId]['unpaid_students']++;
+            }
         }
         
-        return view('enrollments.unpaid', compact('studentEnrollments'));
+        // Sắp xếp theo số tiền còn thiếu giảm dần
+        uasort($courseEnrollments, function($a, $b) {
+            return $b['total_remaining'] <=> $a['total_remaining'];
+        });
+        
+        return view('enrollments.unpaid', compact('courseEnrollments'));
     }
 
     /**

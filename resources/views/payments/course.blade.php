@@ -186,7 +186,7 @@
             <div class="card bg-primary text-white">
                 <div class="card-body text-center">
                     <h5 class="card-title">Tổng học viên</h5>
-                    <h2>{{ $stats['total_enrollments'] }}</h2>
+                    <h2>{{ $enrollments->count() }}</h2>
                 </div>
             </div>
         </div>
@@ -194,7 +194,7 @@
             <div class="card bg-success text-white">
                 <div class="card-body text-center">
                     <h5 class="card-title">Đã thanh toán</h5>
-                    <h2>{{ number_format($stats['total_paid']) }} đ</h2>
+                    <h2>{{ number_format($totalPaid) }} đ</h2>
                 </div>
             </div>
         </div>
@@ -202,7 +202,7 @@
             <div class="card bg-info text-white">
                 <div class="card-body text-center">
                     <h5 class="card-title">Tổng học phí</h5>
-                    <h2>{{ number_format($stats['total_fee']) }} đ</h2>
+                    <h2>{{ number_format($totalFees) }} đ</h2>
                 </div>
             </div>
         </div>
@@ -210,7 +210,7 @@
             <div class="card bg-warning text-white">
                 <div class="card-body text-center">
                     <h5 class="card-title">Còn lại</h5>
-                    <h2>{{ number_format($stats['remaining']) }} đ</h2>
+                    <h2>{{ number_format($remainingAmount) }} đ</h2>
                 </div>
             </div>
         </div>

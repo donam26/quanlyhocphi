@@ -207,16 +207,13 @@ class EnrollmentService
 
     public function getUnpaidEnrollments()
     {
-        return Enrollment::whereDoesntHave('payments')
-            ->orWhereHas('payments', function($query) {
-                $query->select(DB::raw('SUM(amount) as total_paid'))
-                    ->groupBy('enrollment_id')
-                    ->havingRaw('SUM(amount) < enrollments.final_fee');
-            })
-            ->with(['student', 'courseItem', 'payments'])
-            ->whereIn('status', ['enrolled', 'on_hold'])
-            ->latest()
-            ->get();
+        return Enrollment::with(['student', 'courseItem', 'payments'])
+            ->whereIn('status', ['enrolled', 'on_hold', 'active'])
+            ->get()
+            ->filter(function ($enrollment) {
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                return $totalPaid < $enrollment->final_fee;
+            });
     }
 
     public function getStudentEnrollments(Student $student)

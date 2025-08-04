@@ -148,7 +148,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/payments/receipt/{payment}', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
     Route::get('/payments/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('payments.bulk-receipt');
     Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.mark-confirmed');
-    Route::post('/payments/{payment}/refund', [PaymentController::class, 'refundPayment'])->name('payments.refund');
+    Route::post('/payments/{payment}/cancel', [PaymentController::class, 'cancel'])->name('payments.cancel');
+    Route::post('/payments/{payment}/refund', [PaymentController::class, 'refund'])->name('payments.refund');
+    Route::get('/payments/export', [PaymentController::class, 'export'])->name('payments.export');
+    Route::get('/payments/batches/{batchId}/stats', [PaymentController::class, 'getBatchStats'])->name('payments.batch-stats');
+    Route::get('/payments/batches', [PaymentController::class, 'getUserBatches'])->name('payments.user-batches');
 });
 
 // Course item routes
