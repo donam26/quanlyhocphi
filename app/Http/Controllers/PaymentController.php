@@ -135,28 +135,57 @@ class PaymentController extends Controller
     }
 
     /**
-     * Lưu thanh toán mới
+     * Lưu thông tin thanh toán mới.
+     *
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\Response
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'enrollment_id' => 'required|exists:enrollments,id',
-            'amount' => 'required|numeric|min:1000',
-            'payment_date' => 'required|date',
-            'payment_method' => 'required|in:cash,bank_transfer,card,qr_code,sepay,other',
-            'notes' => 'nullable|string',
-            'status' => 'required|in:pending,confirmed',
-            'transaction_id' => 'nullable|string'
-        ]);
-        
         try {
-            $payment = $this->paymentService->createPayment($validated);
+            $validated = $request->validate([
+                'enrollment_id' => 'required|exists:enrollments,id',
+                'amount' => 'required|numeric|min:0',
+                'payment_method' => 'required|string',
+                'note' => 'nullable|string',
+                'status' => 'nullable|string'
+            ]);
             
-            return redirect()->route('payments.index')
-                ->with('success', 'Thanh toán đã được tạo thành công!');
+            $enrollment = Enrollment::findOrFail($validated['enrollment_id']);
+            
+            // Tạo thanh toán mới
+            $payment = $this->paymentService->createPayment([
+                'enrollment_id' => $validated['enrollment_id'],
+                'amount' => $validated['amount'],
+                'payment_method' => $validated['payment_method'],
+                'note' => $validated['note'] ?? '',
+                'status' => $validated['status'] ?? 'pending',
+                'created_by' => auth()->id(),
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đã tạo thanh toán thành công.',
+                    'data' => $payment
+                ]);
+            }
+            
+            return redirect()->route('payments.index')->with('success', 'Đã tạo thanh toán thành công.');
         } catch (\Exception $e) {
-            Log::error('Payment creation error: ' . $e->getMessage());
-            return back()->withInput()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
+            Log::error('Lỗi khi tạo thanh toán: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return redirect()->back()->withInput()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
         }
     }
 
@@ -360,119 +389,136 @@ class PaymentController extends Controller
      */
     public function sendReminder(Request $request)
     {
-        // Xử lý bulk reminders (nhiều khóa học)
-        if ($request->has('course_ids')) {
-            $validated = $request->validate([
-                'course_ids' => 'required|array',
-                'course_ids.*' => 'exists:course_items,id',
-            ]);
-            
-            $result = $this->reminderService->sendBulkCourseReminders($validated['course_ids']);
-            
-            return response()->json($result);
-        }
-        
-        // Xử lý course reminders (một khóa học với nhiều học viên)
-        if ($request->has('course_item_id')) {
-            $validated = $request->validate([
-                'course_item_id' => 'required|exists:course_items,id',
-                'enrollment_ids' => 'nullable|array',
-                'enrollment_ids.*' => 'exists:enrollments,id',
-            ]);
-            
-            $result = $this->reminderService->sendCourseReminders(
-                $validated['course_item_id'],
-                $validated['enrollment_ids'] ?? null
-            );
-            
-            return response()->json($result);
-        }
-        
-        // Xử lý individual reminder (một học viên)
-        if ($request->has('enrollment_id')) {
-            $validated = $request->validate([
-                'enrollment_id' => 'required|exists:enrollments,id',
-            ]);
-            
-            $result = $this->reminderService->sendIndividualReminder($validated['enrollment_id']);
-            
-            if ($request->expectsJson()) {
+        try {
+            // Xử lý course_ids (gửi nhắc nhở cho nhiều lớp học)
+            if ($request->has('course_ids')) {
+                $validated = $request->validate([
+                    'course_ids' => 'required|array',
+                    'course_ids.*' => 'exists:course_items,id',
+                ]);
+                
+                // Kiểm tra có khóa học nào không
+                if (empty($validated['course_ids'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không có khóa học nào được chọn.'
+                    ]);
+                }
+                
+                // Xác nhận khóa học tồn tại
+                $courseCount = CourseItem::whereIn('id', $validated['course_ids'])->count();
+                if ($courseCount != count($validated['course_ids'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Một số khóa học không tồn tại.'
+                    ]);
+                }
+                
+                $result = $this->reminderService->sendBulkCourseReminders($validated['course_ids']);
+                
                 return response()->json($result);
             }
             
-            if ($result['success']) {
-                return redirect()->back()->with('success', $result['message']);
-            } else {
-                return redirect()->back()->withErrors(['error' => $result['message']]);
-            }
-        }
-        
-        // Xử lý legacy format (payment_ids hoặc enrollment_ids)
-        if ($request->has('payment_ids') || $request->has('enrollment_ids')) {
-            $enrollmentIds = [];
-            
-            if ($request->has('payment_ids')) {
+            // Xử lý enrollment_id
+            if ($request->has('enrollment_id')) {
                 $validated = $request->validate([
-                    'payment_ids' => 'required|array',
-                    'payment_ids.*' => 'exists:payments,id',
+                    'enrollment_id' => 'required|exists:enrollments,id',
                 ]);
                 
-                // Lấy enrollment_ids từ payment_ids
-                $enrollmentIds = Payment::whereIn('id', $validated['payment_ids'])
-                    ->pluck('enrollment_id')
-                    ->unique()
-                    ->toArray();
-            } else {
+                // Kiểm tra enrollment có student hợp lệ
+                $enrollment = Enrollment::with('student')->find($validated['enrollment_id']);
+                if (!$enrollment) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không tìm thấy thông tin ghi danh.'
+                    ]);
+                }
+                
+                if (!$enrollment->student) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không tìm thấy thông tin học viên.'
+                    ]);
+                }
+                
+                if (!$enrollment->student->email) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Học viên không có địa chỉ email.'
+                    ]);
+                }
+                
+                $result = $this->reminderService->sendIndividualReminder($validated['enrollment_id']);
+                
+                return response()->json($result);
+            }
+            
+            // Xử lý enrollment_ids
+            if ($request->has('enrollment_ids')) {
                 $validated = $request->validate([
                     'enrollment_ids' => 'required|array',
                     'enrollment_ids.*' => 'exists:enrollments,id',
                 ]);
                 
-                $enrollmentIds = $validated['enrollment_ids'];
-            }
-            
-            if (empty($enrollmentIds)) {
+                if (empty($validated['enrollment_ids'])) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không có học viên nào để gửi nhắc nhở.'
+                    ]);
+                }
+                
+                // Kiểm tra tất cả enrollment tồn tại và có student
+                $validEnrollments = Enrollment::with('student')
+                    ->whereIn('id', $validated['enrollment_ids'])
+                    ->whereHas('student', function($query) {
+                        $query->whereNotNull('email');
+                    })
+                    ->get();
+                
+                if ($validEnrollments->count() === 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không tìm thấy học viên hợp lệ để gửi nhắc nhở.'
+                    ]);
+                }
+                
+                $validEnrollmentIds = $validEnrollments->pluck('id')->toArray();
+                $results = [];
+                $successCount = 0;
+                
+                // Gửi nhắc nhở từng enrollment một
+                foreach ($validEnrollmentIds as $enrollmentId) {
+                    $result = $this->reminderService->sendIndividualReminder($enrollmentId);
+                    $results[] = $result;
+                    
+                    if ($result['success']) {
+                        $successCount++;
+                    }
+                }
+                
                 return response()->json([
-                    'success' => false,
-                    'message' => 'Không có học viên nào để gửi nhắc nhở.'
+                    'success' => $successCount > 0,
+                    'message' => "Đã gửi nhắc nhở cho {$successCount}/{$validEnrollments->count()} học viên.",
+                    'details' => $results
                 ]);
             }
             
-            // Nếu chỉ có 1 enrollment, gửi individual
-            if (count($enrollmentIds) === 1) {
-                $result = $this->reminderService->sendIndividualReminder($enrollmentIds[0]);
-            } else {
-                // Nhóm theo khóa học và gửi batch
-                $enrollmentsByCourse = Enrollment::whereIn('id', $enrollmentIds)
-                    ->get()
-                    ->groupBy('course_item_id');
-                
-                $results = [];
-                foreach ($enrollmentsByCourse as $courseItemId => $enrollments) {
-                    $result = $this->reminderService->sendCourseReminders(
-                        $courseItemId,
-                        $enrollments->pluck('id')->toArray()
-                    );
-                    $results[] = $result;
-                }
-                
-                $totalSuccess = collect($results)->where('success', true)->count();
-                $totalEmails = collect($results)->sum('total_emails');
-                
-                $result = [
-                    'success' => $totalSuccess > 0,
-                    'message' => "Đã bắt đầu gửi nhắc nhở cho {$totalEmails} học viên trong {$totalSuccess} khóa học.",
-                    'details' => $results
-                ];
-            }
+            // Thiếu thông tin cần thiết
+            return response()->json([
+                'success' => false,
+                'message' => 'Thiếu thông tin cần thiết để gửi nhắc nhở.'
+            ], 400);
+        } catch (\Exception $e) {
+            Log::error('Error sending reminder: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
             
-            return response()->json($result);
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
         }
-        
-        return response()->json([
-            'success' => false,
-            'message' => 'Thiếu thông tin cần thiết để gửi nhắc nhở.'
-        ], 400);
     }
 
     /**
@@ -595,5 +641,56 @@ class PaymentController extends Controller
             'success' => true,
             'data' => $batches
         ]);
+    }
+
+    /**
+     * Lấy lịch sử thanh toán cho một ghi danh cụ thể.
+     *
+     * @param  int  $enrollmentId
+     * @return \Illuminate\Http\Response
+     */
+    public function getPaymentHistory($enrollmentId)
+    {
+        try {
+            $enrollment = Enrollment::with(['student', 'courseItem', 'payments'])
+                ->findOrFail($enrollmentId);
+            
+            $payments = $enrollment->payments()->orderBy('payment_date', 'desc')->get();
+            $totalPaid = $payments->where('status', 'confirmed')->sum('amount');
+            $remaining = $enrollment->final_fee - $totalPaid;
+            
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'enrollment' => $enrollment,
+                        'payments' => $payments,
+                        'total_paid' => $totalPaid,
+                        'remaining' => $remaining
+                    ]
+                ]);
+            }
+            
+            return view('payments.history', [
+                'enrollment' => $enrollment,
+                'payments' => $payments,
+                'totalPaid' => $totalPaid,
+                'remaining' => $remaining
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Lỗi khi tải lịch sử thanh toán: ' . $e->getMessage(), [
+                'enrollment_id' => $enrollmentId,
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            if (request()->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
+        }
     }
 }

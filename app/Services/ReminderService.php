@@ -94,10 +94,17 @@ class ReminderService
             if (empty($enrollmentIds)) {
                 $enrollments = $this->getUnpaidEnrollmentsByCourses([$courseItemId]);
             } else {
-                $enrollments = Enrollment::whereIn('id', $enrollmentIds)
+                // Lấy enrollment và đảm bảo student tồn tại
+                $enrollments = Enrollment::with(['student', 'payments'])
+                    ->whereIn('id', $enrollmentIds)
                     ->where('course_item_id', $courseItemId)
+                    ->whereHas('student') // Đảm bảo enrollment có student
                     ->get()
                     ->filter(function ($enrollment) {
+                        if (!$enrollment->student) {
+                            return false;
+                        }
+                        
                         $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
                         return $totalPaid < $enrollment->final_fee;
                     });
@@ -142,7 +149,6 @@ class ReminderService
         } catch (\Exception $e) {
             Log::error('Course reminders failed', [
                 'course_id' => $courseItemId,
-                'enrollment_ids' => $enrollmentIds,
                 'error' => $e->getMessage(),
                 'user_id' => Auth::id()
             ]);
@@ -160,12 +166,23 @@ class ReminderService
     public function sendIndividualReminder($enrollmentId): array
     {
         try {
-            $enrollment = Enrollment::with(['student', 'courseItem', 'payments'])->find($enrollmentId);
-            
+            // Lấy enrollment và đảm bảo student tồn tại
+            $enrollment = Enrollment::with(['student', 'courseItem', 'payments'])
+                ->whereHas('student')
+                ->find($enrollmentId);
+        
             if (!$enrollment) {
                 return [
                     'success' => false,
-                    'message' => 'Không tìm thấy thông tin ghi danh.'
+                    'message' => 'Không tìm thấy thông tin ghi danh hoặc ghi danh không có thông tin học viên.'
+                ];
+            }
+
+            // Double check - Kiểm tra enrollment có student không
+            if (!$enrollment->student) {
+                return [
+                    'success' => false,
+                    'message' => 'Không tìm thấy thông tin học viên.'
                 ];
             }
 
@@ -232,12 +249,15 @@ class ReminderService
      */
     private function getUnpaidEnrollmentsByCourses(array $courseItemIds)
     {
-        return Enrollment::with(['student', 'courseItem', 'payments'])
-            ->whereIn('course_item_id', $courseItemIds)
-            ->whereIn('status', ['enrolled', 'on_hold', 'active'])
-            ->get()
-            ->filter(function ($enrollment) {
-                // Kiểm tra enrollment có student không
+        try {
+            $enrollments = Enrollment::with(['student', 'courseItem', 'payments'])
+                ->whereIn('course_item_id', $courseItemIds)
+                ->whereIn('status', ['enrolled', 'on_hold', 'active'])
+                ->whereHas('student') // Đảm bảo enrollment có student
+                ->get();
+
+            return $enrollments->filter(function ($enrollment) {
+                // Double check - Kiểm tra enrollment có student không
                 if (!$enrollment->student) {
                     Log::warning('Enrollment without student found', ['enrollment_id' => $enrollment->id]);
                     return false;
@@ -251,6 +271,10 @@ class ReminderService
                 $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
                 return $totalPaid < $enrollment->final_fee;
             });
+        } catch (\Exception $e) {
+            Log::error('Error filtering unpaid enrollments: ' . $e->getMessage());
+            return collect(); // Trả về collection rỗng nếu có lỗi
+        }
     }
 
     /**

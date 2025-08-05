@@ -2,11 +2,13 @@
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\CourseItemController;
-use App\Http\Controllers\PaymentController;
 use App\Http\Controllers\Api\SearchController;
-use App\Http\Controllers\Api\CourseItemController as ApiCourseItemController;
+use App\Http\Controllers\Api\CourseItemController;
 use App\Http\Controllers\Api\ProvinceController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\StudentController;
+use App\Http\Controllers\Api\EnrollmentController;
+use App\Http\Controllers\Api\LearningProgressController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return $request->user();
@@ -16,57 +18,63 @@ Route::get('/healthy', function () {
     return response()->json(['message' => 'API is running']);
 });
 
-// API cho khóa học - đặt trước để đảm bảo route đúng
-Route::get('/course-items/available', [ApiCourseItemController::class, 'available']);
-
 // API tìm kiếm học viên (không yêu cầu xác thực)
 Route::get('/search/autocomplete', [SearchController::class, 'autocomplete'])->name('api.search.autocomplete');
 
-// API tìm kiếm khóa học
-Route::get('/course-items/search', [CourseItemController::class, 'search'])->name('api.course-items.search');
+// API RESOURCES
+// Tất cả API endpoints được phân nhóm và sử dụng controllers trong thư mục Api/
 
-// API học viên
-Route::get('/students/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getInfo']);
-Route::post('/students/{id}/update', [App\Http\Controllers\Api\StudentController::class, 'update']);
-Route::post('/students/create', [App\Http\Controllers\Api\StudentController::class, 'store']);
-Route::get('/enrollments/{id}/info', [App\Http\Controllers\Api\StudentController::class, 'getEnrollmentInfo']);
-Route::get('/students/province/{provinceId}', [App\Http\Controllers\Api\StudentController::class, 'getByProvince']);
-Route::get('/students/region/{region}', [App\Http\Controllers\Api\StudentController::class, 'getByRegion']);
-Route::get('/students', [App\Http\Controllers\Api\StudentController::class, 'index']);
+// API cho Khóa học
+Route::prefix('course-items')->group(function () {
+    Route::get('/', [CourseItemController::class, 'index']);
+    Route::get('/available', [CourseItemController::class, 'available']);
+    Route::get('/search', [CourseItemController::class, 'search']);
+    Route::get('/{id}', [CourseItemController::class, 'show']);
+    Route::post('/', [CourseItemController::class, 'store']);
+    Route::put('/{id}', [CourseItemController::class, 'update']);
+    Route::delete('/{id}', [CourseItemController::class, 'destroy']);
+});
 
-// API cho cấu trúc cây khóa học mới
-Route::get('/course-items', [CourseItemController::class, 'index']);
-Route::post('/course-items', [CourseItemController::class, 'store']);
-Route::get('/course-items/{id}', [CourseItemController::class, 'getCourseDetails']);
-Route::put('/course-items/{id}', [CourseItemController::class, 'update']);
-Route::delete('/course-items/{id}', [CourseItemController::class, 'destroy']);
+// API cho Học sinh
+Route::prefix('students')->group(function () {
+    Route::get('/', [StudentController::class, 'index']);
+    Route::get('/{id}/info', [StudentController::class, 'getInfo']);
+    Route::post('/{id}/update', [StudentController::class, 'update']);
+    Route::post('/create', [StudentController::class, 'store']);
+    Route::get('/province/{provinceId}', [StudentController::class, 'getByProvince']);
+    Route::get('/region/{region}', [StudentController::class, 'getByRegion']);
+});
 
-// API cho thanh toán
-Route::post('/payments/bulk-action', [PaymentController::class, 'bulkAction'])->name('api.payments.bulk-action');
-Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirmPayment']);
-Route::post('/payments/{payment}/refund', [PaymentController::class, 'refundPayment']);
-Route::get('/payments/{payment}', [PaymentController::class, 'getPaymentInfo']);
-Route::get('/payments/{payment}', [PaymentController::class, 'show'])->name('api.payments.show');
-
-// Thanh toán
+// API cho Thanh toán
 Route::prefix('payments')->group(function () {
-    Route::get('/{id}', [App\Http\Controllers\Api\PaymentController::class, 'getInfo']);
-    Route::post('/', [App\Http\Controllers\Api\PaymentController::class, 'store']);
-    Route::post('/{id}', [App\Http\Controllers\Api\PaymentController::class, 'update']);
-    Route::post('/{id}/confirm', [App\Http\Controllers\Api\PaymentController::class, 'confirm']);
-    Route::post('/{id}/cancel', [App\Http\Controllers\Api\PaymentController::class, 'cancel']);
+    // Lấy thông tin thanh toán
+    Route::get('/{id}', [PaymentController::class, 'getInfo']);
+    Route::get('/by-student/{studentId}', [PaymentController::class, 'getByStudent']);
+    Route::get('/by-course/{courseId}', [PaymentController::class, 'getByCourse']);
+    
+    // Thêm/cập nhật thanh toán
+    Route::post('/', [PaymentController::class, 'store']);
+    Route::post('/{id}', [PaymentController::class, 'update']);
+    
+    // Quản lý trạng thái thanh toán
+    Route::post('/{id}/confirm', [PaymentController::class, 'confirm']);
+    Route::post('/{id}/cancel', [PaymentController::class, 'cancel']);
+    Route::post('/{id}/refund', [PaymentController::class, 'refund']);
+    
+    // Hành động hàng loạt
+    Route::post('/bulk-action', [PaymentController::class, 'bulkAction']);
 });
 
-// API cho ghi danh
+// API cho Ghi danh
 Route::prefix('enrollments')->group(function() {
-    Route::post('/', [App\Http\Controllers\Api\EnrollmentController::class, 'store']);
-    Route::get('/{id}', [App\Http\Controllers\Api\EnrollmentController::class, 'getInfo']);
-    Route::post('/{id}', [App\Http\Controllers\Api\EnrollmentController::class, 'update']);
-    Route::get('/{id}/payments', [App\Http\Controllers\Api\EnrollmentController::class, 'getPayments']);
-    Route::get('/student/{id}', [App\Http\Controllers\Api\EnrollmentController::class, 'getStudentEnrollments']);
+    Route::post('/', [EnrollmentController::class, 'store']);
+    Route::get('/{id}', [EnrollmentController::class, 'getInfo']);
+    Route::post('/{id}', [EnrollmentController::class, 'update']);
+    Route::get('/{id}/payments', [EnrollmentController::class, 'getPayments']);
+    Route::get('/student/{id}', [EnrollmentController::class, 'getStudentEnrollments']);
 });
 
-// API cho tỉnh thành
+// API cho Tỉnh thành
 Route::prefix('provinces')->group(function () {
     Route::get('/', [ProvinceController::class, 'index']);
     Route::get('/search', [ProvinceController::class, 'search']);
@@ -74,11 +82,11 @@ Route::prefix('provinces')->group(function () {
     Route::get('/{id}', [ProvinceController::class, 'show']);
 });
 
-// API cho tiến độ học tập
+// API cho Tiến độ học tập
 Route::prefix('learning-progress')->group(function () {
-    Route::get('/course/{courseId}', [App\Http\Controllers\Api\LearningProgressController::class, 'getCourseProgress']);
-    Route::get('/student/{studentId}', [App\Http\Controllers\Api\LearningProgressController::class, 'getStudentProgress']);
-    Route::post('/update', [App\Http\Controllers\Api\LearningProgressController::class, 'updateProgress']);
-    Route::post('/update-bulk', [App\Http\Controllers\Api\LearningProgressController::class, 'updateBulkProgress']);
-    Route::post('/update-path-status', [App\Http\Controllers\Api\LearningProgressController::class, 'updatePathStatus']);
+    Route::get('/course/{courseId}', [LearningProgressController::class, 'getCourseProgress']);
+    Route::get('/student/{studentId}', [LearningProgressController::class, 'getStudentProgress']);
+    Route::post('/update', [LearningProgressController::class, 'updateProgress']);
+    Route::post('/update-bulk', [LearningProgressController::class, 'updateBulkProgress']);
+    Route::post('/update-path-status', [LearningProgressController::class, 'updatePathStatus']);
 });

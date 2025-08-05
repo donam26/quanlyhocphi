@@ -63,15 +63,74 @@ class ProcessReminderBatchJob implements ShouldQueue
                 return;
             }
 
+            // Lấy danh sách enrollment có student hợp lệ
+            $validEnrollments = Enrollment::with(['student', 'payments', 'courseItem'])
+                ->whereIn('id', $enrollmentIds)
+                ->whereHas('student', function($query) {
+                    $query->whereNotNull('email');
+                })
+                ->get();
+            
+            // Cập nhật lại số lượng thực tế
+            $validCount = $validEnrollments->count();
+            $skippedCount = count($enrollmentIds) - $validCount;
+            
+            if ($skippedCount > 0) {
+                $batch->increment('skipped_count', $skippedCount);
+                $batch->increment('processed_count', $skippedCount);
+                
+                Log::warning('Some enrollments were skipped due to missing student or email', [
+                    'batch_id' => $batch->id,
+                    'skipped_count' => $skippedCount,
+                    'total_enrollment_ids' => count($enrollmentIds),
+                    'valid_enrollments' => $validCount
+                ]);
+            }
+            
+            if ($validEnrollments->isEmpty()) {
+                $batch->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                    'processed_count' => $batch->total_count
+                ]);
+                
+                Log::warning('No valid enrollments found to process', ['batch_id' => $batch->id]);
+                return;
+            }
+
+            // Cập nhật tổng số thực tế
+            $batch->update([
+                'total_count' => $validCount + $skippedCount
+            ]);
+
             // Dispatch individual jobs với delay để tránh spam
             $delay = 0;
             $delayIncrement = 2; // 2 giây giữa mỗi email
 
-            foreach ($enrollmentIds as $enrollmentId) {
-                $enrollment = Enrollment::find($enrollmentId);
+            foreach ($validEnrollments as $enrollment) {
+                // Double-check trước khi dispatch
+                if (!$enrollment->student || !$enrollment->student->email) {
+                    $batch->increment('skipped_count');
+                    $batch->increment('processed_count');
+                    Log::warning('Skipping enrollment with missing student or email', [
+                        'enrollment_id' => $enrollment->id,
+                        'has_student' => (bool)$enrollment->student,
+                        'has_email' => $enrollment->student ? (bool)$enrollment->student->email : false
+                    ]);
+                    continue;
+                }
                 
-                if (!$enrollment) {
-                    Log::warning('Enrollment not found: ' . $enrollmentId);
+                // Kiểm tra xem còn thiếu học phí không
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                $remaining = $enrollment->final_fee - $totalPaid;
+                
+                if ($remaining <= 0) {
+                    $batch->increment('skipped_count');
+                    $batch->increment('processed_count');
+                    Log::info('Skipping fully paid enrollment', [
+                        'enrollment_id' => $enrollment->id,
+                        'student_name' => $enrollment->student->full_name
+                    ]);
                     continue;
                 }
 
@@ -85,7 +144,7 @@ class ProcessReminderBatchJob implements ShouldQueue
 
             Log::info('Batch jobs dispatched', [
                 'batch_id' => $batch->id,
-                'jobs_dispatched' => count($enrollmentIds),
+                'jobs_dispatched' => $validEnrollments->count(),
                 'total_delay' => $delay . ' seconds'
             ]);
 

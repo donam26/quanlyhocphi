@@ -44,6 +44,13 @@ class SendPaymentReminderJob implements ShouldQueue
             // Load relationships
             $this->enrollment->load(['student', 'courseItem', 'payments']);
             
+            // Kiểm tra student có tồn tại không
+            if (!$this->enrollment->student) {
+                $this->logError('Enrollment không có thông tin học viên: ID ' . $this->enrollment->id);
+                $this->updateBatchProgress('failed', 'Không có thông tin học viên');
+                return;
+            }
+            
             // Kiểm tra xem học viên có email không
             if (!$this->enrollment->student->email) {
                 $this->logError('Học viên không có email: ' . $this->enrollment->student->full_name);
@@ -107,9 +114,15 @@ class SendPaymentReminderJob implements ShouldQueue
                     $batch->increment('failed_count');
                     if ($error) {
                         $errors = $batch->errors ?? [];
+                        
+                        // Xử lý an toàn khi truy cập student
+                        $studentName = $this->enrollment->student ? 
+                            $this->enrollment->student->full_name : 
+                            'Unknown Student';
+                            
                         $errors[] = [
                             'enrollment_id' => $this->enrollment->id,
-                            'student_name' => $this->enrollment->student->full_name,
+                            'student_name' => $studentName,
                             'error' => $error,
                             'time' => now()->toDateTimeString()
                         ];
@@ -130,12 +143,11 @@ class SendPaymentReminderJob implements ShouldQueue
                     'completed_at' => now()
                 ]);
                 
-                // Send completion notification to admin
+                // Notify about completion
                 $this->notifyBatchCompletion($batch);
             }
-
         } catch (Exception $e) {
-            Log::error('Error updating batch progress: ' . $e->getMessage());
+            $this->logError('Error updating batch progress: ' . $e->getMessage());
         }
     }
 

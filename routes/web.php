@@ -83,8 +83,9 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('attendance/quick', [AttendanceController::class, 'quickAttendance'])->name('attendance.quick');
     Route::get('attendance/export/report', [AttendanceController::class, 'exportReport'])->name('attendance.export');
 
-    // Payments
+    // Payments - Cấu trúc lại toàn bộ routes thanh toán
     Route::prefix('payments')->name('payments.')->group(function () {
+        // CRUD cơ bản
         Route::get('/', [PaymentController::class, 'index'])->name('index');
         Route::get('/create', [PaymentController::class, 'create'])->name('create');
         Route::post('/', [PaymentController::class, 'store'])->name('store');
@@ -92,24 +93,38 @@ Route::middleware(['auth', 'admin'])->group(function () {
         Route::get('/{payment}/edit', [PaymentController::class, 'edit'])->name('edit');
         Route::put('/{payment}', [PaymentController::class, 'update'])->name('update');
         Route::delete('/{payment}', [PaymentController::class, 'destroy'])->name('destroy');
+
+        // Quản lý trạng thái thanh toán
+        Route::post('/{payment}/confirm', [PaymentController::class, 'confirm'])->name('confirm');
+        Route::post('/{payment}/cancel', [PaymentController::class, 'cancel'])->name('cancel');
+        Route::post('/{payment}/refund', [PaymentController::class, 'refund'])->name('refund');
+        
+        // Nhắc nhở thanh toán
         Route::post('/send-reminder', [PaymentController::class, 'sendReminder'])->name('send-reminder');
-        Route::post('/direct-reminder', [PaymentController::class, 'sendDirectReminder'])->name('send-direct-reminder');
-        Route::post('/combined-reminder', [PaymentController::class, 'sendCombinedReminder'])->name('send-combined-reminder');
+        Route::get('/batches/{batchId}/stats', [PaymentController::class, 'getBatchStats'])->name('batch-stats');
+        Route::get('/batches', [PaymentController::class, 'getUserBatches'])->name('user-batches');
+        
+        // Biên lai và báo cáo
         Route::get('/receipt/{payment}', [PaymentController::class, 'generateReceipt'])->name('receipt');
         Route::get('/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('bulk-receipt');
-        Route::post('/quick', [PaymentController::class, 'quickPayment'])->name('quick');
+        Route::get('/export', [PaymentController::class, 'export'])->name('export');
         Route::get('/monthly-report', [PaymentController::class, 'monthlyReport'])->name('monthly-report');
-        Route::post('/bulk-action', [PaymentController::class, 'bulkAction'])->name('bulk-action');
+        
+        // Lịch sử thanh toán
+        Route::get('/history/{enrollment}', [PaymentController::class, 'getPaymentHistory'])->name('history');
+        
+        // Thanh toán theo khóa học
         Route::get('/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('course');
-        Route::get('/by-course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('by-course');
-        Route::post('/confirm/{payment}', [PaymentController::class, 'confirmPayment'])->name('confirm');
-        Route::post('/refund/{payment}', [PaymentController::class, 'refundPayment'])->name('refund');
+        
+        // Thanh toán nhanh
+        Route::post('/quick', [PaymentController::class, 'quickPayment'])->name('quick');
+        Route::post('/bulk-action', [PaymentController::class, 'bulkAction'])->name('bulk-action');
     });
 
     // Payment Gateway
     Route::prefix('payment-gateway')->name('payment.gateway.')->group(function () {
         Route::get('/{payment}', [PaymentGatewayController::class, 'show'])->name('show');
-        Route::get('/direct/{enrollment}', [PaymentController::class, 'showDirectPaymentGateway'])->name('direct');
+        Route::get('/direct/{enrollment}', [PaymentGatewayController::class, 'showDirectPayment'])->name('direct');
         Route::get('/status/{payment}', [PaymentGatewayController::class, 'checkPaymentStatus'])->name('status');
         Route::get('/check-direct', [PaymentGatewayController::class, 'checkDirectPaymentStatus'])->name('check-direct');
         Route::post('/process', [PaymentGatewayController::class, 'process'])->name('process');
@@ -137,26 +152,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     });
 });
 
-// Payment routes
-Route::middleware(['auth'])->group(function () {
-    // Thanh toán
-    Route::get('/payments', [PaymentController::class, 'index'])->name('payments.index');
-    Route::post('/payments', [PaymentController::class, 'store'])->name('payments.store');
-    Route::delete('/payments/{payment}', [PaymentController::class, 'destroy'])->name('payments.destroy');
-    Route::post('/payments/quick', [PaymentController::class, 'quickPayment'])->name('payments.quick');
-    Route::post('/payments/send-reminder', [PaymentController::class, 'sendReminder'])->name('payments.send-reminder');
-    Route::get('/payments/course/{courseItem}', [PaymentController::class, 'coursePayments'])->name('payments.course');
-    Route::get('/payments/receipt/{payment}', [PaymentController::class, 'generateReceipt'])->name('payments.receipt');
-    Route::get('/payments/bulk-receipt', [PaymentController::class, 'bulkReceipt'])->name('payments.bulk-receipt');
-    Route::post('/payments/{payment}/confirm', [PaymentController::class, 'confirm'])->name('payments.mark-confirmed');
-    Route::post('/payments/{payment}/cancel', [PaymentController::class, 'cancel'])->name('payments.cancel');
-    Route::post('/payments/{payment}/refund', [PaymentController::class, 'refund'])->name('payments.refund');
-    Route::get('/payments/export', [PaymentController::class, 'export'])->name('payments.export');
-    Route::get('/payments/batches/{batchId}/stats', [PaymentController::class, 'getBatchStats'])->name('payments.batch-stats');
-    Route::get('/payments/batches', [PaymentController::class, 'getUserBatches'])->name('payments.user-batches');
-});
-
-// Course item routes
+// Course item routes cho user thường
 Route::middleware(['auth'])->group(function () {
     Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance.view');
     Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');

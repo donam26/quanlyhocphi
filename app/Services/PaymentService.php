@@ -104,6 +104,56 @@ class PaymentService
             ->sum('amount');
     }
 
+    /**
+     * Xử lý bulk actions trên thanh toán
+     */
+    public function processBulkAction(array $paymentIds, string $action): array
+    {
+        $payments = Payment::whereIn('id', $paymentIds)->get();
+        $count = 0;
+        $failedIds = [];
+        
+        DB::beginTransaction();
+        
+        try {
+            foreach ($payments as $payment) {
+                switch ($action) {
+                    case 'confirm':
+                        $this->updatePayment($payment, ['status' => 'confirmed']);
+                        $count++;
+                        break;
+                        
+                    case 'cancel':
+                        $this->updatePayment($payment, ['status' => 'cancelled']);
+                        $count++;
+                        break;
+                        
+                    case 'refund':
+                        $this->updatePayment($payment, ['status' => 'refunded']);
+                        $count++;
+                        break;
+                    
+                    default:
+                        $failedIds[] = $payment->id;
+                }
+            }
+            
+            DB::commit();
+            
+            return [
+                'total' => count($paymentIds),
+                'processed' => $count,
+                'failed' => count($failedIds),
+                'failed_ids' => $failedIds,
+                'message' => "Đã xử lý $count thanh toán thành công!"
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            throw $e;
+        }
+    }
+
     public function getPaymentStats($startDate = null, $endDate = null)
     {
         $query = Payment::where('status', 'confirmed');
@@ -194,9 +244,19 @@ class PaymentService
     {
         $student = $enrollment->student;
         
-        if ($student->email) {
+        if ($student && $student->email) {
+            // Tính toán số tiền còn thiếu
+            $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+            $remaining = $enrollment->final_fee - $totalPaid;
+            
+            if ($remaining <= 0) {
+                return false; // Không cần gửi nếu đã thanh toán đủ
+            }
+            
             // Gửi email nhắc thanh toán
-            \Illuminate\Support\Facades\Mail::to($student->email)->send(new \App\Mail\PaymentReminderMail($enrollment));
+            \Illuminate\Support\Facades\Mail::to($student->email)->send(
+                new \App\Mail\PaymentReminderMail($enrollment, $remaining)
+            );
             return true;
         }
         
