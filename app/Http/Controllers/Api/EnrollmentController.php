@@ -202,4 +202,52 @@ class EnrollmentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Hủy đăng ký (xóa khỏi danh sách chờ)
+     */
+    public function cancelEnrollment(Request $request, $id)
+    {
+        try {
+            $enrollment = Enrollment::findOrFail($id);
+
+            // Chỉ cho phép hủy nếu đang ở trạng thái chờ
+            if ($enrollment->status !== 'waiting') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể hủy đăng ký khi đang ở trạng thái chờ!'
+                ], 422);
+            }
+
+            DB::beginTransaction();
+
+            // Cập nhật trạng thái thành cancelled
+            $enrollment->status = 'cancelled';
+            $enrollment->cancelled_at = now();
+            
+            // Thêm lý do hủy vào ghi chú
+            if ($request->filled('reason')) {
+                $currentNotes = $enrollment->notes ? $enrollment->notes . "\n" : '';
+                $enrollment->notes = $currentNotes . '[' . now()->format('d/m/Y H:i') . '] Hủy: ' . $request->reason;
+            }
+
+            $enrollment->save();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã hủy đăng ký thành công!'
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Cancel enrollment error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

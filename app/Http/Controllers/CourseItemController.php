@@ -550,7 +550,42 @@ class CourseItemController extends Controller
      */
     public function waitingList($id)
     {
-        // Chuyển hướng đến trang ghi danh với filter theo course_item_id và status waiting
+        // Nếu là AJAX request, trả về JSON data
+        if (request()->ajax() || request()->expectsJson()) {
+            $courseItem = CourseItem::findOrFail($id);
+            
+            // Lấy tất cả ID của khóa học và các khóa con
+            $courseIds = [$id];
+            $this->getAllChildrenIds($courseItem, $courseIds);
+            
+            // Lấy danh sách học viên đang chờ
+            $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseIds)
+                ->where('status', 'waiting')
+                ->with(['student', 'courseItem'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+            
+            $students = $enrollments->map(function($enrollment) {
+                return [
+                    'enrollment_id' => $enrollment->id,
+                    'student_id' => $enrollment->student->id,
+                    'full_name' => $enrollment->student->full_name,
+                    'phone' => $enrollment->student->phone,
+                    'email' => $enrollment->student->email,
+                    'request_date' => $enrollment->created_at->format('d/m/Y'),
+                    'notes' => $enrollment->notes,
+                    'course_name' => $enrollment->courseItem->name,
+                    'final_fee' => number_format($enrollment->final_fee)
+                ];
+            });
+            
+            return response()->json([
+                'success' => true,
+                'students' => $students
+            ]);
+        }
+        
+        // Nếu không phải AJAX, chuyển hướng đến trang ghi danh
         return redirect()->route('enrollments.index', [
             'course_item_id' => $id,
             'status' => 'waiting'
@@ -568,5 +603,79 @@ class CourseItemController extends Controller
                 $this->getAllChildrenIds($child, $ids);
             }
         }
+    }
+
+    /**
+     * Hiển thị trang cây danh sách chờ
+     */
+    public function waitingTree(Request $request)
+    {
+        $rootItems = CourseItem::whereNull('parent_id')
+                            ->where('active', true)
+                            ->orderBy('order_index')
+                            ->with(['children' => function($query) {
+                                $query->where('active', true)->orderBy('order_index');
+                            }])
+                            ->get();
+
+        // Kiểm tra xem có đang xem một tab cụ thể không
+        $currentRootItem = null;
+        $rootId = $request->query('root_id');
+        if ($rootId) {
+            $currentRootItem = $rootItems->where('id', $rootId)->first();
+        }
+
+        return view('course-items.waiting-tree', compact('rootItems', 'currentRootItem'));
+    }
+
+    /**
+     * Lấy số lượng học viên đang chờ của một khóa học
+     */
+    public function getWaitingCount($courseItemId)
+    {
+        $count = \App\Models\Enrollment::where('course_item_id', $courseItemId)
+                    ->where('status', 'waiting')
+                    ->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+    /**
+     * Lấy danh sách khóa học lá (có thể ghi danh) cho dropdown
+     */
+    public function getLeafCourses()
+    {
+        $courses = CourseItem::where('is_leaf', true)
+                            ->where('active', true)
+                            ->orderBy('name')
+                            ->get()
+                            ->map(function($course) {
+                                return [
+                                    'id' => $course->id,
+                                    'name' => $course->name,
+                                    'path' => $this->getCoursePath($course)
+                                ];
+                            });
+
+        return response()->json([
+            'success' => true,
+            'courses' => $courses
+        ]);
+    }
+
+    /**
+     * Lấy đường dẫn đầy đủ của khóa học
+     */
+    private function getCoursePath($courseItem)
+    {
+        $path = [];
+        $current = $courseItem;
+        
+        while ($current) {
+            array_unshift($path, $current->name);
+            $current = $current->parent;
+        }
+        
+        return implode(' > ', $path);
     }
 }

@@ -15,7 +15,7 @@
             Nhập thông tin tìm kiếm
         </div>
         <div class="card-body">
-            <form method="POST" action="{{ route('search') }}" id="search-form">
+            <form id="search-form">
                 @csrf
                 <div class="row align-items-end">
                     <div class="col-md-8">
@@ -23,19 +23,15 @@
                             <label for="term" class="form-label">Tìm kiếm theo tên hoặc số điện thoại học viên</label>
                             <div style="width: 100%">
                                 <select id="student_search" name="term" class="form-control select2-ajax" style="width: 100%;">
-                                    @if(isset($searchTerm))
-                                        <option value="{{ $searchTerm }}" selected>{{ $searchTerm }}</option>
-                                    @endif
+                                    <option value="">Nhập tên hoặc số điện thoại...</option>
                                 </select>
                             </div>
-                            @error('term')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            <div class="invalid-feedback" id="term-error"></div>
                         </div>
                     </div>
                     <div class="col-md-4 d-flex justify-content-end">
                         <div class="form-group">
-                            <button type="submit" class="btn btn-primary me-2">
+                            <button type="submit" class="btn btn-primary me-2" id="search-btn">
                                 <i class="fas fa-search me-1"></i> Tìm kiếm
                             </button>
                             <a href="{{ route('students.index') }}" class="btn btn-outline-secondary">
@@ -48,322 +44,99 @@
         </div>
     </div>
     
+    <!-- Loading indicator -->
+    <div id="loading-indicator" class="text-center d-none">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Đang tìm kiếm...</span>
+        </div>
+        <p class="mt-2">Đang tìm kiếm...</p>
+    </div>
+    
     <!-- Kết quả tìm kiếm -->
-    @isset($studentsDetails)
-        @if(count($studentsDetails) > 0)
-            <div class="card mb-4">
-                <div class="card-header bg-success text-white">
-                    <i class="fas fa-check-circle me-1"></i>
-                    Tìm thấy {{ $students->total() }} kết quả cho từ khóa "{{ $searchTerm }}"
-                </div>
-                <div class="card-body">
-                    <div class="accordion" id="searchResults">
-                        @foreach($studentsDetails as $index => $detail)
-                            <div class="accordion-item border mb-3">
-                                <h2 class="accordion-header" id="heading{{ $index }}">
-                                    <button class="accordion-button {{ $index > 0 ? 'collapsed' : '' }}" type="button" 
-                                        data-bs-toggle="collapse" data-bs-target="#collapse{{ $index }}" 
-                                        aria-expanded="{{ $index === 0 ? 'true' : 'false' }}" aria-controls="collapse{{ $index }}">
-                                        <div class="row w-100">
-                                            <div class="col-md-4">
-                                                <strong>{{ $detail['student']->full_name }}</strong>
-                                                <span class="badge bg-secondary ms-2">{{ $detail['total_courses'] }} khóa học</span>
-                                            </div>
-                                            <div class="col-md-3">
-                                                <i class="fas fa-phone-alt me-1"></i> {{ $detail['student']->phone }}
-                                            </div>
-                                            <div class="col-md-3">
-                                                <i class="fas fa-envelope me-1"></i> {{ $detail['student']->email ?? 'Không có' }}
-                                            </div>
-                                            <div class="col-md-2">
-                                                @if($detail['remaining'] <= 0)
-                                                    <span class="badge bg-success">Đã thanh toán đủ</span>
-                                                @else
-                                                    <span class="badge bg-danger">Còn nợ: {{ number_format($detail['remaining'], 0, ',', '.') }} đ</span>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </button>
-                                </h2>
-                                <div id="collapse{{ $index }}" class="accordion-collapse collapse {{ $index === 0 ? 'show' : '' }}" 
-                                    aria-labelledby="heading{{ $index }}" data-bs-parent="#searchResults">
-                                    <div class="accordion-body">
-                                        <!-- Thông tin học viên -->
-                                        <div class="row mb-4">
-                                            <div class="col-md-8">
-                                                <div class="card border-0">
-                                                    <div class="card-body bg-light">
-                                                        <h5 class="card-title">Thông tin học viên</h5>
-                                                        <div class="row">
-                                                            <div class="col-md-6">
-                                                                <ul class="list-group list-group-flush">
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Họ và tên:</span> {{ $detail['student']->full_name }}
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Số điện thoại:</span> {{ $detail['student']->phone }}
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Email:</span> {{ $detail['student']->email ?? 'Không có' }}
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Địa chỉ:</span> {{ $detail['student']->address ?? 'Không có' }}
-                                                                    </li>
-                                                                </ul>
-                                                            </div>
-                                                            <div class="col-md-6">
-                                                                <ul class="list-group list-group-flush">
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Giới tính:</span> 
-                                                                        @if($detail['student']->gender == 'male')
-                                                                            Nam
-                                                                        @elseif($detail['student']->gender == 'female')
-                                                                            Nữ
-                                                                        @else
-                                                                            Khác
-                                                                        @endif
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Ngày sinh:</span> 
-                                                                        {{ $detail['student']->date_of_birth ? $detail['student']->date_of_birth->format('d/m/Y') : 'Không có' }}
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Nơi công tác:</span> {{ $detail['student']->current_workplace ?? 'Không có' }}
-                                                                    </li>
-                                                                    <li class="list-group-item bg-transparent">
-                                                                        <span class="fw-bold">Kinh nghiệm (năm):</span> {{ $detail['student']->accounting_experience_years ?? 'Không có' }}
-                                                                    </li>
-                                                                </ul>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="card h-100">
-                                                    <div class="card-header bg-primary text-white">
-                                                        <i class="fas fa-chart-pie me-1"></i> Thông tin tài chính
-                                                    </div>
-                                                    <div class="card-body">
-                                                        <div class="row mb-2">
-                                                            <div class="col-7">Tổng học phí:</div>
-                                                            <div class="col-5 text-end">{{ number_format($detail['total_fee'], 0, ',', '.') }} đ</div>
-                                                        </div>
-                                                        <div class="row mb-2">
-                                                            <div class="col-7">Đã thanh toán:</div>
-                                                            <div class="col-5 text-end">{{ number_format($detail['total_paid'], 0, ',', '.') }} đ</div>
-                                                        </div>
-                                                        <div class="row mb-3">
-                                                            <div class="col-7">Còn thiếu:</div>
-                                                            <div class="col-5 text-end">{{ number_format($detail['remaining'], 0, ',', '.') }} đ</div>
-                                                        </div>
-                                                        
-                                                        <!-- Thanh tiến trình -->
-                                                        @php
-                                                            $paymentPercent = $detail['total_fee'] > 0 ? 
-                                                                round(($detail['total_paid'] / $detail['total_fee']) * 100) : 0;
-                                                        @endphp
-                                                        <div class="progress mb-2">
-                                                            <div class="progress-bar bg-success" role="progressbar" 
-                                                                style="width: {{ $paymentPercent }}%;" 
-                                                                aria-valuenow="{{ $paymentPercent }}" 
-                                                                aria-valuemin="0" aria-valuemax="100">
-                                                                {{ $paymentPercent }}%
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div class="d-grid gap-2 mt-3">
-                                                            <a href="{{ route('search.student-history', $detail['student']->id) }}" class="btn btn-info">
-                                                                <i class="fas fa-history me-1"></i> Xem lịch sử chi tiết
-                                                            </a>
-                                                           
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Danh sách khóa học đã ghi danh -->
-                                        @if(count($detail['enrollments']) > 0)
-                                            <div class="table-responsive mb-4">
-                                                <h5>
-                                                    <i class="fas fa-graduation-cap me-1"></i>
-                                                    Khóa học đã ghi danh ({{ count($detail['enrollments']) }})
-                                                </h5>
-                                                <table class="table table-bordered table-striped table-hover">
-                                                    <thead class="table-primary">
-                                                        <tr>
-                                                            <th>Khóa học</th>
-                                                            <th>Ngày ghi danh</th>
-                                                            <th>Học phí</th>
-                                                            <th>Đã nộp</th>
-                                                            <th>Còn thiếu</th>
-                                                            <th>Trạng thái</th>
-                                                            <th>Thanh toán</th>
-                                                            <th>Thao tác</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach($detail['enrollments'] as $enrollment)
-                                                            <tr>
-                                                                <td>{{ $enrollment['course_item']->name }}</td>
-                                                                <td>{{ $enrollment['enrollment_date'] }}</td>
-                                                                <td class="text-end">{{ number_format($enrollment['final_fee'], 0, ',', '.') }} đ</td>
-                                                                <td class="text-end">{{ number_format($enrollment['total_paid'], 0, ',', '.') }} đ</td>
-                                                                <td class="text-end">{{ number_format($enrollment['remaining_amount'], 0, ',', '.') }} đ</td>
-                                                                <td>
-                                                                    @if($enrollment['status'] == 'Đang học' || $enrollment['status'] == 'enrolled' || $enrollment['status'] == 'active')
-                                                                        <span class="badge bg-success">Đang học</span>
-                                                                    @elseif($enrollment['status'] == 'Đã hoàn thành' || $enrollment['status'] == 'completed')
-                                                                        <span class="badge bg-success">Đã hoàn thành</span>
-                                                                    @elseif($enrollment['status'] == 'Danh sách chờ' || $enrollment['status'] == 'waiting')
-                                                                        <span class="badge bg-warning text-dark">Danh sách chờ</span>
-                                                                    @elseif($enrollment['status'] == 'Tạm dừng' || $enrollment['status'] == 'on_hold')
-                                                                        <span class="badge bg-warning text-dark">Tạm dừng</span>
-                                                                    @elseif($enrollment['status'] == 'Đã hủy' || $enrollment['status'] == 'cancelled')
-                                                                        <span class="badge bg-danger">Đã hủy</span>
-                                                                    @else
-                                                                        <span class="badge bg-secondary">{{ $enrollment['status'] }}</span>
-                                                                    @endif
-                                                                </td>
-                                                                <td>
-                                                                    @if($enrollment['payment_status'] == 'Đã thanh toán đủ')
-                                                                        <span class="badge bg-success">Đã thanh toán đủ</span>
-                                                                    @else
-                                                                        <span class="badge bg-danger">Còn thiếu</span>
-                                                                    @endif
-                                                                    <div class="small mt-1">{{ $enrollment['payment_method'] }}</div>
-                                                                </td>
-                                                                <td>
-                                                                    <div class="btn-group btn-group-sm" role="group">
-                                                                        <a href="{{ route('payments.quick', $enrollment['id']) }}" class="btn btn-primary" title="Thanh toán nhanh">
-                                                                            <i class="fas fa-money-bill"></i>
-                                                                        </a>
-                                                                        <a href="{{ route('enrollments.show', $enrollment['id']) }}" class="btn btn-info" title="Xem chi tiết ghi danh">
-                                                                            <i class="fas fa-eye"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        @endforeach
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        @endif
-                                        
-                                        <!-- Danh sách chờ -->
-                                        @if(count($detail['waiting_lists']) > 0)
-                                            <div class="table-responsive">
-                                                <h5>
-                                                    <i class="fas fa-clock me-1"></i>
-                                                    Danh sách chờ ({{ count($detail['waiting_lists']) }})
-                                                </h5>
-                                                <table class="table table-bordered table-striped table-hover">
-                                                    <thead class="table-warning">
-                                                        <tr>
-                                                            <th>Khóa học</th>
-                                                            <th>Ngày đăng ký</th>
-                                                            <th>Ghi chú</th>
-                                                            <th>Thao tác</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        @foreach($detail['waiting_lists'] as $waitingList)
-                                                            <tr>
-                                                                <td>{{ $waitingList['course_item']->name }}</td>
-                                                                <td>{{ $waitingList['registration_date'] }}</td>
-                                                                <td>{{ $waitingList['notes'] ?? 'Không có ghi chú' }}</td>
-                                                                <td>
-                                                                    <div class="btn-group btn-group-sm" role="group">
-                                                                        <a href="{{ route('enrollments.confirm-waiting', $waitingList['id']) }}" 
-                                                                           class="btn btn-success" title="Chuyển sang ghi danh">
-                                                                            <i class="fas fa-user-plus"></i>
-                                                                        </a>
-                                                                        <a href="{{ route('enrollments.show', $waitingList['id']) }}" 
-                                                                           class="btn btn-info" title="Xem chi tiết danh sách chờ">
-                                                                            <i class="fas fa-eye"></i>
-                                                                        </a>
-                                                                    </div>
-                                                                </td>
-                                                            </tr>
-                                                        @endforeach
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </div>
-                            </div>
-                        @endforeach
-                    </div>
-                    
-                    <!-- Pagination -->
-                    <div class="d-flex justify-content-center mt-4">
-                        {{ $students->links() }}
-                    </div>
-                </div>
-            </div>
-        @else
-            <div class="alert alert-warning" role="alert">
-                <i class="fas fa-exclamation-triangle me-2"></i>
-                Không tìm thấy kết quả nào cho từ khóa "{{ $searchTerm }}". Vui lòng thử lại với từ khóa khác.
-            </div>
-        @endif
-    @endisset
+    <div id="search-results" class="d-none">
+        <!-- Kết quả sẽ được load bằng JavaScript -->
+    </div>
 </div>
+
+<!-- Include Search Modals Component -->
+@include('components.search-modals')
+
 @endsection
 
+@push('styles')
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+.search-result-card {
+    transition: all 0.3s ease;
+    border: 1px solid #dee2e6;
+    margin-bottom: 1rem;
+}
+
+.search-result-card:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+
+.student-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.info-item {
+    padding: 0.5rem;
+    background: #f8f9fa;
+    border-radius: 0.375rem;
+    border-left: 4px solid #007bff;
+}
+
+.info-item strong {
+    color: #495057;
+    font-size: 0.875rem;
+}
+
+.info-item span {
+    color: #212529;
+    font-weight: 500;
+}
+
+.course-card {
+    border: 1px solid #e9ecef;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: #fff;
+}
+
+.course-card:hover {
+    background: #f8f9fa;
+}
+
+.payment-status-badge {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+}
+
+.modal-xl {
+    max-width: 95%;
+}
+
+@media (max-width: 768px) {
+    .student-info-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .modal-xl {
+        max-width: 100%;
+        margin: 0.5rem;
+    }
+}
+</style>
+@endpush
+
 @push('scripts')
-<script>
-$(document).ready(function() {
-    // Cấu hình Select2 cho ô tìm kiếm học viên
-    $('#student_search').select2({
-        theme: 'bootstrap-5',
-        placeholder: 'Nhập tên hoặc số điện thoại học viên...',
-        allowClear: true,
-        minimumInputLength: 2,
-        ajax: {
-            url: '{{ route("api.search.autocomplete") }}',
-            dataType: 'json',
-            delay: 250,
-            data: function(params) {
-                return {
-                    q: params.term
-                };
-            },
-            processResults: function(data) {
-                return {
-                    results: data.map(function(item) {
-                        return {
-                            id: item.id,
-                            text: item.text
-                        };
-                    })
-                };
-            },
-            cache: true
-        }
-    });
-
-    // Auto-submit khi search select2 thay đổi
-    $('#student_search').on('select2:select', function(e) {
-        var studentId = e.params.data.id;
-        // Thêm student_id vào form hidden và submit
-        var hiddenInput = $('<input>').attr({
-            type: 'hidden',
-            name: 'student_id',
-            value: studentId
-        });
-        $('#search-form').append(hiddenInput);
-        $('#search-form').submit();
-    });
-
-    // Xóa tìm kiếm khi clear
-    $('#student_search').on('select2:clear', function(e) {
-        $('#search-form').find('input[name="term"]').val('');
-        $('#search-form').find('input[name="student_id"]').remove();
-        $('#search-form').submit();
-    });
-});
-</script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="{{ asset('js/search-modal.js') }}"></script>
 @endpush

@@ -244,4 +244,86 @@ class StudentController extends Controller
             'data' => $student
         ]);
     }
+
+    /**
+     * Lấy chi tiết học viên cho modal
+     */
+    public function getStudentDetails($studentId)
+    {
+        try {
+            $student = Student::with([
+                'enrollments.courseItem',
+                'enrollments.payments'
+            ])->find($studentId);
+
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không tìm thấy học viên'
+                ], 404);
+            }
+
+            // Tính toán thống kê
+            $enrollments = $student->enrollments;
+            $totalPaid = 0;
+            $totalUnpaid = 0;
+            $enrolledCount = 0;
+            $waitingCount = 0;
+            $completedCount = 0;
+
+            $enrollmentHistory = [];
+
+            foreach ($enrollments as $enrollment) {
+                $paidAmount = $enrollment->payments->sum('amount');
+                $totalPaid += $paidAmount;
+                $totalUnpaid += max(0, $enrollment->final_fee - $paidAmount);
+
+                switch ($enrollment->status) {
+                    case 'enrolled':
+                        $enrolledCount++;
+                        break;
+                    case 'waiting':
+                        $waitingCount++;
+                        break;
+                    case 'completed':
+                        $completedCount++;
+                        break;
+                }
+
+                $enrollmentHistory[] = [
+                    'course_name' => $enrollment->courseItem->name,
+                    'status' => $enrollment->status,
+                    'enrollment_date' => $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A',
+                    'final_fee' => number_format($enrollment->final_fee) . ' VNĐ'
+                ];
+            }
+
+            return response()->json([
+                'success' => true,
+                'student' => [
+                    'full_name' => $student->full_name,
+                    'phone' => $student->phone,
+                    'email' => $student->email,
+                    'date_of_birth' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : null,
+                    'address' => $student->address,
+                    'created_at' => $student->created_at->format('d/m/Y H:i')
+                ],
+                'stats' => [
+                    'total_enrollments' => $enrollments->count(),
+                    'enrolled_count' => $enrolledCount,
+                    'waiting_count' => $waitingCount,
+                    'completed_count' => $completedCount,
+                    'total_paid' => number_format($totalPaid) . ' VNĐ',
+                    'total_unpaid' => number_format($totalUnpaid) . ' VNĐ'
+                ],
+                'enrollments' => $enrollmentHistory
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

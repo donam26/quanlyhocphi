@@ -14,6 +14,14 @@
 .student-row:hover {
     background-color: #f8f9fa;
 }
+/* Ẩn nút in danh sách nếu vẫn hiển thị */
+.btn:contains("In danh sách") {
+    display: none !important;
+}
+/* Ngăn chặn auto-submit cho modal export */
+#exportStudentModal .form-select {
+    pointer-events: auto;
+}
 </style>
 @endsection
 
@@ -86,11 +94,8 @@
             <span class="badge bg-primary ms-2">{{ $students->total() }} học viên</span>
         </h5>
         <div class="btn-group">
-            <button class="btn btn-sm btn-outline-success" onclick="exportStudents()">
+            <button class="btn btn-sm btn-outline-success" onclick="showExportModal()">
                 <i class="fas fa-file-excel me-1"></i>Xuất Excel
-            </button>
-            <button class="btn btn-sm btn-outline-info" onclick="printStudents()">
-                <i class="fas fa-print me-1"></i>In danh sách
             </button>
         </div>
     </div>
@@ -839,6 +844,132 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Export Excel -->
+<div class="modal fade" id="exportStudentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-excel me-2"></i>Xuất danh sách học viên
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="exportForm" onsubmit="return false;">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Khóa học</label>
+                            <select name="course_item_id" class="form-select export-select">
+                                <option value="">Tất cả khóa học</option>
+                                @php
+                                    $courseItems = \App\Models\CourseItem::whereNull('parent_id')->get();
+                                @endphp
+                                @foreach($courseItems as $courseItem)
+                                    <option value="{{ $courseItem->id }}">{{ $courseItem->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Trạng thái</label>
+                            <select name="status" class="form-select export-select">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="active">Đang học</option>
+                                <option value="completed">Hoàn thành</option>
+                                <option value="waiting">Danh sách chờ</option>
+                                <option value="inactive">Không hoạt động</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Tỉnh/Thành phố</label>
+                            <select name="province_id" class="form-select export-select">
+                                <option value="">Tất cả tỉnh thành</option>
+                                @php
+                                    $provinces = \App\Models\Province::orderBy('name')->get();
+                                @endphp
+                                @foreach($provinces as $province)
+                                    <option value="{{ $province->id }}">{{ $province->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Giới tính</label>
+                            <select name="gender" class="form-select export-select">
+                                <option value="">Tất cả giới tính</option>
+                                <option value="male">Nam</option>
+                                <option value="female">Nữ</option>
+                                <option value="other">Khác</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Từ ngày sinh</label>
+                            <input type="date" name="date_of_birth_from" class="form-control">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Đến ngày sinh</label>
+                            <input type="date" name="date_of_birth_to" class="form-control">
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label class="form-label">Các cột cần xuất</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="full_name" id="col_name" checked>
+                                        <label class="form-check-label" for="col_name">Họ và tên</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="phone" id="col_phone" checked>
+                                        <label class="form-check-label" for="col_phone">Số điện thoại</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="email" id="col_email" checked>
+                                        <label class="form-check-label" for="col_email">Email</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="date_of_birth" id="col_dob" checked>
+                                        <label class="form-check-label" for="col_dob">Ngày sinh</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="gender" id="col_gender">
+                                        <label class="form-check-label" for="col_gender">Giới tính</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="address" id="col_address">
+                                        <label class="form-check-label" for="col_address">Địa chỉ</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="province" id="col_province">
+                                        <label class="form-check-label" for="col_province">Tỉnh/Thành phố</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="workplace" id="col_workplace">
+                                        <label class="form-check-label" for="col_workplace">Nơi làm việc</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="experience_years" id="col_exp">
+                                        <label class="form-check-label" for="col_exp">Kinh nghiệm</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="enrollments" id="col_enrollments" checked>
+                                        <label class="form-check-label" for="col_enrollments">Khóa học đã đăng ký</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="executeExport()">
+                    <i class="fas fa-download me-1"></i>Xuất Excel
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @push('scripts')
@@ -874,9 +1005,16 @@ $(document).ready(function() {
         }
     });
 
-    // Auto-submit form khi select thay đổi
-    $('select[name="course_item_id"], select[name="status"]').change(function() {
+    // Auto-submit form khi select thay đổi (chỉ cho form chính, không phải modal export)
+    $('#studentSearchForm select[name="course_item_id"], #studentSearchForm select[name="status"]').change(function() {
         $(this).closest('form').submit();
+    });
+    
+    // Ngăn chặn auto-submit cho modal export
+    $(document).on('change', '#exportStudentModal select', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        return false;
     });
 
     // Auto-submit khi search select2 thay đổi
@@ -892,12 +1030,62 @@ $(document).ready(function() {
     });
 });
 
-function exportStudents() {
-    alert('Chức năng xuất Excel đang được phát triển');
+function showExportModal() {
+    $('#exportStudentModal').modal('show');
+    
+    // Ngăn chặn auto-submit cho các select trong modal export
+    setTimeout(function() {
+        $('.export-select').off('change').on('change', function(e) {
+            e.stopPropagation();
+            // Không làm gì cả, chỉ ngăn chặn submit
+        });
+    }, 100);
 }
 
-function printStudents() {
-    window.print();
+function executeExport() {
+    // Lấy dữ liệu từ form
+    const formData = new FormData(document.getElementById('exportForm'));
+    
+    // Tạo URL với query parameters
+    const params = new URLSearchParams();
+    
+    // Xử lý các field thông thường
+    for (let [key, value] of formData.entries()) {
+        if (value && key !== 'columns[]') {
+            params.append(key, value);
+        }
+    }
+    
+    // Xử lý checkbox columns[] riêng
+    const checkedColumns = [];
+    document.querySelectorAll('input[name="columns[]"]:checked').forEach(function(checkbox) {
+        checkedColumns.push(checkbox.value);
+    });
+    
+    if (checkedColumns.length > 0) {
+        checkedColumns.forEach(function(column) {
+            params.append('columns[]', column);
+        });
+    }
+    
+    // Tạo URL export
+    const exportUrl = '{{ route("students.export") }}?' + params.toString();
+    
+    // Hiển thị loading
+    const exportBtn = document.querySelector('#exportStudentModal .btn-success');
+    const originalText = exportBtn.innerHTML;
+    exportBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Đang xuất...';
+    exportBtn.disabled = true;
+    
+    // Mở link download trong tab mới
+    window.open(exportUrl, '_blank');
+    
+    // Reset button sau 2 giây
+    setTimeout(function() {
+        exportBtn.innerHTML = originalText;
+        exportBtn.disabled = false;
+        $('#exportStudentModal').modal('hide');
+    }, 2000);
 }
 
 // Khởi tạo select2 cho tỉnh thành khi mở modal

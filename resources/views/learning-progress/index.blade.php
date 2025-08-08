@@ -258,7 +258,7 @@
 </style>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script>
 // Biến lưu trữ các thay đổi
 let changedProgress = [];
@@ -732,4 +732,4 @@ function saveStudentProgress() {
     });
 }
 </script>
-@endsection 
+@endpush 

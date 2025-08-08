@@ -256,4 +256,43 @@ class CourseItemController extends Controller
             ]);
         }
     }
+
+    /**
+     * Lấy danh sách khóa học lá (có thể ghi danh) cho dropdown
+     */
+    public function getLeafCourses()
+    {
+        $courses = CourseItem::where('is_leaf', true)
+                            ->where('active', true)
+                            ->orderBy('name')
+                            ->get()
+                            ->map(function($course) {
+                                return [
+                                    'id' => $course->id,
+                                    'name' => $course->name,
+                                    'path' => $this->getCoursePath($course)
+                                ];
+                            });
+
+        return response()->json([
+            'success' => true,
+            'courses' => $courses
+        ]);
+    }
+
+    /**
+     * Lấy đường dẫn đầy đủ của khóa học
+     */
+    private function getCoursePath($courseItem)
+    {
+        $path = [];
+        $current = $courseItem;
+        
+        while ($current) {
+            array_unshift($path, $current->name);
+            $current = $current->parent;
+        }
+        
+        return implode(' > ', $path);
+    }
 } 

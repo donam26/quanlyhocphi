@@ -449,7 +449,7 @@
 </style>
 @endsection
 
-@section('scripts')
+@push('scripts')
 <script src="{{ asset('js/enrollment.js') }}"></script>
-@endsection 
+@endpush 
  

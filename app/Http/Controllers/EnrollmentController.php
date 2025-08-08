@@ -256,21 +256,133 @@ class EnrollmentController extends Controller
     /**
      * Xác nhận ghi danh từ trạng thái chờ
      */
-    public function confirmFromWaiting(Enrollment $enrollment)
+    public function confirmFromWaiting(Request $request, Enrollment $enrollment)
     {
         try {
-            if ($enrollment->status !== EnrollmentStatus::WAITING->value) {
+            if ($enrollment->status !== 'waiting') {
+                if ($request->ajax() || $request->expectsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Chỉ có thể xác nhận từ trạng thái chờ!'
+                    ], 422);
+                }
                 return redirect()->back()
                     ->withErrors(['error' => 'Chỉ có thể xác nhận từ trạng thái chờ!']);
             }
             
-            $enrollment = $this->enrollmentService->moveFromWaitingToEnrolled($enrollment);
+            DB::beginTransaction();
+            
+            // Cập nhật trạng thái
+            $enrollment->status = 'enrolled';
+            $enrollment->confirmation_date = now();
+            
+            // Xử lý chiết khấu
+            if ($request->filled('discount_percentage')) {
+                $discountPercentage = min(100, max(0, $request->discount_percentage));
+                $enrollment->discount_percentage = $discountPercentage;
+                $enrollment->discount_amount = ($enrollment->final_fee * $discountPercentage) / 100;
+                $enrollment->final_fee = $enrollment->final_fee - $enrollment->discount_amount;
+            }
+            
+            // Xử lý chuyển khóa học
+            if ($request->filled('new_course_id')) {
+                $newCourseId = $request->new_course_id;
+                $newCourse = \App\Models\CourseItem::find($newCourseId);
+                
+                if ($newCourse && $newCourse->is_leaf && $newCourse->active) {
+                    $enrollment->course_item_id = $newCourseId;
+                    // Cập nhật học phí theo khóa học mới nếu chưa có chiết khấu
+                    if (!$request->filled('discount_percentage') && $newCourse->fee) {
+                        $enrollment->final_fee = $newCourse->fee;
+                    }
+                }
+            }
+            
+            // Thêm ghi chú nếu có
+            if ($request->filled('notes')) {
+                $currentNotes = $enrollment->notes ? $enrollment->notes . "\n" : '';
+                $enrollment->notes = $currentNotes . '[' . now()->format('d/m/Y H:i') . '] ' . $request->notes;
+            }
+            
+            $enrollment->save();
+            
+            DB::commit();
+            
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Đã xác nhận học viên thành công!'
+                ]);
+            }
             
             return redirect()->route('enrollments.show', $enrollment->id)
                 ->with('success', 'Đã chuyển trạng thái sang Đang học thành công!');
         } catch (\Exception $e) {
+            DB::rollBack();
             Log::error('Enrollment confirmation error: ' . $e->getMessage());
+            
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                ], 500);
+            }
+            
             return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Xác nhận hàng loạt học viên từ danh sách chờ
+     */
+    public function bulkConfirmWaiting(Request $request)
+    {
+        $request->validate([
+            'enrollment_ids' => 'required|array',
+            'enrollment_ids.*' => 'exists:enrollments,id'
+        ]);
+
+        try {
+            DB::beginTransaction();
+            
+            $confirmedCount = 0;
+            $errors = [];
+            
+            foreach ($request->enrollment_ids as $enrollmentId) {
+                $enrollment = Enrollment::find($enrollmentId);
+                
+                if ($enrollment && $enrollment->status === 'waiting') {
+                    $enrollment->status = 'enrolled';
+                    $enrollment->confirmation_date = now();
+                    $enrollment->save();
+                    $confirmedCount++;
+                } else {
+                    $errors[] = "Enrollment ID {$enrollmentId} không thể xác nhận";
+                }
+            }
+            
+            DB::commit();
+            
+            $message = "Đã xác nhận {$confirmedCount} học viên thành công!";
+            if (!empty($errors)) {
+                $message .= " Có " . count($errors) . " lỗi.";
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'confirmed_count' => $confirmedCount,
+                'errors' => $errors
+            ]);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Bulk confirmation error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
         }
     }
 
@@ -284,7 +396,7 @@ class EnrollmentController extends Controller
         ]);
         
         try {
-            if ($enrollment->status !== EnrollmentStatus::WAITING->value) {
+            if ($enrollment->status !== 'waiting') {
                 return redirect()->back()
                     ->withErrors(['error' => 'Chỉ có thể thêm ghi chú cho trạng thái chờ!']);
             }

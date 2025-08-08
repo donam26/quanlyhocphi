@@ -5,227 +5,258 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
-use App\Traits\Date;
+use Carbon\CarbonPeriod;
 
 class Schedule extends Model
 {
-    use HasFactory, Date;
-    
+    use HasFactory;
+
     protected $fillable = [
         'course_item_id',
+        'days_of_week',
         'start_date',
         'end_date',
-        'day_of_week',
-        'recurring_days',
-        'notes',
-        'is_recurring',
-        'active'
+        'active',
+        'is_inherited',
+        'parent_schedule_id'
     ];
-    
+
     protected $casts = [
+        'days_of_week' => 'array',
         'start_date' => 'date',
         'end_date' => 'date',
-        'recurring_days' => 'array',
-        'is_recurring' => 'boolean',
-        'active' => 'boolean'
+        'active' => 'boolean',
+        'is_inherited' => 'boolean'
     ];
-    
+
+    protected $attributes = [
+        'days_of_week' => '[]',
+        'active' => true
+    ];
+
     /**
-     * Format ngày bắt đầu theo định dạng dd/mm/yyyy
-     */
-    public function getFormattedStartDateAttribute()
-    {
-        return $this->formatDate('start_date');
-    }
-    
-    /**
-     * Format ngày kết thúc theo định dạng dd/mm/yyyy
-     */
-    public function getFormattedEndDateAttribute()
-    {
-        return $this->formatDate('end_date');
-    }
-    
-    /**
-     * Chuyển đổi ngày bắt đầu từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
-     */
-    public function setStartDateAttribute($value)
-    {
-        $this->attributes['start_date'] = static::parseDate($value);
-    }
-    
-    /**
-     * Chuyển đổi ngày kết thúc từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
-     */
-    public function setEndDateAttribute($value)
-    {
-        $this->attributes['end_date'] = static::parseDate($value);
-    }
-    
-    /**
-     * Lấy khóa học liên quan đến lịch học này
+     * Relationship với CourseItem
      */
     public function courseItem()
     {
         return $this->belongsTo(CourseItem::class);
     }
-    
+
     /**
-     * Lấy danh sách điểm danh cho buổi học này
+     * Relationship với lịch cha
      */
-    public function attendances()
+    public function parentSchedule()
     {
-        return $this->hasMany(Attendance::class);
+        return $this->belongsTo(Schedule::class, 'parent_schedule_id');
     }
-    
+
     /**
-     * Lấy tên thứ trong tuần dạng tiếng Việt
+     * Relationship với các lịch con
      */
-    public function getDayOfWeekNameAttribute()
+    public function childSchedules()
     {
-        $dayNames = [
-            'Monday' => 'Thứ 2',
-            'Tuesday' => 'Thứ 3',
-            'Wednesday' => 'Thứ 4',
-            'Thursday' => 'Thứ 5',
-            'Friday' => 'Thứ 6',
-            'Saturday' => 'Thứ 7',
-            'Sunday' => 'Chủ nhật'
-        ];
-        
-        $dayOfWeek = Carbon::parse($this->start_date)->format('l');
-        return $dayNames[$dayOfWeek] ?? $dayOfWeek;
+        return $this->hasMany(Schedule::class, 'parent_schedule_id');
     }
-    
+
     /**
-     * Lấy chuỗi các ngày học trong tuần
+     * Tự động tính ngày kết thúc khi lưu
      */
-    public function getRecurringDaysTextAttribute()
+    protected static function boot()
     {
-        if (!$this->recurring_days) {
-            return '';
-        }
-        
-        $dayNames = [
-            'monday' => 'T2',
-            'tuesday' => 'T3',
-            'wednesday' => 'T4',
-            'thursday' => 'T5',
-            'friday' => 'T6',
-            'saturday' => 'T7',
-            'sunday' => 'CN'
-        ];
-        
-        $days = [];
-        foreach ($this->recurring_days as $day) {
-            if (isset($dayNames[strtolower($day)])) {
-                $days[] = $dayNames[strtolower($day)];
+        parent::boot();
+
+        static::saving(function ($schedule) {
+            // Tự động tính end_date = start_date + 12 tuần
+            if ($schedule->start_date) {
+                $schedule->end_date = Carbon::parse($schedule->start_date)
+                    ->addWeeks(12)
+                    ->subDay();
             }
-        }
-        
-        return implode(', ', $days);
-    }
-    
-    /**
-     * Scope lọc theo khóa học
-     */
-    public function scopeForCourse($query, $courseItemId)
-    {
-        return $query->where('course_item_id', $courseItemId);
-    }
-    
-    /**
-     * Scope lọc theo ngày
-     */
-    public function scopeOnDate($query, $date)
-    {
-        return $query->whereDate('start_date', '<=', $date)
-                    ->where(function($q) use ($date) {
-                        $q->whereDate('end_date', '>=', $date)
-                          ->orWhereNull('end_date');
-                    });
-    }
-    
-    /**
-     * Scope lọc theo khoảng thời gian
-     */
-    public function scopeBetweenDates($query, $startDate, $endDate)
-    {
-        return $query->where(function($q) use ($startDate, $endDate) {
-            // Lịch học bắt đầu trong khoảng thời gian
-            $q->whereBetween('start_date', [$startDate, $endDate])
-              // Hoặc lịch học kết thúc trong khoảng thời gian
-              ->orWhereBetween('end_date', [$startDate, $endDate])
-              // Hoặc lịch học bao trùm khoảng thời gian
-              ->orWhere(function($q2) use ($startDate, $endDate) {
-                  $q2->where('start_date', '<=', $startDate)
-                     ->where(function($q3) use ($endDate) {
-                         $q3->where('end_date', '>=', $endDate)
-                            ->orWhereNull('end_date');
-                     });
-              });
+        });
+
+        static::saved(function ($schedule) {
+            // Khi lưu lịch cha, tự động cập nhật cho các khóa con
+            if (!$schedule->is_inherited) {
+                $schedule->propagateToChildren();
+            }
         });
     }
-    
+
     /**
-     * Scope lọc các lịch học đang hoạt động
+     * Lan truyền lịch học xuống các khóa con
+     */
+    public function propagateToChildren()
+    {
+        $courseItem = $this->courseItem;
+        if (!$courseItem) return;
+
+        // Lấy tất cả khóa con
+        $childCourses = $this->getAllChildCourses($courseItem);
+
+        foreach ($childCourses as $childCourse) {
+            // Xóa lịch cũ của khóa con (nếu là inherited)
+            Schedule::where('course_item_id', $childCourse->id)
+                ->where('is_inherited', true)
+                ->delete();
+
+            // Tạo lịch mới cho khóa con
+            Schedule::create([
+                'course_item_id' => $childCourse->id,
+                'days_of_week' => $this->days_of_week,
+                'start_date' => $this->start_date,
+                'active' => $this->active,
+                'is_inherited' => true,
+                'parent_schedule_id' => $this->id
+            ]);
+        }
+    }
+
+    /**
+     * Lấy tất cả khóa con (đệ quy)
+     */
+    private function getAllChildCourses($courseItem)
+    {
+        $children = collect();
+        
+        foreach ($courseItem->children as $child) {
+            $children->push($child);
+            $children = $children->merge($this->getAllChildCourses($child));
+        }
+        
+        return $children;
+    }
+
+    /**
+     * Lấy tên các ngày trong tuần
+     */
+    public function getDaysOfWeekNamesAttribute()
+    {
+        $dayNames = [
+            1 => 'Thứ 2',
+            2 => 'Thứ 3', 
+            3 => 'Thứ 4',
+            4 => 'Thứ 5',
+            5 => 'Thứ 6',
+            6 => 'Thứ 7',
+            7 => 'Chủ nhật'
+        ];
+
+        return collect($this->days_of_week)
+            ->map(fn($day) => $dayNames[$day] ?? '')
+            ->filter()
+            ->implode(', ');
+    }
+
+    /**
+     * Kiểm tra lịch có đang hoạt động không
+     */
+    public function isActive()
+    {
+        if (!$this->active) return false;
+        
+        $now = Carbon::now();
+        return $now->between($this->start_date, $this->end_date);
+    }
+
+
+
+    /**
+     * Scope cho lịch đang hoạt động
      */
     public function scopeActive($query)
     {
         return $query->where('active', true);
     }
-    
+
     /**
-     * Kiểm tra xem một ngày cụ thể có nằm trong lịch học không
+     * Scope cho lịch không kế thừa (lịch gốc)
      */
-    public function isOnDate($date)
+    public function scopeOriginal($query)
     {
-        $date = Carbon::parse($date);
-        
-        // Kiểm tra ngày có nằm trong khoảng thời gian của lịch học không
-        if ($date->lt($this->start_date)) {
-            return false;
-        }
-        
-        if ($this->end_date && $date->gt($this->end_date)) {
-            return false;
-        }
-        
-        // Nếu không phải lịch học định kỳ, chỉ kiểm tra ngày bắt đầu
-        if (!$this->is_recurring) {
-            return $date->isSameDay($this->start_date);
-        }
-        
-        // Nếu là lịch học định kỳ, kiểm tra thứ trong tuần
-        $dayOfWeek = strtolower($date->format('l'));
-        return in_array($dayOfWeek, $this->recurring_days ?: []);
+        return $query->where('is_inherited', false);
     }
-    
+
     /**
-     * Tạo các ngày học cụ thể trong khoảng thời gian
+     * Tạo các buổi học cụ thể từ lịch định kỳ cho calendar
      */
-    public function getClassDates()
+    public function generateCalendarEvents($startDate = null, $endDate = null)
     {
-        $dates = [];
+        $events = collect();
         
-        if (!$this->is_recurring) {
-            $dates[] = $this->start_date->format('Y-m-d');
-            return $dates;
+        if (empty($this->days_of_week)) {
+            return $events;
         }
+
+        $start = $startDate ? Carbon::parse($startDate) : $this->start_date;
+        $end = $endDate ? Carbon::parse($endDate) : $this->end_date;
         
-        $currentDate = $this->start_date->copy();
-        $endDate = $this->end_date ? $this->end_date->copy() : $currentDate->copy()->addMonths(3);
+        if (!$start || !$end) {
+            return $events;
+        }
+
+        // Tạo period từ start đến end
+        $period = CarbonPeriod::create($start, $end);
         
-        while ($currentDate->lte($endDate)) {
-            $dayOfWeek = strtolower($currentDate->format('l'));
+        foreach ($period as $date) {
+            // Kiểm tra xem ngày này có trong days_of_week không
+            $dayOfWeek = $date->dayOfWeek === 0 ? 7 : $date->dayOfWeek; // Convert Sunday từ 0 thành 7
             
-            if (in_array($dayOfWeek, $this->recurring_days ?: [])) {
-                $dates[] = $currentDate->format('Y-m-d');
+            if (in_array($dayOfWeek, $this->days_of_week)) {
+                $events->push([
+                    'id' => $this->id . '_' . $date->format('Y-m-d'),
+                    'schedule_id' => $this->id,
+                    'title' => $this->courseItem->name ?? 'Khóa học',
+                    'date' => $date->format('Y-m-d'),
+                    'start' => $date->format('Y-m-d') . 'T08:00:00', // Default time
+                    'end' => $date->format('Y-m-d') . 'T10:00:00',   // Default time
+                    'course_name' => $this->courseItem->name ?? '',
+                    'course_path' => $this->courseItem->path ?? '',
+                    'is_inherited' => $this->is_inherited,
+                    'backgroundColor' => $this->getEventColor(),
+                    'borderColor' => $this->getEventColor(),
+                    'textColor' => '#ffffff'
+                ]);
             }
-            
-            $currentDate->addDay();
         }
         
-        return $dates;
+        return $events;
+    }
+
+    /**
+     * Lấy màu sắc cho event dựa trên loại khóa học
+     */
+    private function getEventColor()
+    {
+        if ($this->is_inherited) {
+            return '#6c757d'; // Gray cho lịch kế thừa
+        }
+
+        // Màu sắc dựa trên tên khóa học
+        $courseName = strtolower($this->courseItem->name ?? '');
+        
+        if (str_contains($courseName, 'kế toán')) {
+            return '#007bff'; // Blue
+        } elseif (str_contains($courseName, 'marketing')) {
+            return '#28a745'; // Green
+        } elseif (str_contains($courseName, 'quản trị')) {
+            return '#ffc107'; // Yellow
+        }
+        
+        return '#17a2b8'; // Teal mặc định
+    }
+
+    /**
+     * Scope cho lịch trong khoảng thời gian
+     */
+    public function scopeInDateRange($query, $startDate, $endDate)
+    {
+        return $query->where(function($q) use ($startDate, $endDate) {
+            $q->whereBetween('start_date', [$startDate, $endDate])
+              ->orWhereBetween('end_date', [$startDate, $endDate])
+              ->orWhere(function($q2) use ($startDate, $endDate) {
+                  $q2->where('start_date', '<=', $startDate)
+                     ->where('end_date', '>=', $endDate);
+              });
+        });
     }
 }

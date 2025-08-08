@@ -35,8 +35,11 @@ class SearchController extends Controller
         
         $results = $students->map(function ($student) {
             return [
-                'id' => $student->id, 
-                'text' => $student->full_name . ' - ' . $student->phone
+                'id' => $student->id,
+                'text' => $student->full_name . ' - ' . $student->phone,
+                'full_name' => $student->full_name,
+                'phone' => $student->phone,
+                'email' => $student->email
             ];
         });
         
@@ -67,9 +70,39 @@ class SearchController extends Controller
     }
     
     /**
-     * Lấy lịch sử học viên
+     * API: Lấy chi tiết học viên cho modal
      */
-    public function studentHistory($studentId)
+    public function getStudentDetails(Request $request)
+    {
+        $term = $request->input('term');
+        $studentId = $request->input('student_id');
+        
+        if (!$term && !$studentId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Thiếu thông tin tìm kiếm'
+            ], 400);
+        }
+        
+        try {
+            $result = $this->searchService->searchStudents($term, $studentId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $result
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tìm kiếm: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * API: Lấy lịch sử học viên cho modal
+     */
+    public function getStudentHistory($studentId)
     {
         try {
             $data = $this->searchService->getStudentHistory($studentId);
@@ -84,5 +117,13 @@ class SearchController extends Controller
                 'message' => 'Không tìm thấy học viên hoặc có lỗi xảy ra: ' . $e->getMessage()
             ], 404);
         }
+    }
+    
+    /**
+     * Lấy lịch sử học viên (legacy method - giữ lại cho backward compatibility)
+     */
+    public function studentHistory($studentId)
+    {
+        return $this->getStudentHistory($studentId);
     }
 } 

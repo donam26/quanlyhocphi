@@ -43,7 +43,76 @@ class SearchController extends Controller
     }
     
     /**
-     * Hiển thị lịch sử của học viên
+     * API: Autocomplete tìm kiếm học viên
+     */
+    public function autocomplete(Request $request)
+    {
+        $term = $request->get('q', '');
+        
+        if (strlen($term) < 2) {
+            return response()->json([]);
+        }
+        
+        $students = \App\Models\Student::search($term)
+            ->select('id', 'full_name', 'phone', 'email')
+            ->limit(10)
+            ->get();
+        
+        $results = $students->map(function ($student) {
+            return [
+                'id' => $student->id,
+                'text' => $student->full_name . ' - ' . $student->phone,
+                'full_name' => $student->full_name,
+                'phone' => $student->phone,
+                'email' => $student->email
+            ];
+        });
+        
+        return response()->json($results);
+    }
+    
+    /**
+     * API: Lấy chi tiết học viên cho modal
+     */
+    public function getStudentDetails(Request $request)
+    {
+        $term = $request->input('term');
+        $studentId = $request->input('student_id');
+        
+        if (!$term && !$studentId) {
+            return response()->json(['error' => 'Thiếu thông tin tìm kiếm'], 400);
+        }
+        
+        $result = $this->searchService->searchStudents($term, $studentId);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $result
+        ]);
+    }
+    
+    /**
+     * API: Lấy lịch sử học viên cho modal
+     */
+    public function getStudentHistory($studentId)
+    {
+        try {
+            $data = $this->searchService->getStudentHistory($studentId);
+            
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy thông tin học viên'
+            ], 404);
+        }
+    }
+    
+    /**
+     * Hiển thị lịch sử của học viên (legacy - giữ lại cho backward compatibility)
      */
     public function studentHistory($studentId)
     {

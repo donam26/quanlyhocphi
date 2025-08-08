@@ -33,6 +33,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Students
     Route::get('students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/create', [StudentController::class, 'create'])->name('students.create');
+    Route::post('/students', [StudentController::class, 'store'])->name('students.store');
+    Route::get('students/{student}', [StudentController::class, 'show'])->name('students.show');
+    Route::get('students/{student}/edit', [StudentController::class, 'edit'])->name('students.edit');
+    Route::put('students/{student}', [StudentController::class, 'update'])->name('students.update');
+    Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
     Route::delete('students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
     Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->name('students.enrollments');
     Route::get('students/{student}/payments', [StudentController::class, 'payments'])->name('students.payments');
@@ -74,8 +79,24 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('enrollments/{enrollment}/add-waiting-note', [EnrollmentController::class, 'addWaitingNote'])->name('enrollments.add-waiting-note');
     Route::post('enrollments/move-to-waiting', [EnrollmentController::class, 'moveToWaiting'])->name('enrollments.move-to-waiting');
     Route::get('course-items/{courseItem}/waiting-list', [CourseItemController::class, 'waitingList'])->name('course-items.waiting-list');
+    
+    // Trang cây danh sách chờ
+    Route::get('waiting-tree', [CourseItemController::class, 'waitingTree'])->name('course-items.waiting-tree');
+    Route::get('course-items/{courseItem}/waiting-count', [CourseItemController::class, 'getWaitingCount'])->name('course-items.waiting-count');
+    
+    // Quản lý lịch học
+    Route::get('schedules/calendar-events', [ScheduleController::class, 'getCalendarEvents'])->name('schedules.calendar-events');
+    Route::get('schedules/session-info', [ScheduleController::class, 'getSessionInfo'])->name('schedules.session-info');
+    Route::post('schedules/save-attendance', [ScheduleController::class, 'saveAttendance'])->name('schedules.save-attendance');
+    Route::resource('schedules', ScheduleController::class);
+    Route::get('course-items/{courseItem}/schedules', [ScheduleController::class, 'getSchedulesByCourse'])->name('course-items.schedules');
+    Route::post('schedules/{schedule}/toggle-active', [ScheduleController::class, 'toggleActive'])->name('schedules.toggle-active');
+
 
     // Attendance
+    Route::get('attendance/tree', [AttendanceController::class, 'tree'])->name('attendance.tree');
+    Route::get('course-items/{courseItem}/attendance-students', [AttendanceController::class, 'getStudentsForAttendance'])->name('course-items.attendance-students');
+    Route::post('attendance/save-from-tree', [AttendanceController::class, 'saveAttendanceFromTree'])->name('attendance.save-from-tree');
     Route::resource('attendance', AttendanceController::class);
     Route::get('attendance/class/show', [AttendanceController::class, 'showClass'])->name('attendance.show-class');
     Route::get('attendance/student/{student}/report', [AttendanceController::class, 'studentReport'])->name('attendance.student-report');

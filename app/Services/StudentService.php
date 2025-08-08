@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\StudentsExport;
 
 class StudentService
 {
@@ -92,5 +94,57 @@ class StudentService
                     ->with(['enrollments.courseItem', 'waitingLists.courseItem'])
                     ->limit(10)
                     ->get();
+    }
+
+    public function exportStudents(array $filters = [])
+    {
+        $query = Student::with(['enrollments.courseItem', 'province']);
+
+        // Áp dụng các filter
+        if (!empty($filters['course_item_id'])) {
+            $query->whereHas('enrollments', function($q) use ($filters) {
+                $q->where('course_item_id', $filters['course_item_id']);
+            });
+        }
+
+        if (!empty($filters['status'])) {
+            $statusMap = [
+                'active' => ['enrolled'],
+                'completed' => ['completed'],
+                'waiting' => ['waiting'],
+                'inactive' => ['cancelled', 'dropped']
+            ];
+            
+            if (isset($statusMap[$filters['status']])) {
+                $query->whereHas('enrollments', function($q) use ($statusMap, $filters) {
+                    $q->whereIn('status', $statusMap[$filters['status']]);
+                });
+            }
+        }
+
+        if (!empty($filters['province_id'])) {
+            $query->where('province_id', $filters['province_id']);
+        }
+
+        if (!empty($filters['gender'])) {
+            $query->where('gender', $filters['gender']);
+        }
+
+        if (!empty($filters['date_of_birth_from'])) {
+            $query->where('date_of_birth', '>=', $filters['date_of_birth_from']);
+        }
+
+        if (!empty($filters['date_of_birth_to'])) {
+            $query->where('date_of_birth', '<=', $filters['date_of_birth_to']);
+        }
+
+        $students = $query->get();
+        
+        // Xác định các cột cần xuất
+        $columns = $filters['columns'] ?? ['full_name', 'phone', 'email', 'date_of_birth', 'enrollments'];
+
+        $fileName = 'danh_sach_hoc_vien_' . date('Y_m_d_H_i_s') . '.xlsx';
+        
+        return Excel::download(new StudentsExport($students, $columns), $fileName);
     }
 }

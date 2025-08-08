@@ -20,6 +20,8 @@ Route::get('/healthy', function () {
 
 // API tìm kiếm học viên (không yêu cầu xác thực)
 Route::get('/search/autocomplete', [SearchController::class, 'autocomplete'])->name('api.search.autocomplete');
+Route::get('/search/details', [SearchController::class, 'getStudentDetails'])->name('api.search.details');
+Route::get('/search/student/{student}/history', [SearchController::class, 'getStudentHistory'])->name('api.search.student-history');
 
 // API RESOURCES
 // Tất cả API endpoints được phân nhóm và sử dụng controllers trong thư mục Api/
@@ -29,6 +31,7 @@ Route::prefix('course-items')->group(function () {
     Route::get('/', [CourseItemController::class, 'index']);
     Route::get('/available', [CourseItemController::class, 'available']);
     Route::get('/search', [CourseItemController::class, 'search']);
+    Route::get('/leaf-courses', [CourseItemController::class, 'getLeafCourses']);
     Route::get('/{id}', [CourseItemController::class, 'show']);
     Route::post('/', [CourseItemController::class, 'store']);
     Route::put('/{id}', [CourseItemController::class, 'update']);
@@ -39,6 +42,7 @@ Route::prefix('course-items')->group(function () {
 Route::prefix('students')->group(function () {
     Route::get('/', [StudentController::class, 'index']);
     Route::get('/{id}/info', [StudentController::class, 'getInfo']);
+    Route::get('/{id}/details', [StudentController::class, 'getStudentDetails']);
     Route::post('/{id}/update', [StudentController::class, 'update']);
     Route::post('/create', [StudentController::class, 'store']);
     Route::get('/province/{provinceId}', [StudentController::class, 'getByProvince']);
@@ -70,6 +74,7 @@ Route::prefix('enrollments')->group(function() {
     Route::post('/', [EnrollmentController::class, 'store']);
     Route::get('/{id}', [EnrollmentController::class, 'getInfo']);
     Route::post('/{id}', [EnrollmentController::class, 'update']);
+    Route::post('/{id}/cancel', [EnrollmentController::class, 'cancelEnrollment']);
     Route::get('/{id}/payments', [EnrollmentController::class, 'getPayments']);
     Route::get('/student/{id}', [EnrollmentController::class, 'getStudentEnrollments']);
 });
