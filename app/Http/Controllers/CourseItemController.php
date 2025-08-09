@@ -67,23 +67,44 @@ class CourseItemController extends Controller
             'is_leaf' => 'required|boolean',
         ]);
 
+        // Lưu root_id hiện tại để preserve tab state
+        $currentRootId = $request->input('current_root_id');
+        
+        // Nếu không có current_root_id và có parent_id, tìm root_id từ parent
+        if (!$currentRootId && $validated['parent_id']) {
+            $parent = CourseItem::find($validated['parent_id']);
+            if ($parent) {
+                $currentRootId = $this->findRootId($parent);
+            }
+        }
+
         $courseItem = $this->courseItemService->createCourseItem($validated);
+
+        // Xác định root_id để redirect
+        $redirectRootId = $currentRootId;
+        
+        // Nếu tạo mới một root item (không có parent), redirect đến tab của chính nó
+        if (!$validated['parent_id']) {
+            $redirectRootId = $courseItem->id;
+        }
 
         // Nếu request từ modal trong trang tree, chuyển hướng về trang tree với tham số newly_added_id
         if ($request->ajax() || $request->header('X-Requested-With') == 'XMLHttpRequest' || $request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'redirect' => route('course-items.tree', ['newly_added_id' => $courseItem->id])
+                'redirect' => route('course-items.tree', [
+                    'root_id' => $redirectRootId,
+                    'newly_added_id' => $courseItem->id
+                ])
             ]);
         }
 
-        if ($request->parent_id) {
-            return redirect()->route('course-items.tree', ['newly_added_id' => $courseItem->id])
-                    ->with('success', 'Đã thêm thành công khóa học con mới!');
-        }
+        $message = $request->parent_id ? 'Đã thêm thành công khóa học con mới!' : 'Đã thêm thành công ngành học mới!';
 
-        return redirect()->route('course-items.tree', ['newly_added_id' => $courseItem->id])
-                ->with('success', 'Đã thêm thành công ngành học mới!');
+        return redirect()->route('course-items.tree', [
+            'root_id' => $redirectRootId,
+            'newly_added_id' => $courseItem->id
+        ])->with('success', $message);
     }
 
     /**
@@ -155,67 +176,68 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Cập nhật item
+     * Cập nhật khóa học
      */
-    public function update(Request $request, $id)
+    public function update(Request $request, CourseItem $courseItem)
     {
-        $courseItem = $this->courseItemService->getCourseItem($id);
-
-        // Kiểm tra không cho phép item là cha của chính nó
-        if ($request->parent_id == $id) {
-            if ($request->ajax() || $request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => ['parent_id' => 'Không thể chọn chính nó làm cha']
-                ], 422);
-            }
-            return back()->withErrors(['parent_id' => 'Không thể chọn chính nó làm cha']);
-        }
-
-        // Kiểm tra không cho phép chọn con làm cha
-        $descendants = $courseItem->descendants()->pluck('id')->toArray();
-        if (!empty($request->parent_id) && in_array($request->parent_id, $descendants)) {
-            if ($request->ajax() || $request->expectsJson()) {
-                return response()->json([
-                    'success' => false,
-                    'errors' => ['parent_id' => 'Không thể chọn con làm cha']
-                ], 422);
-            }
-            return back()->withErrors(['parent_id' => 'Không thể chọn con làm cha']);
-        }
-
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
             'fee' => 'nullable|numeric|min:0',
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
-            'make_root' => 'nullable|boolean',
             'is_special' => 'nullable|boolean',
-            'custom_field_keys.*' => 'nullable|string',
-            'custom_field_values.*' => 'nullable|string',
+            'custom_field_keys' => 'nullable|array',
         ]);
 
-        $courseItem = $this->courseItemService->updateCourseItem($courseItem, $validated);
+        // Lưu root_id hiện tại để preserve tab state
+        $currentRootId = $request->input('current_root_id');
+        
+        // Nếu không có current_root_id, tìm root_id từ courseItem hiện tại
+        if (!$currentRootId) {
+            $currentRootId = $this->findRootId($courseItem);
+        }
 
-        // Nếu là AJAX request, trả về JSON response
-        if ($request->ajax() || $request->expectsJson()) {
+        $updatedCourseItem = $this->courseItemService->updateCourseItem($courseItem, $validated);
+
+        // Sau khi cập nhật, xác định root theo parent_id mới
+        $redirectRootId = $this->findRootId($updatedCourseItem);
+
+        // Nếu request từ AJAX, trả về JSON response
+        if ($request->ajax() || $request->header('X-Requested-With') == 'XMLHttpRequest' || $request->expectsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Đã cập nhật thành công!',
-                'course_item' => $courseItem
+                'message' => 'Đã cập nhật khóa học thành công!',
+                'redirect' => route('course-items.tree', [
+                    'root_id' => $redirectRootId,
+                    'updated_id' => $updatedCourseItem->id
+                ])
             ]);
         }
 
-        // Nếu không phải AJAX request, chuyển hướng như trước
-        if ($courseItem->parent_id) {
-            return redirect()->route('course-items.tree')
-                    ->with('success', 'Đã cập nhật thành công!');
+        return redirect()->route('course-items.tree', [
+            'root_id' => $redirectRootId,
+            'updated_id' => $updatedCourseItem->id
+        ])->with('success', 'Đã cập nhật khóa học thành công!');
+    }
+
+    /**
+     * Tìm root_id của một course item
+     */
+    private function findRootId(CourseItem $courseItem)
+    {
+        // Nếu đã là root item
+        if (!$courseItem->parent_id) {
+            return $courseItem->id;
         }
 
-        // Nếu là khóa chính, chuyển về trang cây khóa học
-        return redirect()->route('course-items.tree')
-                ->with('success', 'Đã cập nhật thành công!');
+        // Tìm root ancestor
+        $current = $courseItem;
+        while ($current && $current->parent_id) {
+            $current = $current->parent;
+        }
+        
+        return $current ? $current->id : $courseItem->id;
     }
 
     /**
@@ -267,27 +289,54 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Hiển thị cấu trúc cây khóa học
+     * Hiển thị cây khóa học
      */
     public function tree(Request $request)
     {
-        // Lấy tất cả các ngành học (cấp 1)
+        // Lấy tất cả các ngành học (cấp 1) với children đầy đủ
         $rootItems = CourseItem::whereNull('parent_id')
                             ->where('active', true)
                             ->orderBy('order_index')
                             ->with(['children' => function($query) {
-                                $query->where('active', true)->orderBy('order_index');
+                                $query->where('active', true)
+                                      ->orderBy('order_index')
+                                      ->with(['children' => function($subQuery) {
+                                          $subQuery->where('active', true)->orderBy('order_index');
+                                      }]);
                             }])
                             ->get();
 
-        // Kiểm tra xem có đang xem một tab cụ thể không
-        $currentRootItem = null;
+        // Xác định root_id để active tab
+        $activeRootId = null;
         $rootId = $request->query('root_id');
+        
+        // Nếu có updated_id hoặc newly_added_id, tìm root_id tương ứng
+        $updatedId = $request->query('updated_id');
+        $newlyAddedId = $request->query('newly_added_id');
+        $targetId = $updatedId ?: $newlyAddedId;
+        
+        if ($targetId && !$rootId) {
+            $targetItem = CourseItem::find($targetId);
+            if ($targetItem) {
+                $rootId = $this->findRootId($targetItem);
+            }
+        }
+        
+        // Xác định tab active
         if ($rootId) {
-            $currentRootItem = $rootItems->where('id', $rootId)->first();
+            // Kiểm tra root_id có tồn tại trong danh sách không
+            $foundRootItem = $rootItems->where('id', $rootId)->first();
+            if ($foundRootItem) {
+                $activeRootId = $rootId;
+            }
+        }
+        
+        // Nếu không có root_id hợp lệ, mặc định là item đầu tiên
+        if (!$activeRootId && $rootItems->isNotEmpty()) {
+            $activeRootId = $rootItems->first()->id;
         }
 
-        return view('course-items.tree', compact('rootItems', 'currentRootItem'));
+        return view('course-items.tree', compact('rootItems', 'activeRootId'));
     }
 
     /**
@@ -420,6 +469,79 @@ class CourseItemController extends Controller
             'is_special' => $courseItem->is_special,
             'custom_fields' => $courseItem->is_special ? $courseItem->custom_fields : null,
             'totalStudents' => $totalStudents,
+        ]);
+    }
+
+    /**
+     * Trả về danh sách học viên theo ngành/khoá ở dạng JSON để hiển thị trong modal
+     */
+    public function getStudentsJson($id)
+    {
+        $courseItem = $this->courseItemService->getCourseItem($id);
+
+        // Thu thập tất cả ID con thuộc ngành/khoá này
+        $courseItemIds = [$id];
+        $this->getAllChildrenIds($courseItem, $courseItemIds);
+
+        $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->whereNotIn('status', ['waiting', 'cancelled'])
+            ->with(['student', 'courseItem', 'payments' => function($query) {
+                $query->orderBy('payment_date', 'desc');
+            }])
+            ->get();
+
+        $totalStudents = $enrollments->pluck('student_id')->unique()->count();
+
+        $students = $enrollments->map(function($enrollment) {
+            $latestPayment = $enrollment->payments->where('status', 'confirmed')->first();
+            $paymentStatus = $enrollment->isFullyPaid() ? 'Đã đóng đủ' : 'Chưa đóng đủ';
+
+            $paymentNotes = [];
+            foreach ($enrollment->payments as $payment) {
+                if ($payment->notes) {
+                    $paymentNotes[] = [
+                        'date' => $payment->payment_date->format('d/m/Y'),
+                        'amount' => $payment->amount,
+                        'method' => $this->getPaymentMethodText($payment->payment_method),
+                        'status' => $payment->status,
+                        'notes' => $payment->notes
+                    ];
+                }
+            }
+
+            return [
+                'student' => [
+                    'id' => $enrollment->student->id,
+                    'full_name' => $enrollment->student->full_name,
+                    'phone' => $enrollment->student->phone,
+                    'email' => $enrollment->student->email,
+                ],
+                'course_item' => $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A',
+                'enrollment_id' => $enrollment->id,
+                'status' => $enrollment->status,
+                'final_fee' => $enrollment->final_fee,
+                'paid_amount' => $enrollment->getTotalPaidAmount(),
+                'remaining_amount' => $enrollment->getRemainingAmount(),
+                'payment_status' => $paymentStatus,
+                'payment_method' => $latestPayment ? $this->getPaymentMethodText($latestPayment->payment_method) : 'Chưa thanh toán',
+                'has_notes' => count($paymentNotes) > 0,
+                'payment_notes' => $paymentNotes,
+                'custom_fields' => $enrollment->custom_fields,
+            ];
+        })->values();
+
+        return response()->json([
+            'success' => true,
+            'course' => [
+                'id' => $courseItem->id,
+                'name' => $courseItem->name,
+                'path' => $courseItem->path,
+                'is_special' => $courseItem->is_special,
+                'custom_fields' => $courseItem->is_special ? $courseItem->custom_fields : null,
+            ],
+            'total_students' => $totalStudents,
+            'enrollment_count' => $enrollments->count(),
+            'students' => $students,
         ]);
     }
 

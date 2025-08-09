@@ -77,11 +77,8 @@ class CourseItemService
 
     public function updateCourseItem(CourseItem $courseItem, array $data)
     {
-        // Xác định parent_id dựa vào lựa chọn make_root
+        // Xác định parent_id dựa vào dữ liệu gửi lên (không còn make_root)
         $parentId = $data['parent_id'] ?? $courseItem->parent_id;
-        if (isset($data['make_root']) && $data['make_root']) {
-            $parentId = null; // Đặt parent_id = null nếu chọn làm khóa chính
-        }
         
         // Xử lý các trường thông tin tùy chỉnh
         $customFields = [];

@@ -305,26 +305,6 @@
                             </div>
                         </div>
 
-                        <!-- Thông tin bổ sung -->
-                        <div class="col-md-6">
-                            <div class="card mb-3">
-                                <div class="card-header bg-light">
-                                    <i class="fas fa-info-circle"></i> Thông tin bổ sung
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm">
-                                        <tr>
-                                            <th width="40%">Nơi làm việc:</th>
-                                            <td id="student-workplace"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Kinh nghiệm:</th>
-                                            <td id="student-experience"></td>
-                                        </tr>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- Ghi chú -->
@@ -792,25 +772,6 @@
 
                         </div>
 
-                        <!-- Ghi chú -->
-                        <div class="row mb-4">
-{{--                            <div class="col-md-6">--}}
-{{--                                <label for="user_note_id">--}}
-{{--                                    Người ghi chú--}}
-{{--                                </label>--}}
-{{--                                <select name="user_note_id" id="create-user-note-id" class="form-select">--}}
-{{--                                    <option value="">-- Chọn người ghi chú --</option>--}}
-{{--                                    @foreach($users as $user)--}}
-{{--                                        <option value="{{ $user->id }}">{{ $user->name }}</option>--}}
-{{--                                    @endforeach--}}
-{{--                                </select>--}}
-{{--                            </div>--}}
-                            <div class="col-12">
-                                <label class="form-label">Ghi chú</label>
-                                <textarea name="notes" id="create-notes" class="form-control" rows="3"></textarea>
-                                <div class="invalid-feedback" id="create-notes-error"></div>
-                            </div>
-                        </div>
                     </form>
                 </div>
             </div>

@@ -281,6 +281,50 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Tìm kiếm khóa học
+     */
+    public function search(Request $request)
+    {
+        $query = $request->get('q', '');
+        $rootId = $request->get('root_id');
+        
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+        
+        $searchQuery = CourseItem::where('active', true)
+                                ->where('name', 'like', "%{$query}%");
+        
+        // Nếu có root_id, chỉ tìm trong phạm vi đó
+        if ($rootId) {
+            // Lấy tất cả descendants của root_id
+            $rootItem = CourseItem::find($rootId);
+            if ($rootItem) {
+                $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
+                $descendantIds[] = $rootId; // Bao gồm cả root item
+                
+                $searchQuery->whereIn('id', $descendantIds);
+            }
+        }
+        
+        $results = $searchQuery->orderBy('name')
+                              ->limit(10)
+                              ->get()
+                              ->map(function($item) {
+                                  return [
+                                      'id' => $item->id,
+                                      'text' => $item->name,
+                                      'name' => $item->name,
+                                      'path' => $this->getCoursePath($item),
+                                      'is_leaf' => $item->is_leaf,
+                                      'fee' => $item->fee
+                                  ];
+                              });
+        
+        return response()->json($results);
+    }
+
+    /**
      * Lấy đường dẫn đầy đủ của khóa học
      */
     private function getCoursePath($courseItem)

@@ -51,6 +51,8 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');
     Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
     Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
+    // Thêm route trả về danh sách học viên dạng JSON để hiển thị trong modal ở trang cây khóa học
+    Route::get('course-items/{id}/students-json', [CourseItemController::class, 'getStudentsJson'])->name('course-items.students-json');
     Route::resource('course-items', CourseItemController::class)->except(['show']);
 
 

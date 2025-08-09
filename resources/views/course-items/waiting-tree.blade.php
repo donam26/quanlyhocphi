@@ -334,7 +334,7 @@
                 
                 <div class="mb-3">
                     <label for="confirm-course-select" class="form-label">Chuyển vào khóa học</label>
-                    <select class="form-select" id="confirm-course-select">
+                    <select class="form-select select2" id="confirm-course-select">
                         <option value="">Giữ nguyên khóa học hiện tại</option>
                     </select>
                     <div class="form-text">Chọn khóa học khác nếu muốn chuyển học viên</div>
@@ -430,7 +430,7 @@
                                 
                                 <div class="mb-3">
                                     <label for="waiting-course-select" class="form-label">Khóa học đăng ký</label>
-                                    <select class="form-select" id="waiting-course-select">
+                                    <select class="form-select select2" id="waiting-course-select">
                                         <option value="">Chọn khóa học</option>
                                     </select>
                                 </div>
@@ -1079,9 +1079,16 @@ $(document).ready(function() {
             
             $('#waiting-course-select').html(options);
             
+            // Reinitialize Select2 sau khi load options
+            $('#waiting-course-select').select2({
+                theme: 'bootstrap-5',
+                placeholder: 'Chọn khóa học',
+                allowClear: true
+            });
+            
             // Tự động chọn khóa học hiện tại nếu có
             if (selectedCourseId) {
-                $('#waiting-course-select').val(selectedCourseId);
+                $('#waiting-course-select').val(selectedCourseId).trigger('change');
             }
         })
         .fail(function() {

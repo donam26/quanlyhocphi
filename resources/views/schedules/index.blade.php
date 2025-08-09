@@ -5,10 +5,8 @@
 @section('content')
 <div class="container-fluid">
     <!-- Header -->
-    <div class="row mb-4">
+    <div class="row">
         <div class="col-md-8">
-            <h2><i class="fas fa-calendar-alt me-2"></i>Quản lý lịch học</h2>
-            <p class="text-muted">Xem và quản lý lịch học của các khóa học</p>
         </div>
         <div class="col-md-4 text-end">
             <a href="{{ route('schedules.create') }}" class="btn btn-primary">
@@ -18,7 +16,7 @@
     </div>
 
     <!-- Filters và View Toggle -->
-    <div class="row mb-4">
+    <div class="row">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">

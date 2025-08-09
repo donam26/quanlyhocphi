@@ -15,6 +15,8 @@
     position: relative;
     width: 300px;
     flex-shrink: 0;
+    margin-bottom: 10px;
+    right: 0;
 }
 
 .search-container input {
@@ -464,4 +466,67 @@
 
 .student-list-container::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
+} 
+
+/* Highlight cho search result */
+.tree-item.highlight {
+    background-color: #cce5ff !important;
+    border: 2px solid #007bff !important;
+    border-radius: 4px;
+    animation: pulse-blue 1s ease-in-out 3;
+}
+
+/* Highlight cho item mới thêm */
+.tree-item.highlight-new {
+    background-color: #d4edda !important;
+    border: 2px solid #28a745 !important;
+    border-radius: 4px;
+    animation: pulse-green 1s ease-in-out 3;
+}
+
+/* Highlight cho item đã cập nhật */
+.tree-item.highlight-updated {
+    background-color: #fff3cd !important;
+    border: 2px solid #ffc107 !important;
+    border-radius: 4px;
+    animation: pulse-yellow 1s ease-in-out 3;
+}
+
+/* Animation cho highlight mới */
+@keyframes pulse-green {
+    0% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(40, 167, 69, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+    }
+}
+
+/* Animation cho highlight search */
+@keyframes pulse-blue {
+    0% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(0, 123, 255, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(0, 123, 255, 0);
+    }
+}
+
+/* Animation cho highlight cập nhật */
+@keyframes pulse-yellow {
+    0% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0.7);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(255, 193, 7, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
+    }
 } 

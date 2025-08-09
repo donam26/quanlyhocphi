@@ -239,8 +239,15 @@
             <form id="add-item-form" action="{{ route('course-items.store') }}" method="POST">
                 @csrf
                 <div class="modal-body">
-                    <input type="hidden" name="parent_id" id="parent-id-input">
-                    
+                    <div class="mb-3">
+                        <label for="add-parent-select" class="form-label">Khoá cha</label>
+                        <select id="add-parent-select" name="parent_id" class="form-select">
+                            <option value="">(Không có) — Đặt làm khoá chính</option>
+                        </select>
+                        <div class="form-text">Chọn khoá cha (hoặc để trống để tạo khoá chính).</div>
+                    </div>
+                    <input type="hidden" name="current_root_id" id="current-root-id-input">
+
                     <div class="mb-3">
                         <label for="item-name" class="form-label">Tên khóa học <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="item-name" name="name" required>
