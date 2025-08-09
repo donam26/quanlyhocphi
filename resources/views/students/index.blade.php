@@ -409,7 +409,10 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi sinh</label>
-                                <input type="text" name="place_of_birth" id="edit-place-of-birth" class="form-control">
+                                <!-- Hidden field to submit the selected province name -->
+                                <input type="hidden" name="place_of_birth" id="edit-place-of-birth">
+                                <!-- Visible select2 to pick a province -->
+                                <select id="edit-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)"></select>
                                 <div class="invalid-feedback" id="edit-place-of-birth-error"></div>
                             </div>
 
@@ -455,7 +458,10 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
-                                <input type="text" name="current_workplace" id="edit-current-workplace" class="form-control">
+                                <!-- Hidden field to submit the selected province name -->
+                                <input type="hidden" name="current_workplace" id="edit-current-workplace">
+                                <!-- Visible select2 to pick a province -->
+                                <select id="edit-current-workplace-select" class="form-select" data-placeholder="Chọn nơi công tác (tỉnh/thành)"></select>
                                 <div class="invalid-feedback" id="edit-current-workplace-error"></div>
                             </div>
 
@@ -1032,12 +1038,14 @@ function executeExport() {
 $(document).on('shown.bs.modal', '#createStudentModal', function() {
     setTimeout(function() {
         initProvinceSelect2();
+        initLocationSelect2();
     }, 100);
 });
 
 $(document).on('shown.bs.modal', '#editStudentModal', function() {
     setTimeout(function() {
         initProvinceSelect2();
+        initLocationSelect2();
     }, 100);
 });
 
@@ -1045,6 +1053,7 @@ $(document).on('shown.bs.modal', '#editStudentModal', function() {
 $(document).ready(function() {
     // Đợi modal mở để khởi tạo select2
     initProvinceSelect2();
+    initLocationSelect2();
 });
 
 // Hàm khởi tạo select2 cho tỉnh thành với AJAX
@@ -1104,6 +1113,50 @@ function initProvinceSelect2() {
                 cache: false
             },
             minimumInputLength: 1
+        });
+    });
+}
+
+// Khởi tạo select2 cho các trường chọn địa điểm (nơi sinh, nơi công tác)
+function initLocationSelect2(){
+    try {
+        $('#edit-place-of-birth-select, #edit-current-workplace-select').select2('destroy');
+    } catch (e) {}
+
+    $('#edit-place-of-birth-select, #edit-current-workplace-select').each(function(){
+        const $hidden = $(this).attr('id') === 'edit-place-of-birth-select' ? $('#edit-place-of-birth') : $('#edit-current-workplace');
+        $(this).select2({
+            theme: 'bootstrap-5',
+            placeholder: $(this).data('placeholder') || 'Chọn tỉnh/thành',
+            allowClear: true,
+            dropdownParent: $(this).closest('.modal'),
+            width: '100%',
+            ajax: {
+                url: '/api/provinces',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { keyword: params.term || '' };
+                },
+                processResults: function(response){
+                    if (response && response.success && Array.isArray(response.data)){
+                        return {
+                            results: response.data.map(function(item){
+                                return { id: item.id, text: item.name + ' (' + getRegionName(item.region) + ')' };
+                            })
+                        };
+                    }
+                    return { results: [] };
+                }
+            }
+        });
+
+        // Đồng bộ về hidden input khi chọn/clear
+        $(this).on('select2:select', function(e){
+            const text = e.params.data && e.params.data.text ? e.params.data.text : '';
+            $hidden.val(text);
+        }).on('select2:clear', function(){
+            $hidden.val('');
         });
     });
 }

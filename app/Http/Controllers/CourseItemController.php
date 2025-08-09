@@ -200,8 +200,12 @@ class CourseItemController extends Controller
 
         $updatedCourseItem = $this->courseItemService->updateCourseItem($courseItem, $validated);
 
-        // Sau khi cập nhật, xác định root theo parent_id mới
-        $redirectRootId = $this->findRootId($updatedCourseItem);
+        // Giữ nguyên tab hiện tại, trừ khi item được chuyển sang root tree khác
+        $newRootId = $this->findRootId($updatedCourseItem);
+        
+        // Nếu item vẫn thuộc cùng root tree, giữ nguyên tab hiện tại
+        // Nếu item được chuyển sang root tree khác, chuyển đến tab mới
+        $redirectRootId = ($currentRootId && $newRootId == $currentRootId) ? $currentRootId : $newRootId;
 
         // Nếu request từ AJAX, trả về JSON response
         if ($request->ajax() || $request->header('X-Requested-With') == 'XMLHttpRequest' || $request->expectsJson()) {

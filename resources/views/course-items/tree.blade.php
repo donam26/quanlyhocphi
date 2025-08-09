@@ -35,14 +35,14 @@
                     <ul class="nav nav-tabs course-tabs" id="courseTab" role="tablist">
                         @foreach($rootItems as $index => $rootItem)
                             <li class="nav-item" role="presentation">
-                                <button class="nav-link @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) active @endif" 
+                                <button class="nav-link @if($activeRootId == $rootItem->id) active @endif" 
                                         id="tab-{{ $rootItem->id }}" 
                                         data-bs-toggle="tab" 
                                         data-bs-target="#content-{{ $rootItem->id }}" 
                                         type="button" 
                                         role="tab" 
                                         aria-controls="content-{{ $rootItem->id }}" 
-                                        aria-selected="@if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) true @else false @endif">
+                                        aria-selected="@if($activeRootId == $rootItem->id) true @else false @endif">
                                     {{ $rootItem->name }}
                                 </button>
                             </li>
@@ -63,61 +63,20 @@
             <!-- Tab content -->
             <div class="tab-content" id="courseTabContent">
                 @foreach($rootItems as $index => $rootItem)
-                    <div class="tab-pane fade @if(($currentRootItem && $currentRootItem->id == $rootItem->id) || (!$currentRootItem && $index === 0)) show active @endif" 
+                    <div class="tab-pane fade @if($activeRootId == $rootItem->id) show active @endif" 
                          id="content-{{ $rootItem->id }}" 
                          role="tabpanel" 
                          aria-labelledby="tab-{{ $rootItem->id }}"
                          data-root-id="{{ $rootItem->id }}">
                         <div class="tree-container">
                             <ul class="course-tree sortable-tree">
-                                @if($currentRootItem && $currentRootItem->id == $rootItem->id)
-                                    {{-- Nếu đang ở tab cụ thể, chỉ hiển thị các con trực tiếp --}}
-                                    @foreach($rootItem->children->sortBy('order_index') as $childItem)
-                                        <li>
-                                            <div class="tree-item level-2 {{ $childItem->active ? 'active' : 'inactive' }}" data-id="{{ $childItem->id }}">
-                                                <span class="sort-handle" title="Kéo để sắp xếp">
-                                                    <i class="fas fa-arrows-alt"></i>
-                                                </span>
-                                                <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#children-{{ $childItem->id }}">
-                                                    <i class="fas fa-minus-circle"></i>
-                                                </span>
-                                                <span class="item-icon"><i class="fas fa-book"></i></span>
-                                                <a href="javascript:void(0)" class="course-link" data-id="{{ $childItem->id }}">{{ $childItem->name }}</a>
-                                                <div class="item-actions">
-                                                    {{-- <form action="{{ route('course-items.toggle-active', $childItem->id) }}" method="POST" class="d-inline">
-                                                        @csrf
-                                                        <button type="submit" class="btn btn-sm {{ $childItem->active ? 'btn-outline-danger' : 'btn-outline-success' }}" title="{{ $childItem->active ? 'Vô hiệu hóa' : 'Kích hoạt' }}">
-                                                            <i class="fas {{ $childItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
-                                                        </button>
-                                                    </form> --}}
-                                                    <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                        onclick="setupAddModal({{ $childItem->id }}, {{ json_encode($childItem->name) }})">
-                                                        <i class="fas fa-plus"></i>
-                                                    </button>
-                                                    <a href="{{ route('course-items.students', $childItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
-                                                        <i class="fas fa-user-graduate"></i>
-                                                    </a>
-                                                    <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
-                                                        onclick="setupEditModal({{ $childItem->id }})">
-                                                        <i class="fas fa-edit"></i>
-                                                    </button>
-                                                    <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $childItem->id }}, {{ json_encode($childItem->name) }})">
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            @include('course-items.partials.children-tree', ['children' => $childItem->children, 'parentId' => $childItem->id])
-                                        </li>
-                                    @endforeach
-                                @else
-                                    {{-- Hiển thị đầy đủ cả nút gốc và con --}}
+                                {{-- Luôn hiển thị đầy đủ cả nút gốc và con --}}
                                     <li>
                                         <div class="tree-item level-1 {{ $rootItem->active ? 'active' : 'inactive' }}" data-id="{{ $rootItem->id }}">
                                             <span class="sort-handle" title="Kéo để sắp xếp">
                                                 <i class="fas fa-arrows-alt"></i>
                                             </span>
-                                            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#tab-children-{{ $rootItem->id }}">
+                                            <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#children-{{ $rootItem->id }}">
                                                 <i class="fas fa-minus-circle"></i>
                                             </span>
                                             <span class="item-icon"><i class="fas fa-graduation-cap"></i></span>
@@ -129,8 +88,8 @@
                                                         <i class="fas {{ $rootItem->active ? 'fa-eye-slash' : 'fa-eye' }}"></i>
                                                     </button>
                                                 </form> --}}
-                                                <button type="button" class="btn btn-sm btn-success" title="Thêm khóa học" 
-                                                    onclick="setupAddModal({{ $rootItem->id }}, {{ json_encode($rootItem->name) }})">
+                                                <button type="button" class="btn btn-sm btn-success open-add-child" title="Thêm khóa học"
+                                                    data-parent-id="{{ $rootItem->id }}" data-parent-name="{{ $rootItem->name }}">
                                                     <i class="fas fa-plus"></i>
                                                 </button>
                                                 @if($rootItem->is_leaf)
@@ -138,25 +97,21 @@
                                                     <i class="fas fa-users"></i>
                                                 </a>
                                                 @endif
-                                                <a href="{{ route('course-items.students', $rootItem->id) }}" class="btn btn-sm btn-info" title="Xem học viên">
+                                                <button type="button" class="btn btn-sm btn-info open-students-modal" data-course-id="{{ $rootItem->id }}" title="Xem học viên">
                                                     <i class="fas fa-user-graduate"></i>
-                                                </a>
-                                                <a href="{{ route('course-items.attendance', $rootItem->id) }}" class="btn btn-sm btn-warning" title="Điểm danh">
-                                                    <i class="fas fa-clipboard-check"></i>
-                                                </a>
+                                                </button>
                                                 <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
                                                     onclick="setupEditModal({{ $rootItem->id }})">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
-                                                <button type="button" class="btn btn-sm btn-danger" title="Xóa" onclick="confirmDelete({{ $rootItem->id }}, {{ json_encode($rootItem->name) }})">
+                                                <button type="button" class="btn btn-sm btn-danger open-delete-item" title="Xóa" data-id="{{ $rootItem->id }}" data-name="{{ $rootItem->name }}">
                                                     <i class="fas fa-trash"></i>
                                                 </button>
                                             </div>
                                         </div>
 
-                                        @include('course-items.partials.children-tree', ['children' => $rootItem->children, 'parentId' => $rootItem->id, 'tabPrefix' => 'tab-'])
+                                        @include('course-items.partials.children-tree', ['children' => $rootItem->children, 'parentId' => $rootItem->id])
                                     </li>
-                                @endif
                             </ul>
                             @if($rootItem->is_leaf)
                             <div class="mt-3">

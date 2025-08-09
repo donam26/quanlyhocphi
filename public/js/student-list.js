@@ -162,7 +162,20 @@ window.editStudent = function(studentId) {
 
             // Điền thông tin vào form
             $('#edit-student-id').val(student.id);
-            $('#edit-full-name').val(student.full_name);
+            // Tách Họ và Tên: lấy từ cuối cùng làm "Tên", phần còn lại là "Họ"
+            (function(){
+                const full = (student.full_name || '').trim();
+                if (!full) {
+                    $('#edit-full-name').val('');
+                    $('#edit-name').val('');
+                    return;
+                }
+                const parts = full.split(/\s+/);
+                const given = parts.pop();
+                const family = parts.join(' ');
+                $('#edit-full-name').val(family);
+                $('#edit-name').val(given);
+            })();
             $('#edit-phone').val(student.phone);
             $('#edit-email').val(student.email);
             $('#edit-gender').val(student.gender || '');
@@ -176,7 +189,14 @@ window.editStudent = function(studentId) {
             }
 
             $('#edit-notes').val(student.notes);
-            $('#edit-current-workplace').val(student.current_workplace);
+            // Nơi công tác hiện tại (hiển thị bằng select2, submit qua hidden)
+            $('#edit-current-workplace').val(student.current_workplace || '');
+            if (student.current_workplace) {
+                const optCW = new Option(student.current_workplace, student.current_workplace, true, true);
+                $('#edit-current-workplace-select').empty().append(optCW).trigger('change');
+            } else {
+                $('#edit-current-workplace-select').empty().val(null).trigger('change');
+            }
             $('#edit-experience').val(student.accounting_experience_years);
 
             // Cập nhật các trường mới
@@ -184,6 +204,18 @@ window.editStudent = function(studentId) {
             $('#edit-education-level').val(student.education_level || '');
             $('#edit-workplace').val(student.workplace || '');
             $('#edit-experience-years').val(student.experience_years || '');
+
+            // Dân tộc
+            $('#edit-nation').val(student.nation || '');
+
+            // Nơi sinh (hiển thị bằng select2, submit qua hidden)
+            $('#edit-place-of-birth').val(student.place_of_birth || '');
+            if (student.place_of_birth) {
+                const optPOB = new Option(student.place_of_birth, student.place_of_birth, true, true);
+                $('#edit-place-of-birth-select').empty().append(optPOB).trigger('change');
+            } else {
+                $('#edit-place-of-birth-select').empty().val(null).trigger('change');
+            }
 
             // Xử lý tỉnh thành
             setTimeout(function() {

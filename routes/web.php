@@ -34,13 +34,15 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/create', [StudentController::class, 'create'])->name('students.create');
     Route::post('/students', [StudentController::class, 'store'])->name('students.store');
-    Route::get('students/{student}', [StudentController::class, 'show'])->name('students.show');
-    Route::get('students/{student}/edit', [StudentController::class, 'edit'])->name('students.edit');
-    Route::put('students/{student}', [StudentController::class, 'update'])->name('students.update');
+    // Đặt route export TRƯỚC route tham số để tránh nuốt path 'export'
     Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
-    Route::delete('students/{student}', [StudentController::class, 'destroy'])->name('students.destroy');
-    Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->name('students.enrollments');
-    Route::get('students/{student}/payments', [StudentController::class, 'payments'])->name('students.payments');
+    // Các route theo id, ràng buộc id là số để tránh đè lên 'export'
+    Route::get('students/{student}', [StudentController::class, 'show'])->whereNumber('student')->name('students.show');
+    Route::get('students/{student}/edit', [StudentController::class, 'edit'])->whereNumber('student')->name('students.edit');
+    Route::put('students/{student}', [StudentController::class, 'update'])->whereNumber('student')->name('students.update');
+    Route::delete('students/{student}', [StudentController::class, 'destroy'])->whereNumber('student')->name('students.destroy');
+    Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->whereNumber('student')->name('students.enrollments');
+    Route::get('students/{student}/payments', [StudentController::class, 'payments'])->whereNumber('student')->name('students.payments');
 
     // Cấu trúc cây khóa học mới
     Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
