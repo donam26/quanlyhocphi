@@ -52,8 +52,6 @@ class StudentController extends Controller
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
-            'workplace' => 'nullable|string|max:255',
-            'experience_years' => 'nullable|integer|min:0',
         ]);
 
         $student = $this->studentService->createStudent($validated);

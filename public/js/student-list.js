@@ -84,18 +84,7 @@ window.showStudentDetails = function(studentId) {
                 <td>${educationText}</td>
             </tr>`;
 
-            // Hiển thị trường Đơn vị công tác
-            customFieldsHtml += `<tr>
-                <th width="40%">Đơn vị công tác:</th>
-                <td>${student.workplace || '-'}</td>
-            </tr>`;
-
-            // Hiển thị trường Thời gian kinh nghiệm
-            customFieldsHtml += `<tr>
-                <th width="40%">Thời gian kinh nghiệm:</th>
-                <td>${student.experience_years ? student.experience_years + ' năm' : '-'}</td>
-            </tr>`;
-
+         
             customFieldsHtml += '</table>';
 
             $('#student-custom-fields').html(customFieldsHtml);

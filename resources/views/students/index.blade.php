@@ -508,17 +508,7 @@
                                 <div class="invalid-feedback" id="edit-education-level-error"></div>
                             </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Đơn vị công tác</label>
-                                <input type="text" name="workplace" id="edit-workplace" class="form-control">
-                                <div class="invalid-feedback" id="edit-workplace-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Thời gian kinh nghiệm (năm)</label>
-                                <input type="number" name="experience_years" id="edit-experience-years" class="form-control" min="0">
-                                <div class="invalid-feedback" id="edit-experience-years-error"></div>
-                            </div>
+                      
                         </div>
 
                         <!-- Ghi chú -->
@@ -800,17 +790,6 @@
                                 <div class="invalid-feedback" id="create-education-level-error"></div>
                             </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Đơn vị công tác</label>
-                                <input type="text" name="workplace" id="create-workplace" class="form-control">
-                                <div class="invalid-feedback" id="create-workplace-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Thời gian kinh nghiệm (năm)</label>
-                                <input type="number" name="experience_years" id="create-experience-years" class="form-control" min="0">
-                                <div class="invalid-feedback" id="create-experience-years-error"></div>
-                            </div>
                         </div>
 
                         <!-- Ghi chú -->

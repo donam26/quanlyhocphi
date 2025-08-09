@@ -50,12 +50,6 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                 case 'province':
                     $headings[] = 'Tỉnh/Thành phố';
                     break;
-                case 'workplace':
-                    $headings[] = 'Nơi làm việc';
-                    break;
-                case 'experience_years':
-                    $headings[] = 'Kinh nghiệm (năm)';
-                    break;
                 case 'enrollments':
                     $headings[] = 'Khóa học đã đăng ký';
                     break;
@@ -92,12 +86,7 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                 case 'province':
                     $row[] = $student->province ? $student->province->name : '';
                     break;
-                case 'workplace':
-                    $row[] = $student->workplace ?: $student->current_workplace ?: '';
-                    break;
-                case 'experience_years':
-                    $row[] = $student->experience_years ?: $student->accounting_experience_years ?: '';
-                    break;
+              
                 case 'enrollments':
                     $enrollments = $student->enrollments->pluck('courseItem.name')->filter()->implode(', ');
                     $row[] = $enrollments ?: 'Chưa có khóa học';
