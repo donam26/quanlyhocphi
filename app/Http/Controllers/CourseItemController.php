@@ -194,7 +194,20 @@ class CourseItemController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|exists:course_items,id',
+            'parent_id' => [
+                'nullable',
+                'exists:course_items,id',
+                function ($attribute, $value, $fail) use ($courseItem) {
+                    if ($value && $value == $courseItem->id) {
+                        $fail('Không thể chọn chính nó làm khóa cha.');
+                    }
+                    
+                    // Kiểm tra circular reference
+                    if ($value && $this->wouldCreateCircularReference($courseItem->id, $value)) {
+                        $fail('Không thể chọn khóa con làm khóa cha.');
+                    }
+                }
+            ],
             'fee' => 'nullable|numeric|min:0',
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
@@ -804,5 +817,33 @@ class CourseItemController extends Controller
         }
         
         return implode(' > ', $path);
+    }
+
+    /**
+     * Kiểm tra xem việc đặt parent_id có tạo circular reference không
+     */
+    private function wouldCreateCircularReference($courseItemId, $proposedParentId)
+    {
+        // Lấy tất cả descendants của course item hiện tại
+        $descendants = $this->getAllDescendants($courseItemId);
+        
+        // Nếu proposed parent là một trong các descendants, thì sẽ tạo circular reference
+        return in_array($proposedParentId, $descendants);
+    }
+
+    /**
+     * Lấy tất cả descendants của một course item
+     */
+    private function getAllDescendants($courseItemId)
+    {
+        $descendants = [];
+        $children = CourseItem::where('parent_id', $courseItemId)->pluck('id')->toArray();
+        
+        foreach ($children as $childId) {
+            $descendants[] = $childId;
+            $descendants = array_merge($descendants, $this->getAllDescendants($childId));
+        }
+        
+        return $descendants;
     }
 }

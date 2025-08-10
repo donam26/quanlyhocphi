@@ -77,8 +77,9 @@ class CourseItemService
 
     public function updateCourseItem(CourseItem $courseItem, array $data)
     {
-        // Xác định parent_id dựa vào dữ liệu gửi lên (không còn make_root)
-        $parentId = $data['parent_id'] ?? $courseItem->parent_id;
+        // Xác định parent_id dựa vào dữ liệu gửi lên
+        // Nếu parent_id là empty string hoặc null, đặt thành null (khóa chính)
+        $parentId = isset($data['parent_id']) && $data['parent_id'] !== '' ? $data['parent_id'] : null;
         
         // Xử lý các trường thông tin tùy chỉnh
         $customFields = [];
@@ -93,17 +94,11 @@ class CourseItemService
         }
         
         // Xác định level dựa trên parent_id
-        $level = 1; // Mặc định là cấp cao nhất
-        $isLeaf = $courseItem->is_leaf; // Giữ nguyên trạng thái leaf
+        $level = 1; // Mặc định là cấp cao nhất (khóa chính)
         
         if ($parentId) {
             $parentItem = CourseItem::findOrFail($parentId);
             $level = $parentItem->level + 1;
-            
-            // Nếu có giá tiền, đánh dấu là nút lá
-            if (isset($data['fee']) && $data['fee'] > 0) {
-                $isLeaf = true;
-            }
         }
         
         // Nếu không phải nút lá, đảm bảo fee = 0
@@ -115,8 +110,8 @@ class CourseItemService
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
-            'active' => true,
-            'is_special' => true,
+            'active' => $data['active'] ?? true,
+            'is_special' => $data['is_special'] ?? false,
             'custom_fields' => !empty($customFields) ? $customFields : null,
         ];
         

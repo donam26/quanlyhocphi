@@ -323,12 +323,8 @@ function setupEditModal(id) {
     const isLeaf = item.hasClass('leaf');
     const isActive = item.hasClass('active');
     
-    // Lấy học phí nếu có
+    // Học phí sẽ được lấy từ AJAX call, khởi tạo = 0
     let fee = 0;
-    const feeText = item.find('.badge.bg-success').text();
-    if (feeText) {
-        fee = parseInt(feeText.replace(/\D/g, ''));
-    }
     
     // Tìm parent_id từ cấu trúc DOM
     let parentId = null;
@@ -345,8 +341,10 @@ function setupEditModal(id) {
     $('#edit-current-root-id').val(currentRootId);
     $('#edit-item-name').val(name);
     $('#edit-is-leaf').prop('checked', isLeaf);
-    $('#edit-item-active').prop('checked', isActive);
-    $('#edit-item-fee').val(fee);
+    // Fee sẽ được set từ AJAX response
+    
+    // Trigger event để sync trạng thái
+    $(document).trigger('editModalDataLoaded');
 
     // Xây dựng danh sách chọn khoá cha dạng tree
     buildParentSelectOptions(item.closest('.tab-pane'), id, parentId);
@@ -356,9 +354,11 @@ function setupEditModal(id) {
     
     // Hiển thị/ẩn các tùy chọn cho nút lá
     if (isLeaf) {
-        $('#edit-leaf-options').slideDown();
+        $('#edit-leaf-options').show();
+        $('#edit-item-fee').prop('required', true);
     } else {
-        $('#edit-leaf-options').slideUp();
+        $('#edit-leaf-options').hide();
+        $('#edit-item-fee').prop('required', false);
     }
     
     // Lấy thông tin về khóa học đặc biệt và các trường tùy chỉnh
@@ -366,8 +366,16 @@ function setupEditModal(id) {
         url: `/api/course-items/${id}`,
         method: "GET",
         success: function(response) {
+            console.log('Course data loaded:', response);
+            
+            // Thiết lập học phí
+            $('#edit-item-fee').val(response.fee || 0);
+            
             // Thiết lập checkbox khóa học đặc biệt
             $('#edit-is-special').prop('checked', response.is_special);
+            
+            // Trigger sync state sau khi set checkbox
+            $(document).trigger('editModalSpecialDataLoaded');
             
             // Xử lý các trường thông tin tùy chỉnh
             $('#custom-fields-list').empty();

@@ -5,7 +5,7 @@
 <ul class="collapse show" id="children-{{ $parentId }}">
     @foreach($children->sortBy('order_index') as $courseItem)
         <li>
-            <div class="tree-item level-2 {{ $courseItem->active ? 'active' : 'inactive' }}" data-id="{{ $courseItem->id }}">
+            <div class="tree-item level-2 {{ $courseItem->active ? 'active' : 'inactive' }} {{ $courseItem->is_leaf ? 'leaf' : '' }}" data-id="{{ $courseItem->id }}">
                 <span class="sort-handle" title="Kéo để sắp xếp">
                     <i class="fas fa-arrows-alt"></i>
                 </span>
