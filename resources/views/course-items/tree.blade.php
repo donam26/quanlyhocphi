@@ -29,6 +29,13 @@
                 Chưa có ngành học nào được tạo. Hãy tạo ngành học đầu tiên.
             </div>
         @else
+          
+                <!-- Search box -->
+                <div class="search-container">
+                    <select id="course-search-select" class="form-select" style="width: 100%;">
+                        <option></option>
+                    </select>
+                </div>
             <div class="tab-and-search-container">
                 <!-- Tab navigation -->
                 <div class="tab-container">
@@ -49,15 +56,7 @@
                         @endforeach
                     </ul>
                 </div>
-                
-                <!-- Search box -->
-                <div class="search-container">
-                    <input type="text" id="course-search" class="form-control" placeholder="Tìm kiếm khóa học..." autocomplete="off">
-                    <span class="search-clear"><i class="fas fa-times-circle"></i></span>
-                    <div class="search-results">
-                        <!-- Kết quả tìm kiếm sẽ được hiển thị ở đây -->
-                    </div>
-                </div>
+              
             </div>
             
             <!-- Tab content -->
@@ -176,10 +175,40 @@
                                    placeholder="Nhập học phí (VNĐ)" required>
                             <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
                         </div>
-                       
                     </div>
                     
-                            <input type="hidden" name="active" value="1">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="is-special" value="1">
+                            <input type="hidden" id="is-special-hidden" name="is_special" value="0">
+                            <label class="form-check-label" for="is-special">
+                                <strong class="text-warning">Khóa học đặc biệt</strong>
+                            </label>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            Khóa học đặc biệt cho phép thêm các trường thông tin tùy chỉnh
+                        </div>
+                    </div>
+                    
+                    <div id="add-custom-fields-container" style="display: none;">
+                        <hr>
+                        <h6 class="mb-3">Thông tin tùy chỉnh</h6>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Các trường thông tin này sẽ được sao chép khi học viên đăng ký khóa học này.
+                        </div>
+                        
+                        <div id="add-custom-fields-list">
+                            <!-- Các trường thông tin tùy chỉnh sẽ được thêm vào đây -->
+                        </div>
+                        
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-custom-field-btn">
+                                <i class="fas fa-plus"></i> Thêm trường thông tin
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="active" value="1">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -227,7 +256,38 @@
                         </div>
                     </div>
                     
-                            <input type="hidden" name="active" value="1">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="root-is-special" value="1">
+                            <input type="hidden" id="root-is-special-hidden" name="is_special" value="0">
+                            <label class="form-check-label" for="root-is-special">
+                                <strong class="text-warning">Khóa học đặc biệt</strong>
+                            </label>
+                        </div>
+                        <div class="text-muted small mt-1">
+                            Khóa học đặc biệt cho phép thêm các trường thông tin tùy chỉnh
+                        </div>
+                    </div>
+                    
+                    <div id="root-custom-fields-container" style="display: none;">
+                        <hr>
+                        <h6 class="mb-3">Thông tin tùy chỉnh</h6>
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> Các trường thông tin này sẽ được sao chép khi học viên đăng ký khóa học này.
+                        </div>
+                        
+                        <div id="root-custom-fields-list">
+                            <!-- Các trường thông tin tùy chỉnh sẽ được thêm vào đây -->
+                        </div>
+                        
+                        <div class="mt-2">
+                            <button type="button" class="btn btn-sm btn-outline-primary" id="root-add-custom-field-btn">
+                                <i class="fas fa-plus"></i> Thêm trường thông tin
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <input type="hidden" name="active" value="1">
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
@@ -560,6 +620,12 @@ $(document).ready(function() {
         $('#is-leaf').prop('checked', true); // Mặc định tick
         $('#leaf-options').show();
         $('#item-fee').val('').prop('required', true);
+        
+        // Reset khóa học đặc biệt
+        $('#is-special').prop('checked', false);
+        $('#add-custom-fields-container').hide();
+        $('#is-special-hidden').val('0');
+        $('#add-custom-fields-list').empty();
     });
     
     // Reset form khi đóng modal edit
@@ -572,6 +638,7 @@ $(document).ready(function() {
         $('#edit-is-special').prop('checked', false); // Reset khóa học đặc biệt
         $('#custom-fields-container').hide();
         $('#edit-is-special-hidden').val('0'); // Reset hidden input
+        $('#custom-fields-list').empty(); // Clear custom fields
         
         $('#edit-item-name').val('');
         $('#edit-item-id').val('');
@@ -614,6 +681,103 @@ $(document).ready(function() {
         $('#root-leaf-options').hide();
         $('#root-item-fee').val('').prop('required', false);
         $('#root-item-name').val('');
+        
+        // Reset khóa học đặc biệt
+        $('#root-is-special').prop('checked', false);
+        $('#root-custom-fields-container').hide();
+        $('#root-is-special-hidden').val('0');
+        $('#root-custom-fields-list').empty();
+    });
+    
+    // ===== XỬ LÝ CUSTOM FIELDS =====
+    // Thêm trường thông tin tùy chỉnh cho modal edit
+    $(document).on('click', '#add-custom-field', function() {
+        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
+        const fieldHtml = `
+            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                <div class="row g-2">
+                    <div class="col-10">
+                        <input type="text" class="form-control form-control-sm field-key" 
+                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
+                    </div>
+                    <div class="col-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#custom-fields-list').append(fieldHtml);
+    });
+    
+    // Thêm trường thông tin tùy chỉnh cho modal add item
+    $(document).on('click', '#add-custom-field-btn', function() {
+        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
+        const fieldHtml = `
+            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                <div class="row g-2">
+                    <div class="col-10">
+                        <input type="text" class="form-control form-control-sm field-key" 
+                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
+                    </div>
+                    <div class="col-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#add-custom-fields-list').append(fieldHtml);
+    });
+    
+    // Thêm trường thông tin tùy chỉnh cho modal add root item
+    $(document).on('click', '#root-add-custom-field-btn', function() {
+        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
+        const fieldHtml = `
+            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
+                <div class="row g-2">
+                    <div class="col-10">
+                        <input type="text" class="form-control form-control-sm field-key" 
+                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
+                    </div>
+                    <div class="col-2">
+                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        $('#root-custom-fields-list').append(fieldHtml);
+    });
+    
+    // Xóa trường thông tin tùy chỉnh
+    $(document).on('click', '.remove-field', function() {
+        $(this).closest('.custom-field-row').remove();
+    });
+    
+    // ===== XỬ LÝ CHECKBOX KHÓA HỌC ĐẶC BIỆT CHO MODAL ADD ITEM =====
+    $('#is-special').change(function() {
+        if ($(this).is(':checked')) {
+            $('#add-custom-fields-container').slideDown();
+            $('#is-special-hidden').val('1');
+        } else {
+            $('#add-custom-fields-container').slideUp();
+            $('#is-special-hidden').val('0');
+        }
+    });
+    
+    // ===== XỬ LÝ CHECKBOX KHÓA HỌC ĐẶC BIỆT CHO MODAL ADD ROOT ITEM =====
+    $('#root-is-special').change(function() {
+        if ($(this).is(':checked')) {
+            $('#root-custom-fields-container').slideDown();
+            $('#root-is-special-hidden').val('1');
+        } else {
+            $('#root-custom-fields-container').slideUp();
+            $('#root-is-special-hidden').val('0');
+        }
     });
 });
 </script>

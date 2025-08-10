@@ -62,6 +62,18 @@ class CourseItemService
         // Nếu không phải nút lá, đảm bảo fee = 0
         $fee = ($data['is_leaf'] ?? false) ? ($data['fee'] ?? 0) : 0;
         
+        // Xử lý các trường thông tin tùy chỉnh
+        $customFields = [];
+        if (isset($data['is_special']) && $data['is_special'] && isset($data['custom_field_keys'])) {
+            $keys = $data['custom_field_keys'];
+            
+            foreach ($keys as $key) {
+                if (!empty($key)) {
+                    $customFields[$key] = ""; // Lưu với giá trị rỗng
+                }
+            }
+        }
+        
         $courseItemData = [
             'name' => $data['name'],
             'parent_id' => $parentId,
@@ -70,6 +82,8 @@ class CourseItemService
             'is_leaf' => $data['is_leaf'] ?? false,
             'order_index' => $maxOrder + 1,
             'active' => $data['active'] ?? true,
+            'is_special' => $data['is_special'] ?? false,
+            'custom_fields' => !empty($customFields) ? $customFields : null,
         ];
         
         return CourseItem::create($courseItemData);

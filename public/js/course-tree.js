@@ -31,9 +31,13 @@ if (typeof window.navigateToCourse !== 'function') {
         // Tìm node trong DOM (trong bất kỳ tab nào)
         let $node = $(`.tree-item[data-id="${courseId}"]`).first();
         if (!$node.length) {
-            // Không tìm thấy → chỉ mở chi tiết như một fallback tối thiểu
-            return window.showCourseDetails ? window.showCourseDetails(courseId) : null;
+            console.log('Không tìm thấy khóa học với ID:', courseId);
+            return;
         }
+        
+        // Xóa highlight cũ
+        $('.tree-item').removeClass('search-highlighted');
+        
         // Chuyển sang tab chứa node
         const $pane = $node.closest('.tab-pane');
         if ($pane.length) {
@@ -43,18 +47,26 @@ if (typeof window.navigateToCourse !== 'function') {
                 new bootstrap.Tab($tab[0]).show();
             }
         }
+        
         // Mở tất cả collapse tổ tiên để hiện node
         $node.parents('.collapse').each(function(){
             try { $(this).collapse('show'); } catch(e) {}
         });
+        
+        // Highlight node được tìm thấy
+        $node.addClass('search-highlighted');
+        
         // Cuộn tới vị trí node
         if ($node[0]) {
-            $node[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                $node[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300); // Delay để đợi tab và collapse mở xong
         }
-        // Mở modal chi tiết
-        if (typeof window.showCourseDetails === 'function') {
-            window.showCourseDetails(courseId);
-        }
+        
+        // Tự động xóa highlight sau 3 giây
+        setTimeout(() => {
+            $node.removeClass('search-highlighted');
+        }, 3000);
     };
 }
 

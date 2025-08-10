@@ -65,6 +65,8 @@ class CourseItemController extends Controller
             'fee' => 'nullable|numeric|min:0',
             'is_leaf' => 'nullable|boolean',
             'active' => 'nullable|boolean',
+            'is_special' => 'nullable|boolean',
+            'custom_field_keys' => 'nullable|array',
         ]);
         
         // Đảm bảo is_leaf và active có giá trị mặc định
