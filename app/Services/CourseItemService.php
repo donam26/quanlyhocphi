@@ -69,7 +69,7 @@ class CourseItemService
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
             'order_index' => $maxOrder + 1,
-            'active' => $data['active'] ?? true,
+            'active' => true,
         ];
         
         return CourseItem::create($courseItemData);
@@ -115,8 +115,8 @@ class CourseItemService
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
-            'active' => $data['active'] ?? true,
-            'is_special' => isset($data['is_special']) ? $data['is_special'] : false,
+            'active' => true,
+            'is_special' => true,
             'custom_fields' => !empty($customFields) ? $customFields : null,
         ];
         
@@ -148,15 +148,6 @@ class CourseItemService
         }
         
         return true;
-    }
-
-    public function toggleCourseItemActive($id)
-    {
-        $courseItem = CourseItem::findOrFail($id);
-        $courseItem->active = !$courseItem->active;
-        $courseItem->save();
-        
-        return $courseItem;
     }
 
     public function searchCourseItems($term, $rootId = null)

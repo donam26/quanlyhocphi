@@ -672,20 +672,14 @@
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Họ <span class="text-danger">*</span></label>
-                                <input type="text" name="first_name" id="create-full-name" class="form-control" required>
+                                <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
+                                <input type="text" name="full_name" id="create-full-name" class="form-control" required>
                                 <div class="invalid-feedback" id="create-full-name-error"></div>
                             </div>
 
-                            <div class="col-md-6">
-                                <label for="name" class="form-label">Tên</label>
-                                <input type="text" name="name" id="create-name" class="form-control">
-                                <div class="invalid-feedback" id="create-name-error"></div>
-                            </div>
-
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Số điện thoại</label>
-                                <input type="text" name="phone" id="create-phone" class="form-control" required>
+                                <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                                <input type="tel" name="phone" id="create-phone" class="form-control" required pattern="[0-9]{10,11}" placeholder="0123456789">
                                 <div class="invalid-feedback" id="create-phone-error"></div>
                             </div>
 
@@ -697,19 +691,24 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi sinh</label>
-                                <input type="text" name="place_of_birth" id="create-place-of-birth" class="form-control">
+                                <!-- Hidden field to submit the selected province name -->
+                                <input type="hidden" name="place_of_birth" id="create-place-of-birth">
+                                <!-- Visible select2 to pick a province -->
+                                <select id="create-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)">
+                                    <option value="">-- Chọn nơi sinh --</option>
+                                </select>
                                 <div class="invalid-feedback" id="create-place-of-birth-error"></div>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Dân tộc</label>
-                                <input type="text" name="nation" id="create-nation" class="form-control">
+                                <input type="text" name="nation" id="create-nation" class="form-control" placeholder="Kinh">
                                 <div class="invalid-feedback" id="create-nation-error"></div>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Email</label>
-                                <input type="email" name="email" id="create-email" class="form-control">
+                                <input type="email" name="email" id="create-email" class="form-control" placeholder="example@email.com">
                                 <div class="invalid-feedback" id="create-email-error"></div>
                             </div>
 
@@ -731,6 +730,12 @@
                                 </select>
                                 <div class="invalid-feedback" id="create-province-error"></div>
                             </div>
+
+                            <div class="col-md-12 mb-3">
+                                <label class="form-label">Địa chỉ chi tiết</label>
+                                <textarea name="address" id="create-address" class="form-control" rows="3" placeholder="Nhập địa chỉ chi tiết (số nhà, tên đường, phường/xã, quận/huyện...)"></textarea>
+                                <div class="invalid-feedback" id="create-address-error"></div>
+                            </div>
                         </div>
 
                         <!-- Thông tin bổ sung -->
@@ -743,13 +748,18 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
-                                <input type="text" name="current_workplace" id="create-current-workplace" class="form-control">
+                                <!-- Hidden field to submit the selected province name -->
+                                <input type="hidden" name="current_workplace" id="create-current-workplace">
+                                <!-- Visible select2 to pick a province -->
+                                <select id="create-current-workplace-select" class="form-select" data-placeholder="Chọn nơi công tác (tỉnh/thành)">
+                                    <option value="">-- Chọn nơi công tác --</option>
+                                </select>
                                 <div class="invalid-feedback" id="create-current-workplace-error"></div>
                             </div>
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Số năm kinh nghiệm kế toán</label>
-                                <input type="number" name="accounting_experience_years" id="create-experience" class="form-control" min="0">
+                                <input type="number" name="accounting_experience_years" id="create-experience" class="form-control" min="0" max="50" placeholder="0">
                                 <div class="invalid-feedback" id="create-experience-error"></div>
                             </div>
 
@@ -776,6 +786,17 @@
                                 <div class="invalid-feedback" id="create-education-level-error"></div>
                             </div>
 
+
+
+                        </div>
+
+                        <!-- Ghi chú -->
+                        <div class="row mb-4">
+                            <div class="col-12">
+                                <label class="form-label">Ghi chú</label>
+                                <textarea name="notes" id="create-notes" class="form-control" rows="3" placeholder="Nhập ghi chú về học viên (nếu có)"></textarea>
+                                <div class="invalid-feedback" id="create-notes-error"></div>
+                            </div>
                         </div>
 
                     </form>
@@ -1120,11 +1141,21 @@ function initProvinceSelect2() {
 // Khởi tạo select2 cho các trường chọn địa điểm (nơi sinh, nơi công tác)
 function initLocationSelect2(){
     try {
-        $('#edit-place-of-birth-select, #edit-current-workplace-select').select2('destroy');
+        $('#edit-place-of-birth-select, #edit-current-workplace-select, #create-place-of-birth-select, #create-current-workplace-select').select2('destroy');
     } catch (e) {}
 
-    $('#edit-place-of-birth-select, #edit-current-workplace-select').each(function(){
-        const $hidden = $(this).attr('id') === 'edit-place-of-birth-select' ? $('#edit-place-of-birth') : $('#edit-current-workplace');
+    $('#edit-place-of-birth-select, #edit-current-workplace-select, #create-place-of-birth-select, #create-current-workplace-select').each(function(){
+        let $hidden;
+        if ($(this).attr('id') === 'edit-place-of-birth-select') {
+            $hidden = $('#edit-place-of-birth');
+        } else if ($(this).attr('id') === 'edit-current-workplace-select') {
+            $hidden = $('#edit-current-workplace');
+        } else if ($(this).attr('id') === 'create-place-of-birth-select') {
+            $hidden = $('#create-place-of-birth');
+        } else if ($(this).attr('id') === 'create-current-workplace-select') {
+            $hidden = $('#create-current-workplace');
+        }
+
         $(this).select2({
             theme: 'bootstrap-5',
             placeholder: $(this).data('placeholder') || 'Chọn tỉnh/thành',
@@ -1154,9 +1185,9 @@ function initLocationSelect2(){
         // Đồng bộ về hidden input khi chọn/clear
         $(this).on('select2:select', function(e){
             const text = e.params.data && e.params.data.text ? e.params.data.text : '';
-            $hidden.val(text);
+            if ($hidden) $hidden.val(text);
         }).on('select2:clear', function(){
-            $hidden.val('');
+            if ($hidden) $hidden.val('');
         });
     });
 }
@@ -1170,5 +1201,69 @@ function getRegionName(region) {
         default: return 'Không xác định';
     }
 }
+
+// Xử lý form tạo sinh viên mới
+$(document).on('click', '#save-new-student-btn', function() {
+    const form = $('#studentCreateForm');
+    const formData = new FormData(form[0]);
+    const button = $(this);
+    
+    // Disable button và hiển thị loading
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...');
+    
+    // Clear previous errors
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
+    
+    $.ajax({
+        url: '/api/students/create',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                // Hiển thị thông báo thành công
+                toastr.success(response.message || 'Tạo học viên thành công!');
+                
+                // Đóng modal
+                $('#createStudentModal').modal('hide');
+                
+                // Reset form
+                form[0].reset();
+                
+                // Reload trang để hiển thị học viên mới
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                toastr.error(response.message || 'Có lỗi xảy ra!');
+            }
+        },
+        error: function(xhr) {
+            if (xhr.status === 422) {
+                // Validation errors
+                const errors = xhr.responseJSON.errors;
+                for (const field in errors) {
+                    const input = $(`[name="${field}"]`);
+                    input.addClass('is-invalid');
+                    $(`#create-${field.replace('_', '-')}-error`).text(errors[field][0]);
+                }
+                toastr.error('Vui lòng kiểm tra lại thông tin!');
+            } else {
+                toastr.error('Có lỗi xảy ra khi tạo học viên!');
+            }
+        },
+        complete: function() {
+            // Reset button
+            button.prop('disabled', false);
+            button.html('<i class="fas fa-save me-1"></i> Lưu học viên');
+        }
+    });
+});
 </script>
 @endpush

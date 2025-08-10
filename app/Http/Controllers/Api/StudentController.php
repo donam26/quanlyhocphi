@@ -51,15 +51,14 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
-            'date_of_birth' => 'nullable|string',
+            'full_name' => 'required|string|max:255',
+            'date_of_birth' => 'nullable|date',
             'place_of_birth' => 'nullable|string|max:255',
             'nation' => 'nullable|string|max:255',
-
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
+            'address' => 'nullable|string',
             'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
@@ -68,7 +67,9 @@ class StudentController extends Controller
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
         ]);
 
-        $validated['full_name'] = trim($validated['first_name'] . ' ' . $validated['name']);
+        // Set default status
+        $validated['status'] = 'active';
+
         $student = Student::create($validated);
 
         return response()->json([

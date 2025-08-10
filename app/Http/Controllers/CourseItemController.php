@@ -63,7 +63,6 @@ class CourseItemController extends Controller
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
             'fee' => 'nullable|numeric|min:0',
-            'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
         ]);
 
@@ -283,23 +282,12 @@ class CourseItemController extends Controller
     }
 
     /**
-     * Bật/tắt trạng thái hoạt động
-     */
-    public function toggleActive($id)
-    {
-        $this->courseItemService->toggleCourseItemActive($id);
-
-        return back()->with('success', 'Đã cập nhật trạng thái hoạt động!');
-    }
-
-    /**
      * Hiển thị cây khóa học
      */
     public function tree(Request $request)
     {
         // Lấy tất cả các ngành học (cấp 1) với children đầy đủ
         $rootItems = CourseItem::whereNull('parent_id')
-                            ->where('active', true)
                             ->orderBy('order_index')
                             ->with(['children' => function($query) {
                                 $query->where('active', true)
