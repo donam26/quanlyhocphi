@@ -69,7 +69,7 @@ class CourseItemService
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
             'order_index' => $maxOrder + 1,
-            'active' => true,
+            'active' => $data['active'] ?? true,
         ];
         
         return CourseItem::create($courseItemData);

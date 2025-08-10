@@ -3,7 +3,12 @@
 @php
 use App\Enums\EnrollmentStatus;
 
-$statusEnum = EnrollmentStatus::fromString($status);
+// Xử lý cả trường hợp status là enum object hoặc string
+if ($status instanceof EnrollmentStatus) {
+    $statusEnum = $status;
+} else {
+    $statusEnum = EnrollmentStatus::fromString($status);
+}
 @endphp
 
 @if($statusEnum)

@@ -63,8 +63,21 @@ class CourseItemController extends Controller
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
             'fee' => 'nullable|numeric|min:0',
-            'is_leaf' => 'required|boolean',
+            'is_leaf' => 'nullable|boolean',
+            'active' => 'nullable|boolean',
         ]);
+        
+        // Đảm bảo is_leaf và active có giá trị mặc định
+        $validated['is_leaf'] = $validated['is_leaf'] ?? false;
+        $validated['active'] = $validated['active'] ?? true;
+
+        // Debug: Log dữ liệu được gửi (chỉ khi cần debug)
+        // \Log::info('CourseItem Store Request Data:', [
+        //     'all_request' => $request->all(),
+        //     'validated' => $validated,
+        //     'fee_raw' => $request->input('fee'),
+        //     'is_leaf' => $request->input('is_leaf')
+        // ]);
 
         // Lưu root_id hiện tại để preserve tab state
         $currentRootId = $request->input('current_root_id');

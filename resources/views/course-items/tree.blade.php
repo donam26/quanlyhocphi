@@ -210,16 +210,18 @@
                     
                     <div class="mb-3">
                         <div class="form-check form-switch">
-                            <input class="form-check-input" type="checkbox" id="is-leaf" name="is_leaf" value="1">
+                            <input class="form-check-input" type="checkbox" id="is-leaf" name="is_leaf" value="1" checked>
                             <input type="hidden" name="is_leaf" value="0">
                             <label class="form-check-label" for="is-leaf">Là khóa học cuối (có thể tạo lớp)</label>
                         </div>
                     </div>
                     
-                    <div id="leaf-options" style="display: none;">
+                    <div id="leaf-options">
                         <div class="mb-3">
-                            <label for="item-fee" class="form-label">Học phí</label>
-                            <input type="number" class="form-control" id="item-fee" name="fee" min="0" value="0">
+                            <label for="item-fee" class="form-label">Học phí <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="item-fee" name="fee" min="0" value="" 
+                                   placeholder="Nhập học phí (VNĐ)" required>
+                            <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
                         </div>
                        
                     </div>
@@ -389,9 +391,7 @@
                     <a id="btn-attendance" href="#" class="btn btn-warning">
                         <i class="fas fa-clipboard-check"></i> Điểm danh
                     </a>
-                    <a id="btn-payments" href="#" class="btn btn-success">
-                        <i class="fas fa-money-bill"></i> Thanh toán
-                    </a>
+                
                 </div>
                 <button type="button" class="btn btn-primary" id="btn-edit-from-modal">
                     <i class="fas fa-edit"></i> Chỉnh sửa
@@ -432,10 +432,12 @@
                     
                     <div id="edit-leaf-options">
                         <div class="mb-3">
-                            <label for="edit-item-fee" class="form-label">Học phí</label>
-                            <input type="number" class="form-control" id="edit-item-fee" name="fee" min="0" value="0">
+                            <label for="edit-item-fee" class="form-label">Học phí <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="edit-item-fee" name="fee" min="0" value="" 
+                                   placeholder="Nhập học phí (VNĐ)" required>
+                            <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
                         </div>
-                        
+                       
                     </div>
                     
                     <div class="mb-3">
@@ -501,4 +503,73 @@
 
 @push('scripts')
 <script src="{{ asset('js/course-tree.js') }}"></script>
+<script>
+$(document).ready(function() {
+    // Xử lý hiển thị/ẩn trường học phí khi tick checkbox "Là khóa học cuối"
+    $('#is-leaf').change(function() {
+        if ($(this).is(':checked')) {
+            $('#leaf-options').slideDown();
+            $('#item-fee').prop('required', true);
+        } else {
+            $('#leaf-options').slideUp();
+            $('#item-fee').prop('required', false);
+            $('#item-fee').val(''); // Clear fee khi untick
+        }
+    });
+    
+    // Xử lý form submit để đảm bảo is_leaf được gửi đúng
+    $('#add-item-form').on('submit', function(e) {
+        // Đảm bảo checkbox có name để gửi giá trị
+        if ($('#is-leaf').is(':checked')) {
+            $('#is-leaf').prop('name', 'is_leaf');
+        } else {
+            // Nếu không tick, tạo hidden input
+            $('#is-leaf').prop('name', ''); // Remove name từ checkbox
+            $(this).append('<input type="hidden" name="is_leaf" value="0">');
+        }
+        
+        console.log('Form submit - is_leaf checked:', $('#is-leaf').is(':checked'));
+    });
+    
+    // Xử lý cho modal edit
+    $('#edit-is-leaf').change(function() {
+        if ($(this).is(':checked')) {
+            $('#edit-leaf-options').slideDown();
+            $('#edit-item-fee').prop('required', true);
+        } else {
+            $('#edit-leaf-options').slideUp();
+            $('#edit-item-fee').prop('required', false);
+            $('#edit-item-fee').val(''); // Clear fee khi untick
+        }
+    });
+    
+    // Xử lý form submit cho modal edit để đảm bảo is_leaf được gửi đúng
+    $('#edit-item-form').on('submit', function(e) {
+        // Đảm bảo checkbox có name để gửi giá trị
+        if ($('#edit-is-leaf').is(':checked')) {
+            $('#edit-is-leaf').prop('name', 'is_leaf');
+        } else {
+            // Nếu không tick, tạo hidden input
+            $('#edit-is-leaf').prop('name', ''); // Remove name từ checkbox
+            $(this).append('<input type="hidden" name="is_leaf" value="0">');
+        }
+        
+        console.log('Edit form submit - is_leaf checked:', $('#edit-is-leaf').is(':checked'));
+    });
+    
+    // Reset form khi đóng modal
+    $('#addItemModal').on('hidden.bs.modal', function() {
+        $('#is-leaf').prop('checked', true); // Mặc định tick
+        $('#leaf-options').show();
+        $('#item-fee').val('').prop('required', true);
+    });
+    
+    // Reset form khi đóng modal edit
+    $('#editItemModal').on('hidden.bs.modal', function() {
+        $('#edit-is-leaf').prop('checked', false); // Reset về false
+        $('#edit-leaf-options').hide();
+        $('#edit-item-fee').val('').prop('required', false);
+    });
+});
+</script>
 @endpush 
