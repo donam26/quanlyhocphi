@@ -5,10 +5,10 @@ namespace App\Services;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\CourseItem;
+use App\Enums\EnrollmentStatus;
 use App\Models\LearningPathProgress;
 use App\Models\LearningPath;
 use App\Models\Payment;
-use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -109,7 +109,7 @@ class EnrollmentService
                 'final_fee' => $finalFee,
                 'discount_percentage' => $data['discount_percentage'] ?? 0,
                 'discount_amount' => $discountAmount,
-                'status' => $data['status'] ?? 'enrolled',
+                'status' => $data['status'] ?? EnrollmentStatus::ACTIVE,
                 'notes' => $data['notes'] ?? null,
                 'custom_fields' => isset($data['custom_fields']) ? $data['custom_fields'] : null
             ]);

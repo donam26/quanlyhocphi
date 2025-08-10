@@ -8,6 +8,17 @@
 @endsection
 
 @section('content')
+@php
+    // Tính totalEnrollments từ statusStats
+    $totalEnrollments = [
+        'total' => $statusStats->sum('count'),
+        'active' => $statusStats->where('status', 'active')->first()->count ?? 0,
+        'waiting' => $statusStats->where('status', 'waiting')->first()->count ?? 0,
+        'completed' => $statusStats->where('status', 'completed')->first()->count ?? 0,
+        'cancelled' => $statusStats->where('status', 'cancelled')->first()->count ?? 0,
+    ];
+@endphp
+
 <div class="card mb-4">
     <div class="card-body">
         <form method="GET" action="{{ route('reports.enrollments') }}" class="row align-items-center g-3">
@@ -53,7 +64,7 @@
                 <div class="d-flex justify-content-between">
                     <div>
                         <h5 class="card-title mb-0">Đang học</h5>
-                        <h2 class="mt-2 mb-0">{{ number_format($totalEnrollments['enrolled']) }}</h2>
+                        <h2 class="mt-2 mb-0">{{ number_format($totalEnrollments['active'] ?? 0) }}</h2>
                     </div>
                     <div>
                         <i class="fas fa-graduation-cap fa-3x opacity-50"></i>

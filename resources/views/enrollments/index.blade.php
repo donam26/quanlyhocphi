@@ -52,9 +52,7 @@
             <div class="col-md-2">
                 <select name="status" class="form-select" onchange="this.form.submit()">
                     <option value="">-- Trạng thái --</option>
-                    <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Chờ xử lý</option>
                     <option value="waiting" {{ request('status') == 'waiting' ? 'selected' : '' }}>Danh sách chờ</option>
-                    <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Đã xác nhận</option>
                     <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang học</option>
                     <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Đã hoàn thành</option>
                     <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>

@@ -192,7 +192,7 @@
                                         <td class="text-end">{{ number_format($totalPaid, 0, ',', '.') }} đ</td>
                                         <td class="text-end">{{ number_format($remainingAmount, 0, ',', '.') }} đ</td>
                                         <td>
-                                            @if($enrollment->status == 'enrolled' || $enrollment->status == 'active')
+                                            @if($enrollment->status == 'active')
                                                 <span class="badge bg-success">Đang học</span>
                                             @elseif($enrollment->status == 'completed')
                                                 <span class="badge bg-success">Đã hoàn thành</span>

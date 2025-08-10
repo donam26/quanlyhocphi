@@ -95,6 +95,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::resource('schedules', ScheduleController::class);
     Route::get('course-items/{courseItem}/schedules', [ScheduleController::class, 'getSchedulesByCourse'])->name('course-items.schedules');
     Route::post('schedules/{schedule}/toggle-active', [ScheduleController::class, 'toggleActive'])->name('schedules.toggle-active');
+    Route::post('schedules/{schedule}/close', [ScheduleController::class, 'closeSchedule'])->name('schedules.close');
 
 
     // Attendance

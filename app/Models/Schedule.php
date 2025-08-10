@@ -16,6 +16,7 @@ class Schedule extends Model
         'days_of_week',
         'start_date',
         'end_date',
+        'end_type',
         'active',
         'is_inherited',
         'parent_schedule_id'
@@ -59,18 +60,17 @@ class Schedule extends Model
     }
 
     /**
-     * Tự động tính ngày kết thúc khi lưu
+     * Boot model events
      */
     protected static function boot()
     {
         parent::boot();
 
         static::saving(function ($schedule) {
-            // Tự động tính end_date = start_date + 12 tuần
-            if ($schedule->start_date) {
-                $schedule->end_date = Carbon::parse($schedule->start_date)
-                    ->addWeeks(12)
-                    ->subDay();
+            // Chỉ tự động tính end_date nếu không có end_date và end_type là manual
+            if ($schedule->start_date && !$schedule->end_date && $schedule->end_type === 'manual') {
+                // Đặt end_date rất xa trong tương lai cho khóa học tự đóng
+                $schedule->end_date = Carbon::parse($schedule->start_date)->addYears(10);
             }
         });
 
@@ -104,6 +104,8 @@ class Schedule extends Model
                 'course_item_id' => $childCourse->id,
                 'days_of_week' => $this->days_of_week,
                 'start_date' => $this->start_date,
+                'end_date' => $this->end_date,
+                'end_type' => $this->end_type,
                 'active' => $this->active,
                 'is_inherited' => true,
                 'parent_schedule_id' => $this->id
@@ -155,7 +157,45 @@ class Schedule extends Model
         if (!$this->active) return false;
         
         $now = Carbon::now();
+        
+        // Nếu là khóa học tự đóng, chỉ kiểm tra start_date và active status
+        if ($this->end_type === 'manual') {
+            return $now->gte($this->start_date);
+        }
+        
+        // Nếu là khóa học cố định ngày kết thúc
         return $now->between($this->start_date, $this->end_date);
+    }
+
+    /**
+     * Đóng khóa học thủ công (cho khóa học tự đóng)
+     */
+    public function closeManually()
+    {
+        if ($this->end_type !== 'manual') {
+            throw new \Exception('Chỉ có thể đóng thủ công khóa học có kiểu kết thúc "tự đóng"');
+        }
+
+        $this->update([
+            'end_date' => Carbon::now(),
+            'active' => false
+        ]);
+
+        // Cập nhật cho các khóa con nếu là lịch gốc
+        if (!$this->is_inherited) {
+            $this->childSchedules()->update([
+                'end_date' => Carbon::now(),
+                'active' => false
+            ]);
+        }
+    }
+
+    /**
+     * Kiểm tra có thể đóng thủ công không
+     */
+    public function canCloseManually()
+    {
+        return $this->end_type === 'manual' && $this->active;
     }
 
 

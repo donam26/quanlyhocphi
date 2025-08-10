@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\CourseItem;
 use App\Models\Student;
 use App\Models\Enrollment;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
@@ -84,6 +85,7 @@ class ImportService
                         'student_id' => $student->id,
                         'course_item_id' => $courseItemId,
                         'enrollment_date' => now(),
+                        'status' => EnrollmentStatus::ACTIVE,
                         'discount_percentage' => $discountPercentage,
                         'discount_amount' => $discountAmount,
                         'final_fee' => $finalFee,

@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Models\Student;
 use App\Models\Enrollment;
 use App\Models\CourseItem;
+use App\Enums\EnrollmentStatus;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
@@ -69,6 +70,7 @@ class StudentImport implements ToModel, WithHeadingRow, WithValidation
                 'student_id' => $student->id,
                 'course_item_id' => $this->courseItemId,
                 'enrollment_date' => now(),
+                'status' => EnrollmentStatus::ACTIVE,
                 'discount_percentage' => $this->discountPercentage,
                 'discount_amount' => $discountAmount,
                 'final_fee' => $finalFee,

@@ -276,7 +276,7 @@ class StudentController extends Controller
                 $totalUnpaid += max(0, $enrollment->final_fee - $paidAmount);
 
                 switch ($enrollment->status) {
-                    case 'enrolled':
+                    case 'active':
                         $enrolledCount++;
                         break;
                     case 'waiting':
@@ -295,19 +295,36 @@ class StudentController extends Controller
                 ];
             }
 
+            // Tách full_name thành first_name và name
+            $nameParts = explode(' ', trim($student->full_name), 2);
+            $firstName = $nameParts[0] ?? '';
+            $lastName = $nameParts[1] ?? '';
+
             return response()->json([
                 'success' => true,
-                'student' => [
+                'data' => [
+                    'id' => $student->id,
+                    'first_name' => $firstName,
+                    'name' => $lastName,
                     'full_name' => $student->full_name,
                     'phone' => $student->phone,
                     'email' => $student->email,
-                    'date_of_birth' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : null,
+                    'date_of_birth' => $student->date_of_birth ? $student->date_of_birth->format('Y-m-d') : null,
+                    'place_of_birth' => $student->place_of_birth,
+                    'nation' => $student->nation,
+                    'gender' => $student->gender,
+                    'province_id' => $student->province_id,
                     'address' => $student->address,
+                    'current_workplace' => $student->current_workplace,
+                    'accounting_experience_years' => $student->accounting_experience_years,
+                    'hard_copy_documents' => $student->hard_copy_documents,
+                    'education_level' => $student->education_level,
+                    'notes' => $student->notes,
                     'created_at' => $student->created_at->format('d/m/Y H:i')
                 ],
                 'stats' => [
                     'total_enrollments' => $enrollments->count(),
-                    'enrolled_count' => $enrolledCount,
+                    'active_count' => $enrolledCount,
                     'waiting_count' => $waitingCount,
                     'completed_count' => $completedCount,
                     'total_paid' => number_format($totalPaid) . ' VNĐ',
@@ -320,6 +337,49 @@ class StudentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Xóa học viên
+     */
+    public function destroy($id)
+    {
+        $student = Student::find($id);
+
+        if (!$student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy học viên'
+            ], 404);
+        }
+
+        // Kiểm tra xem học viên có dữ liệu liên quan không
+        $enrollmentCount = $student->enrollments()->count();
+        $paymentCount = $student->payments()->count();
+
+        if ($enrollmentCount > 0 || $paymentCount > 0) {
+            return response()->json([
+                'success' => false,
+                'message' => "Không thể xóa học viên này vì đã có {$enrollmentCount} ghi danh và {$paymentCount} thanh toán liên quan. Vui lòng xóa các dữ liệu liên quan trước."
+            ], 422);
+        }
+
+        try {
+            $studentName = $student->full_name;
+            $student->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Đã xóa học viên '{$studentName}' thành công"
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Delete student error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi xóa học viên: ' . $e->getMessage()
             ], 500);
         }
     }

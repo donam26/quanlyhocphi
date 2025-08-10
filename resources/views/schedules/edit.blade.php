@@ -95,12 +95,34 @@
                                 <div class="form-text">Ngày bắt đầu khóa học</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="form-label">
-                                    <i class="fas fa-calendar-check me-1"></i>Ngày kết thúc (tự động)
+                                <label for="end_type" class="form-label">
+                                    <i class="fas fa-calendar-check me-1"></i>Kiểu kết thúc <span class="text-danger">*</span>
                                 </label>
-                                <input type="text" class="form-control" 
-                                       value="{{ $schedule->end_date->format('d/m/Y') }} (12 tuần)" readonly>
-                                <div class="form-text">Ngày kết thúc sẽ được tính tự động sau 12 tuần</div>
+                                <select name="end_type" id="end_type" class="form-select @error('end_type') is-invalid @enderror" required>
+                                    <option value="">-- Chọn kiểu kết thúc --</option>
+                                    <option value="manual" {{ old('end_type', $schedule->end_type ?? 'manual') == 'manual' ? 'selected' : '' }}>Tự đóng khi hoàn thành</option>
+                                    <option value="fixed" {{ old('end_type', $schedule->end_type ?? 'manual') == 'fixed' ? 'selected' : '' }}>Cố định ngày kết thúc</option>
+                                </select>
+                                @error('end_type')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">Chọn cách thức kết thúc khóa học</div>
+                            </div>
+                        </div>
+
+                        <!-- Ngày kết thúc cố định (ẩn mặc định) -->
+                        <div class="row mb-3" id="fixed_end_date_row" style="display: none;">
+                            <div class="col-md-6 offset-md-6">
+                                <label for="end_date" class="form-label">
+                                    <i class="fas fa-calendar-times me-1"></i>Ngày kết thúc <span class="text-danger">*</span>
+                                </label>
+                                <input type="date" name="end_date" id="end_date" 
+                                       class="form-control @error('end_date') is-invalid @enderror" 
+                                       value="{{ old('end_date', $schedule->end_date && $schedule->end_type === 'fixed' ? $schedule->end_date->format('Y-m-d') : '') }}">
+                                @error('end_date')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                                <div class="form-text">Ngày kết thúc cố định của khóa học</div>
                             </div>
                         </div>
 
@@ -186,29 +208,75 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Auto calculate end date when start date changes
+    const endTypeSelect = document.getElementById('end_type');
+    const fixedEndDateRow = document.getElementById('fixed_end_date_row');
+    const endDateInput = document.getElementById('end_date');
     const startDateInput = document.getElementById('start_date');
     
-    startDateInput.addEventListener('change', function() {
-        if (this.value) {
-            const startDate = new Date(this.value);
-            const endDate = new Date(startDate);
-            endDate.setDate(startDate.getDate() + (12 * 7) - 1); // 12 weeks - 1 day
+    // Handle end type change
+    endTypeSelect.addEventListener('change', function() {
+        if (this.value === 'fixed') {
+            fixedEndDateRow.style.display = 'block';
+            endDateInput.required = true;
             
-            const endDateFormatted = endDate.toLocaleDateString('vi-VN');
-            const endDateInput = document.querySelector('input[readonly]');
-            endDateInput.value = `${endDateFormatted} (12 tuần)`;
+            // Auto set minimum end date based on start date
+            if (startDateInput.value) {
+                const startDate = new Date(startDateInput.value);
+                const minEndDate = new Date(startDate);
+                minEndDate.setDate(startDate.getDate() + 7); // Minimum 1 week
+                endDateInput.min = minEndDate.toISOString().split('T')[0];
+            }
+        } else {
+            fixedEndDateRow.style.display = 'none';
+            endDateInput.required = false;
+            endDateInput.value = '';
         }
     });
     
-    // Validate at least one day selected
+    // Update minimum end date when start date changes
+    startDateInput.addEventListener('change', function() {
+        if (this.value && endTypeSelect.value === 'fixed') {
+            const startDate = new Date(this.value);
+            const minEndDate = new Date(startDate);
+            minEndDate.setDate(startDate.getDate() + 7); // Minimum 1 week
+            endDateInput.min = minEndDate.toISOString().split('T')[0];
+            
+            // Clear end date if it's before new minimum
+            if (endDateInput.value && new Date(endDateInput.value) < minEndDate) {
+                endDateInput.value = '';
+            }
+        }
+    });
+    
+    // Validate form submission
     const form = document.querySelector('form');
     form.addEventListener('submit', function(e) {
+        // Check at least one day selected
         const checkedDays = document.querySelectorAll('input[name="days_of_week[]"]:checked');
         if (checkedDays.length === 0) {
             e.preventDefault();
             alert('Vui lòng chọn ít nhất một ngày trong tuần!');
             return false;
+        }
+        
+        // Check end date if fixed type
+        if (endTypeSelect.value === 'fixed' && !endDateInput.value) {
+            e.preventDefault();
+            alert('Vui lòng chọn ngày kết thúc!');
+            endDateInput.focus();
+            return false;
+        }
+        
+        // Check end date is after start date
+        if (endTypeSelect.value === 'fixed' && startDateInput.value && endDateInput.value) {
+            const startDate = new Date(startDateInput.value);
+            const endDate = new Date(endDateInput.value);
+            if (endDate <= startDate) {
+                e.preventDefault();
+                alert('Ngày kết thúc phải sau ngày bắt đầu!');
+                endDateInput.focus();
+                return false;
+            }
         }
         
         // Confirm changes
@@ -217,6 +285,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return false;
         }
     });
+    
+    // Trigger change event on page load to handle current values
+    if (endTypeSelect.value) {
+        endTypeSelect.dispatchEvent(new Event('change'));
+    }
 });
 </script>
 @endpush 

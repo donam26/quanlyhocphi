@@ -37,7 +37,15 @@ class Enrollment extends Model
         'discount_percentage' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'final_fee' => 'decimal:2',
-        'custom_fields' => 'array'
+        'custom_fields' => 'array',
+        'status' => EnrollmentStatus::class
+    ];
+
+    /**
+     * Default attributes
+     */
+    protected $attributes = [
+        'status' => 'active'
     ];
 
     /**

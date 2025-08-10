@@ -129,7 +129,7 @@
                                 @foreach($enrollmentCounts as $status)
                                 <tr>
                                     <td>
-                                        @if($status->status == 'enrolled' || $status->status == 'active')
+                                        @if($status->status == 'active')
                                             <span class="badge bg-success">Đang học</span>
                                         @elseif($status->status == 'completed')
                                             <span class="badge bg-success">Đã hoàn thành</span>
@@ -410,7 +410,7 @@ document.addEventListener('DOMContentLoaded', function() {
     try {
         const statusData = safeJsonParse('@json($enrollmentCounts->pluck('total', 'status')->toArray())', {});
         const statusLabels = Object.keys(statusData).map(status => {
-            if (status === 'enrolled' || status === 'active') return 'Đang học';
+            if (status === 'active') return 'Đang học';
             if (status === 'completed') return 'Đã hoàn thành';
             if (status === 'waiting') return 'Danh sách chờ';
             if (status === 'cancelled') return 'Đã hủy';

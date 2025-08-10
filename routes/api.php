@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\Api\CourseItemController;
 use App\Http\Controllers\Api\ProvinceController;
+use App\Http\Controllers\Api\EthnicityController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\StudentController;
 use App\Http\Controllers\Api\EnrollmentController;
@@ -45,6 +46,7 @@ Route::prefix('students')->group(function () {
     Route::get('/{id}/details', [StudentController::class, 'getStudentDetails']);
     Route::post('/{id}/update', [StudentController::class, 'update']);
     Route::post('/create', [StudentController::class, 'store']);
+    Route::delete('/{id}/delete', [StudentController::class, 'destroy']);
     Route::get('/province/{provinceId}', [StudentController::class, 'getByProvince']);
     Route::get('/region/{region}', [StudentController::class, 'getByRegion']);
 });
@@ -85,6 +87,13 @@ Route::prefix('provinces')->group(function () {
     Route::get('/search', [ProvinceController::class, 'search']);
     Route::get('/region/{region}', [ProvinceController::class, 'getByRegion']);
     Route::get('/{id}', [ProvinceController::class, 'show']);
+});
+Route::get('/provinces', [ProvinceController::class, 'index']); // Route trực tiếp cho provinces
+
+// API cho Dân tộc
+Route::prefix('ethnicities')->group(function () {
+    Route::get('/', [EthnicityController::class, 'index']);
+    Route::get('/{id}', [EthnicityController::class, 'show']);
 });
 
 // API cho Tiến độ học tập

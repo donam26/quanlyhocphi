@@ -902,7 +902,7 @@ $(document).ready(function() {
                                 <div class="card-body">
                                     <table class="table table-sm table-borderless">
                                         <tr><th width="60%">Tổng số khóa đã đăng ký:</th><td><strong>${response.stats.total_enrollments}</strong></td></tr>
-                                        <tr><th>Đang học:</th><td><span class="badge bg-success">${response.stats.enrolled_count}</span></td></tr>
+                                        <tr><th>Đang học:</th><td><span class="badge bg-success">${response.stats.active_count}</span></td></tr>
                                         <tr><th>Đang chờ:</th><td><span class="badge bg-warning">${response.stats.waiting_count}</span></td></tr>
                                         <tr><th>Đã hoàn thành:</th><td><span class="badge bg-primary">${response.stats.completed_count}</span></td></tr>
                                         <tr><th>Tổng học phí đã đóng:</th><td><strong class="text-success">${response.stats.total_paid}</strong></td></tr>
@@ -959,7 +959,7 @@ $(document).ready(function() {
     // Helper functions
     function getStatusColor(status) {
         const colors = {
-            'enrolled': 'success',
+            'active': 'success',
             'waiting': 'warning', 
             'completed': 'primary',
             'cancelled': 'danger'
@@ -969,7 +969,7 @@ $(document).ready(function() {
     
     function getStatusText(status) {
         const texts = {
-            'enrolled': 'Đang học',
+            'active': 'Đang học',
             'waiting': 'Đang chờ',
             'completed': 'Hoàn thành', 
             'cancelled': 'Đã hủy'

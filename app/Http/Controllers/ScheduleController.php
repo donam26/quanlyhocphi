@@ -107,7 +107,9 @@ class ScheduleController extends Controller
             'course_item_id' => 'required|exists:course_items,id',
             'days_of_week' => 'required|array|min:1',
             'days_of_week.*' => 'integer|between:1,7',
-            'start_date' => 'required|date|after_or_equal:today'
+            'start_date' => 'required|date|after_or_equal:today',
+            'end_type' => 'required|in:manual,fixed',
+            'end_date' => 'required_if:end_type,fixed|nullable|date|after:start_date'
         ]);
 
         try {
@@ -129,13 +131,21 @@ class ScheduleController extends Controller
                 return back()->withErrors(['course_item_id' => 'Khóa học này đã có lịch học! Vui lòng chỉnh sửa lịch hiện tại.']);
             }
 
-            $schedule = Schedule::create([
+            $scheduleData = [
                 'course_item_id' => $request->course_item_id,
                 'days_of_week' => $request->days_of_week,
                 'start_date' => $request->start_date,
+                'end_type' => $request->end_type,
                 'active' => true,
                 'is_inherited' => false
-            ]);
+            ];
+
+            // Chỉ set end_date nếu là kiểu cố định
+            if ($request->end_type === 'fixed') {
+                $scheduleData['end_date'] = $request->end_date;
+            }
+
+            $schedule = Schedule::create($scheduleData);
 
             DB::commit();
 
@@ -197,16 +207,29 @@ class ScheduleController extends Controller
         $request->validate([
             'days_of_week' => 'required|array|min:1',
             'days_of_week.*' => 'integer|between:1,7',
-            'start_date' => 'required|date'
+            'start_date' => 'required|date',
+            'end_type' => 'required|in:manual,fixed',
+            'end_date' => 'required_if:end_type,fixed|nullable|date|after:start_date'
         ]);
 
         try {
             DB::beginTransaction();
 
-            $schedule->update([
+            $updateData = [
                 'days_of_week' => $request->days_of_week,
-                'start_date' => $request->start_date
-            ]);
+                'start_date' => $request->start_date,
+                'end_type' => $request->end_type
+            ];
+
+            // Xử lý end_date dựa trên end_type
+            if ($request->end_type === 'fixed') {
+                $updateData['end_date'] = $request->end_date;
+            } else {
+                // Nếu chuyển từ fixed sang manual, set end_date xa trong tương lai
+                $updateData['end_date'] = Carbon::parse($request->start_date)->addYears(10);
+            }
+
+            $schedule->update($updateData);
 
             DB::commit();
 
@@ -480,5 +503,25 @@ class ScheduleController extends Controller
             'success' => true,
             'stats' => $attendanceStats
         ]);
+    }
+
+    /**
+     * Đóng khóa học thủ công
+     */
+    public function closeSchedule(Schedule $schedule)
+    {
+        try {
+            if (!$schedule->canCloseManually()) {
+                return back()->withErrors(['error' => 'Không thể đóng khóa học này!']);
+            }
+
+            $schedule->closeManually();
+
+            return back()->with('success', 'Đã đóng khóa học thành công!');
+
+        } catch (\Exception $e) {
+            Log::error('Schedule close error: ' . $e->getMessage());
+            return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
+        }
     }
 }

@@ -150,7 +150,7 @@ class StudentController extends Controller
                 $totalUnpaid += max(0, $enrollment->final_fee - $paidAmount);
 
                 switch ($enrollment->status) {
-                    case 'enrolled':
+                    case 'active':
                         $enrolledCount++;
                         break;
                     case 'waiting':
@@ -181,7 +181,7 @@ class StudentController extends Controller
                 ],
                 'stats' => [
                     'total_enrollments' => $enrollments->count(),
-                    'enrolled_count' => $enrolledCount,
+                    'active_count' => $enrolledCount,
                     'waiting_count' => $waitingCount,
                     'completed_count' => $completedCount,
                     'total_paid' => number_format($totalPaid) . ' VNĐ',

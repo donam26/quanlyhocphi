@@ -56,9 +56,10 @@
                                 <div class="mb-3">
                                     <label for="status" class="form-label">Trạng thái <span class="text-danger">*</span></label>
                                     <select class="form-control" id="status" name="status" required>
-                                        <option value="enrolled" {{ old('status') == 'enrolled' ? 'selected' : '' }}>Đang học</option>
-                                        <option value="completed" {{ old('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                                        <option value="dropped" {{ old('status') == 'dropped' ? 'selected' : '' }}>Đã nghỉ</option>
+                                        <option value="waiting" {{ old('status') == 'waiting' ? 'selected' : '' }}>Danh sách chờ</option>
+                                        <option value="active" {{ old('status', 'active') == 'active' ? 'selected' : '' }}>Đang học</option>
+                                        <option value="completed" {{ old('status') == 'completed' ? 'selected' : '' }}>Đã hoàn thành</option>
+                                        <option value="cancelled" {{ old('status') == 'cancelled' ? 'selected' : '' }}>Đã hủy</option>
                                     </select>
                                 </div>
                                 

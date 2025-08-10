@@ -109,7 +109,6 @@
                             <th width="25%">Thông tin học viên</th>
                             <th width="20%">Liên hệ</th>
                             <th width="20%">Khóa học</th>
-                            <th width="15%">Trạng thái</th>
                             <th width="15%">Thao tác</th>
                         </tr>
                     </thead>
@@ -165,33 +164,7 @@
                                     <span class="text-muted">Chưa có khóa học</span>
                                 @endif
                             </td>
-                            <td>
-                                @php
-                                    $activeEnrollments = $student->enrollments->whereIn('status', ['enrolled', 'active']);
-                                    $completedEnrollments = $student->enrollments->where('status', 'completed');
-                                    $waitingEnrollments = $student->enrollments->where('status', 'waiting');
-                                @endphp
-
-                                @if($activeEnrollments->count() > 0)
-                                    <span class="badge bg-success">Đang học ({{ $activeEnrollments->count() }})</span>
-                                @elseif($completedEnrollments->count() > 0)
-                                    <span class="badge bg-success">Đã hoàn thành ({{ $completedEnrollments->count() }})</span>
-                                @elseif($waitingEnrollments->count() > 0)
-                                    <span class="badge bg-warning text-dark">Danh sách chờ ({{ $waitingEnrollments->count() }})</span>
-                                @else
-                                    <span class="badge bg-secondary">Chưa học</span>
-                                @endif
-
-                                @php
-                                    $unpaidCount = $student->enrollments->filter(function($e) {
-                                        return $e->getRemainingAmount() > 0;
-                                    })->count();
-                                @endphp
-
-                                @if($unpaidCount > 0)
-                                    <br><span class="badge bg-warning mt-1">Chưa TT: {{ $unpaidCount }}</span>
-                                @endif
-                            </td>
+                          
                             <td onclick="event.stopPropagation()">
                                 <div class="btn-group">
                                     <button type="button" class="btn btn-sm btn-outline-primary"
@@ -208,6 +181,11 @@
                                             onclick="enrollStudent({{ $student->id }})"
                                             title="Ghi danh">
                                         <i class="fas fa-user-plus"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger"
+                                            onclick="deleteStudent({{ $student->id }}, '{{ $student->full_name }}')"
+                                            title="Xóa học viên">
+                                        <i class="fas fa-trash"></i>
                                     </button>
                                 </div>
                             </td>
@@ -418,7 +396,12 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Dân tộc</label>
-                                <input type="text" name="nation" id="edit-nation" class="form-control">
+                                <!-- Hidden field to submit the selected ethnicity name -->
+                                <input type="hidden" name="nation" id="edit-nation">
+                                <!-- Visible select2 to pick an ethnicity -->
+                                <select id="edit-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
+                                    <option value="">-- Chọn dân tộc --</option>
+                                </select>
                                 <div class="invalid-feedback" id="edit-nation-error"></div>
                             </div>
 
@@ -702,7 +685,12 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Dân tộc</label>
-                                <input type="text" name="nation" id="create-nation" class="form-control" placeholder="Kinh">
+                                <!-- Hidden field to submit the selected ethnicity name -->
+                                <input type="hidden" name="nation" id="create-nation">
+                                <!-- Visible select2 to pick an ethnicity -->
+                                <select id="create-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
+                                    <option value="">-- Chọn dân tộc --</option>
+                                </select>
                                 <div class="invalid-feedback" id="create-nation-error"></div>
                             </div>
 
@@ -1060,6 +1048,7 @@ $(document).on('shown.bs.modal', '#createStudentModal', function() {
     setTimeout(function() {
         initProvinceSelect2();
         initLocationSelect2();
+        initEthnicitySelect2();
     }, 100);
 });
 
@@ -1067,6 +1056,7 @@ $(document).on('shown.bs.modal', '#editStudentModal', function() {
     setTimeout(function() {
         initProvinceSelect2();
         initLocationSelect2();
+        initEthnicitySelect2();
     }, 100);
 });
 
@@ -1075,6 +1065,7 @@ $(document).ready(function() {
     // Đợi modal mở để khởi tạo select2
     initProvinceSelect2();
     initLocationSelect2();
+    initEthnicitySelect2();
 });
 
 // Hàm khởi tạo select2 cho tỉnh thành với AJAX
@@ -1192,6 +1183,56 @@ function initLocationSelect2(){
     });
 }
 
+// Khởi tạo select2 cho dân tộc
+function initEthnicitySelect2(){
+    try {
+        $('#edit-nation-select, #create-nation-select').select2('destroy');
+    } catch (e) {}
+
+    $('#edit-nation-select, #create-nation-select').each(function(){
+        let $hidden;
+        if ($(this).attr('id') === 'edit-nation-select') {
+            $hidden = $('#edit-nation');
+        } else if ($(this).attr('id') === 'create-nation-select') {
+            $hidden = $('#create-nation');
+        }
+
+        $(this).select2({
+            theme: 'bootstrap-5',
+            placeholder: $(this).data('placeholder') || 'Chọn dân tộc',
+            allowClear: true,
+            dropdownParent: $(this).closest('.modal'),
+            width: '100%',
+            ajax: {
+                url: '/api/ethnicities',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { keyword: params.term || '' };
+                },
+                processResults: function(response){
+                    if (response && response.success && Array.isArray(response.data)){
+                        return {
+                            results: response.data.map(function(item){
+                                return { id: item.id, text: item.name };
+                            })
+                        };
+                    }
+                    return { results: [] };
+                }
+            }
+        });
+
+        // Đồng bộ về hidden input khi chọn/clear
+        $(this).on('select2:select', function(e){
+            const text = e.params.data && e.params.data.text ? e.params.data.text : '';
+            if ($hidden) $hidden.val(text);
+        }).on('select2:clear', function(){
+            if ($hidden) $hidden.val('');
+        });
+    });
+}
+
 // Lấy tên miền theo mã
 function getRegionName(region) {
     switch(region) {
@@ -1265,5 +1306,51 @@ $(document).on('click', '#save-new-student-btn', function() {
         }
     });
 });
+
+// Xử lý xóa học viên
+function deleteStudent(studentId, studentName) {
+    // Hiển thị confirm dialog
+    if (confirm(`Bạn có chắc chắn muốn xóa học viên "${studentName}"?\n\nLưu ý: Thao tác này sẽ xóa tất cả dữ liệu liên quan (ghi danh, thanh toán, điểm danh...) và không thể hoàn tác!`)) {
+        
+        // Hiển thị loading
+        const loadingToast = toastr.info('Đang xóa học viên...', '', {timeOut: 0, extendedTimeOut: 0});
+        
+        $.ajax({
+            url: `/api/students/${studentId}/delete`,
+            method: 'DELETE',
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(response) {
+                // Ẩn loading toast
+                toastr.clear(loadingToast);
+                
+                if (response.success) {
+                    toastr.success(response.message || 'Xóa học viên thành công!');
+                    
+                    // Reload trang sau 1 giây
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    toastr.error(response.message || 'Có lỗi xảy ra khi xóa học viên!');
+                }
+            },
+            error: function(xhr) {
+                // Ẩn loading toast
+                toastr.clear(loadingToast);
+                
+                if (xhr.status === 422) {
+                    const response = xhr.responseJSON;
+                    toastr.error(response.message || 'Không thể xóa học viên!');
+                } else if (xhr.status === 404) {
+                    toastr.error('Không tìm thấy học viên!');
+                } else {
+                    toastr.error('Có lỗi xảy ra khi xóa học viên!');
+                }
+            }
+        });
+    }
+}
 </script>
 @endpush

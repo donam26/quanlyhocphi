@@ -581,7 +581,12 @@ function openStudentsModal(courseId){
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title">Học viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-success btn-sm" id="importExcelBtn" title="Import Excel">
+                    <i class="fas fa-file-excel me-1"></i>Import Excel
+                  </button>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
               </div>
               <div class="modal-body">
                 <div class="text-center p-3" id="studentsModalLoading"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></div>
@@ -642,7 +647,8 @@ function openStudentsModal(courseId){
                 <td>${notesBtn}</td>
                 <td>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-warning" onclick="openEditEnrollmentModal(${s.enrollment_id})" title="Chỉnh sửa đăng ký"><i class="fas fa-user-edit"></i></button>
+                        <button class="btn btn-sm btn-primary" onclick="openEditStudentModal(${s.student.id})" title="Chỉnh sửa học viên"><i class="fas fa-user-edit"></i></button>
+                        <button class="btn btn-sm btn-warning" onclick="openEditEnrollmentModal(${s.enrollment_id})" title="Chỉnh sửa đăng ký"><i class="fas fa-graduation-cap"></i></button>
                         ${s.payment_status !== 'Đã đóng đủ' ? `<button class="btn btn-sm btn-success" onclick="openQuickPaymentModal(${s.enrollment_id})" title="Thanh toán nhanh"><i class=\"fas fa-money-bill\"></i></button>` : ''}
                     </div>
                 </td>
@@ -653,6 +659,11 @@ function openStudentsModal(courseId){
             <div class="table-responsive"><table class="table table-striped"><thead>${thead}</thead><tbody>${tbody}</tbody></table></div>`;
         $content.html(html).show();
         $loading.hide();
+
+        // Xử lý nút Import Excel
+        $('#importExcelBtn').off('click').on('click', function() {
+            openImportExcelModal(courseId);
+        });
     }).fail(function(){
         $content.html('<div class="alert alert-danger">Lỗi tải dữ liệu.</div>').show();
         $loading.hide();
@@ -932,4 +943,712 @@ $(document).on('click', '#btn-save-attendance', function(){
 // Placeholder: mở modal thanh toán theo khoá
 function openPaymentsModal(courseId){
     window.location.href = `/payments/course/${courseId}`; // TODO: chuyển sang modal sau khi có API phù hợp
+}
+
+// Modal chỉnh sửa học viên
+function openEditStudentModal(studentId) {
+    // Tạo modal nếu chưa có
+    if ($('#editStudentModal').length === 0) {
+        $('body').append(`
+        <div class="modal fade" id="editStudentModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Chỉnh sửa thông tin học viên</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="editStudentForm">
+                        <div class="modal-body">
+                            <div id="editStudentLoading" class="text-center py-3">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                            <div id="editStudentContent" style="display:none">
+                                <!-- Thông tin cơ bản -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <h6 class="border-bottom pb-2 mb-3">
+                                            <i class="fas fa-user me-2"></i>Thông tin cơ bản
+                                        </h6>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Họ <span class="text-danger">*</span></label>
+                                        <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
+                                        <div class="invalid-feedback" id="edit-first-name-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Tên</label>
+                                        <input type="text" name="name" id="edit-name" class="form-control">
+                                        <div class="invalid-feedback" id="edit-name-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
+                                        <input type="tel" name="phone" id="edit-phone" class="form-control" required>
+                                        <div class="invalid-feedback" id="edit-phone-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Ngày sinh</label>
+                                        <input type="date" name="date_of_birth" id="edit-date-of-birth" class="form-control">
+                                        <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Nơi sinh</label>
+                                        <input type="hidden" name="place_of_birth" id="edit-place-of-birth">
+                                        <select id="edit-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)">
+                                            <option value="">-- Chọn nơi sinh --</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-place-of-birth-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Dân tộc</label>
+                                        <input type="hidden" name="nation" id="edit-nation">
+                                        <select id="edit-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
+                                            <option value="">-- Chọn dân tộc --</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-nation-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" name="email" id="edit-email" class="form-control">
+                                        <div class="invalid-feedback" id="edit-email-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Giới tính</label>
+                                        <select name="gender" id="edit-gender" class="form-select">
+                                            <option value="">Chọn giới tính</option>
+                                            <option value="male">Nam</option>
+                                            <option value="female">Nữ</option>
+                                            <option value="other">Khác</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-gender-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Tỉnh/Thành phố</label>
+                                        <select name="province_id" id="edit-province" class="form-select">
+                                            <option value="">-- Chọn tỉnh thành --</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-province-error"></div>
+                                    </div>
+
+                                    <div class="col-md-12 mb-3">
+                                        <label class="form-label">Địa chỉ chi tiết</label>
+                                        <textarea name="address" id="edit-address" class="form-control" rows="2" placeholder="Nhập địa chỉ chi tiết"></textarea>
+                                        <div class="invalid-feedback" id="edit-address-error"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Thông tin bổ sung -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <h6 class="border-bottom pb-2 mb-3">
+                                            <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
+                                        </h6>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Nơi công tác hiện tại</label>
+                                        <input type="hidden" name="current_workplace" id="edit-current-workplace">
+                                        <select id="edit-current-workplace-select" class="form-select" data-placeholder="Chọn nơi công tác (tỉnh/thành)">
+                                            <option value="">-- Chọn nơi công tác --</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-current-workplace-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Số năm kinh nghiệm kế toán</label>
+                                        <input type="number" name="accounting_experience_years" id="edit-experience" class="form-control" min="0" max="50">
+                                        <div class="invalid-feedback" id="edit-experience-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Hồ sơ bản cứng</label>
+                                        <select name="hard_copy_documents" id="edit-hard-copy-documents" class="form-select">
+                                            <option value="">-- Chọn trạng thái --</option>
+                                            <option value="submitted">Đã nộp</option>
+                                            <option value="not_submitted">Chưa nộp</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-hard-copy-documents-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label">Bằng cấp</label>
+                                        <select name="education_level" id="edit-education-level" class="form-select">
+                                            <option value="">-- Chọn bằng cấp --</option>
+                                            <option value="secondary">VB2</option>
+                                            <option value="vocational">Trung cấp</option>
+                                            <option value="associate">Cao đẳng</option>
+                                            <option value="bachelor">Đại học</option>
+                                            <option value="master">Thạc sĩ</option>
+                                        </select>
+                                        <div class="invalid-feedback" id="edit-education-level-error"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Ghi chú -->
+                                <div class="row mb-4">
+                                    <div class="col-12">
+                                        <label class="form-label">Ghi chú</label>
+                                        <textarea name="notes" id="edit-notes" class="form-control" rows="3" placeholder="Nhập ghi chú về học viên (nếu có)"></textarea>
+                                        <div class="invalid-feedback" id="edit-notes-error"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                            <button type="button" id="saveEditStudentBtn" class="btn btn-primary">
+                                <i class="fas fa-save me-1"></i> Cập nhật học viên
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>`);
+    }
+
+    // Mở modal và load dữ liệu
+    $('#editStudentModal').modal('show');
+    $('#editStudentLoading').show();
+    $('#editStudentContent').hide();
+    
+    // Clear previous errors
+    $('#editStudentModal .is-invalid').removeClass('is-invalid');
+    $('#editStudentModal .invalid-feedback').text('');
+
+    // Load student data
+    $.ajax({
+        url: `/api/students/${studentId}/details`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const student = response.data;
+                
+                // Store student data for later use
+                $('#editStudentModal').data('student-data', student);
+                $('#editStudentModal').data('student-id', studentId);
+
+                // Populate basic form fields first
+                $('#edit-first-name').val(student.first_name || '');
+                $('#edit-name').val(student.name || '');
+                $('#edit-phone').val(student.phone || '');
+                $('#edit-date-of-birth').val(student.date_of_birth || '');
+                $('#edit-email').val(student.email || '');
+                $('#edit-gender').val(student.gender || '');
+                $('#edit-address').val(student.address || '');
+                $('#edit-experience').val(student.accounting_experience_years || '');
+                $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
+                $('#edit-education-level').val(student.education_level || '');
+                $('#edit-notes').val(student.notes || '');
+
+                // Initialize select2 and then set values
+                setTimeout(function() {
+                    initEditStudentSelect2(student);
+                }, 100);
+
+                $('#editStudentLoading').hide();
+                $('#editStudentContent').show();
+                
+                // Auto focus vào trường đầu tiên
+                setTimeout(function() {
+                    $('#edit-first-name').focus();
+                }, 200);
+            } else {
+                alert('Không thể tải thông tin học viên: ' + (response.message || 'Lỗi không xác định'));
+                $('#editStudentModal').modal('hide');
+            }
+        },
+        error: function(xhr) {
+            alert('Có lỗi xảy ra khi tải thông tin học viên');
+            $('#editStudentModal').modal('hide');
+        }
+    });
+
+    // Handle save button
+    $('#saveEditStudentBtn').off('click').on('click', function() {
+        const button = $(this);
+        const form = $('#editStudentForm');
+        const formData = new FormData(form[0]);
+        const studentId = $('#editStudentModal').data('student-id');
+        
+        // Disable button và hiển thị loading
+        button.prop('disabled', true);
+        button.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang cập nhật...');
+        
+        // Clear previous errors
+        $('#editStudentModal .is-invalid').removeClass('is-invalid');
+        $('#editStudentModal .invalid-feedback').text('');
+        
+        // Show loading overlay
+        $('#editStudentModal .modal-body').append('<div id="saveLoadingOverlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Đang lưu...</span></div></div>');
+        
+        $.ajax({
+                         url: `/api/students/${studentId}/update`,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Hiển thị thông báo thành công
+                    if (window.toastr && toastr.success) {
+                        toastr.success(response.message || 'Cập nhật học viên thành công!');
+                    } else {
+                        showToast(response.message || 'Cập nhật học viên thành công!', 'success');
+                    }
+                    
+                    // Đóng modal
+                    $('#editStudentModal').modal('hide');
+                    
+                    // Refresh danh sách học viên nếu modal students đang mở
+                    const courseId = $('#studentsModal').data('course-id');
+                    if ($('#studentsModal').hasClass('show') && courseId) {
+                        openStudentsModal(courseId);
+                    }
+                } else {
+                    if (window.toastr && toastr.error) {
+                        toastr.error(response.message || 'Có lỗi xảy ra!');
+                    } else {
+                        alert(response.message || 'Có lỗi xảy ra!');
+                    }
+                }
+            },
+            error: function(xhr) {
+                                 if (xhr.status === 422) {
+                     // Validation errors
+                     const errors = xhr.responseJSON.errors;
+                     for (const field in errors) {
+                         const input = $(`#editStudentModal [name="${field}"]`);
+                         input.addClass('is-invalid');
+                         $(`#edit-${field.replace('_', '-')}-error`).text(errors[field][0]);
+                     }
+                    if (window.toastr && toastr.error) {
+                        toastr.error('Vui lòng kiểm tra lại thông tin!');
+                    } else {
+                        alert('Vui lòng kiểm tra lại thông tin!');
+                    }
+                } else {
+                    if (window.toastr && toastr.error) {
+                        toastr.error('Có lỗi xảy ra khi cập nhật học viên!');
+                    } else {
+                        alert('Có lỗi xảy ra khi cập nhật học viên!');
+                    }
+                }
+            },
+                         complete: function() {
+                 // Reset button
+                 button.prop('disabled', false);
+                 button.html('<i class="fas fa-save me-1"></i> Cập nhật học viên');
+                 
+                 // Remove loading overlay
+                 $('#saveLoadingOverlay').remove();
+             }
+        });
+    });
+}
+
+// Initialize select2 for edit student modal
+function initEditStudentSelect2(student) {
+    // Initialize provinces select2
+    $('#edit-province').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Chọn tỉnh/thành phố',
+        allowClear: true,
+        dropdownParent: $('#editStudentModal'),
+        width: '100%',
+        ajax: {
+            url: '/api/provinces',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { keyword: params.term || '' };
+            },
+            processResults: function(response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    return {
+                        results: response.data.map(function(item) {
+                            return { 
+                                id: item.id, 
+                                text: item.name + ' (' + getRegionName(item.region) + ')' 
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            }
+        }
+    });
+
+    // Initialize place of birth select2
+    $('#edit-place-of-birth-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Chọn nơi sinh (tỉnh/thành)',
+        allowClear: true,
+        dropdownParent: $('#editStudentModal'),
+        width: '100%',
+        ajax: {
+            url: '/api/provinces',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { keyword: params.term || '' };
+            },
+            processResults: function(response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    return {
+                        results: response.data.map(function(item) {
+                            return { 
+                                id: item.id, 
+                                text: item.name + ' (' + getRegionName(item.region) + ')' 
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            }
+        }
+    });
+
+    // Initialize current workplace select2
+    $('#edit-current-workplace-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Chọn nơi công tác (tỉnh/thành)',
+        allowClear: true,
+        dropdownParent: $('#editStudentModal'),
+        width: '100%',
+        ajax: {
+            url: '/api/provinces',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { keyword: params.term || '' };
+            },
+            processResults: function(response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    return {
+                        results: response.data.map(function(item) {
+                            return { 
+                                id: item.id, 
+                                text: item.name + ' (' + getRegionName(item.region) + ')' 
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            }
+        }
+    });
+
+    // Initialize ethnicity select2
+    $('#edit-nation-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Chọn dân tộc',
+        allowClear: true,
+        dropdownParent: $('#editStudentModal'),
+        width: '100%',
+        ajax: {
+            url: '/api/ethnicities',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return { keyword: params.term || '' };
+            },
+            processResults: function(response) {
+                if (response && response.success && Array.isArray(response.data)) {
+                    return {
+                        results: response.data.map(function(item) {
+                            return { id: item.id, text: item.name };
+                        })
+                    };
+                }
+                return { results: [] };
+            }
+        }
+    });
+
+    // Sync select2 with hidden inputs
+    $('#edit-place-of-birth-select').on('select2:select', function(e) {
+        const text = e.params.data && e.params.data.text ? e.params.data.text : '';
+        $('#edit-place-of-birth').val(text);
+    }).on('select2:clear', function() {
+        $('#edit-place-of-birth').val('');
+    });
+
+    $('#edit-current-workplace-select').on('select2:select', function(e) {
+        const text = e.params.data && e.params.data.text ? e.params.data.text : '';
+        $('#edit-current-workplace').val(text);
+    }).on('select2:clear', function() {
+        $('#edit-current-workplace').val('');
+    });
+
+    $('#edit-nation-select').on('select2:select', function(e) {
+        const text = e.params.data && e.params.data.text ? e.params.data.text : '';
+        $('#edit-nation').val(text);
+    }).on('select2:clear', function() {
+        $('#edit-nation').val('');
+    });
+
+    // Set values after initialization if student data is provided
+    if (student) {
+        // Set province value
+        if (student.province_id) {
+            // Load province data and set it
+            $.get(`/api/provinces/${student.province_id}`, function(response) {
+                if (response.success) {
+                    const province = response.data;
+                    const option = new Option(province.name + ' (' + getRegionName(province.region) + ')', province.id, true, true);
+                    $('#edit-province').append(option).trigger('change');
+                }
+            });
+        }
+
+        // Set place of birth
+        if (student.place_of_birth) {
+            $('#edit-place-of-birth').val(student.place_of_birth);
+            // Try to find matching province for place of birth
+            $.get('/api/provinces', { keyword: student.place_of_birth }, function(response) {
+                if (response.success && response.data.length > 0) {
+                    const province = response.data[0];
+                    const option = new Option(province.name + ' (' + getRegionName(province.region) + ')', province.id, true, true);
+                    $('#edit-place-of-birth-select').append(option).trigger('change');
+                }
+            });
+        }
+
+        // Set current workplace
+        if (student.current_workplace) {
+            $('#edit-current-workplace').val(student.current_workplace);
+            // Try to find matching province for current workplace
+            $.get('/api/provinces', { keyword: student.current_workplace }, function(response) {
+                if (response.success && response.data.length > 0) {
+                    const province = response.data[0];
+                    const option = new Option(province.name + ' (' + getRegionName(province.region) + ')', province.id, true, true);
+                    $('#edit-current-workplace-select').append(option).trigger('change');
+                }
+            });
+        }
+
+        // Set nation/ethnicity
+        if (student.nation) {
+            $('#edit-nation').val(student.nation);
+            // Try to find matching ethnicity
+            $.get('/api/ethnicities', { keyword: student.nation }, function(response) {
+                if (response.success && response.data.length > 0) {
+                    const ethnicity = response.data[0];
+                    const option = new Option(ethnicity.name, ethnicity.id, true, true);
+                    $('#edit-nation-select').append(option).trigger('change');
+                }
+            });
+        }
+    }
+}
+
+// Helper function for region names
+function getRegionName(region) {
+    switch(region) {
+        case 'north': return 'Miền Bắc';
+        case 'central': return 'Miền Trung';
+        case 'south': return 'Miền Nam';
+        default: return 'Không xác định';
+    }
+}
+
+// Modal import Excel học viên
+function openImportExcelModal(courseId) {
+    // Tạo modal nếu chưa có
+    if ($('#importExcelModal').length === 0) {
+        $('body').append(`
+        <div class="modal fade" id="importExcelModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Import Excel học viên</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <form id="importExcelForm" enctype="multipart/form-data">
+                        <div class="modal-body">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Hướng dẫn:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>Tải file template Excel mẫu để xem định dạng yêu cầu</li>
+                                    <li>Điền thông tin học viên vào file Excel theo đúng định dạng</li>
+                                    <li>Upload file Excel đã điền thông tin</li>
+                                </ul>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Tải template Excel mẫu</label>
+                                <div>
+                                    <a href="/course-items/download-template" class="btn btn-outline-primary btn-sm" target="_blank">
+                                        <i class="fas fa-download me-1"></i>Tải template Excel
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="excel_file" class="form-label">Chọn file Excel <span class="text-danger">*</span></label>
+                                <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx,.xls" required>
+                                <div class="form-text">Chỉ chấp nhận file Excel (.xlsx, .xls)</div>
+                                <div class="invalid-feedback" id="excel-file-error"></div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="discount_percentage" class="form-label">Phần trăm giảm giá (%)</label>
+                                <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" 
+                                       min="0" max="100" step="0.01" value="0">
+                                <div class="form-text">Áp dụng giảm giá cho tất cả học viên được import (tùy chọn)</div>
+                                <div class="invalid-feedback" id="discount-percentage-error"></div>
+                            </div>
+
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Lưu ý:</strong> Quá trình import có thể mất vài phút tùy thuộc vào số lượng học viên.
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                            <button type="submit" class="btn btn-success" id="importBtn">
+                                <i class="fas fa-upload me-1"></i>Import Excel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>`);
+    }
+
+    // Store course ID
+    $('#importExcelModal').data('course-id', courseId);
+
+    // Reset form
+    $('#importExcelForm')[0].reset();
+    $('#importExcelModal .is-invalid').removeClass('is-invalid');
+    $('#importExcelModal .invalid-feedback').text('');
+
+    // Show modal
+    $('#importExcelModal').modal('show');
+
+    // Handle form submission
+    $('#importExcelForm').off('submit').on('submit', function(e) {
+        e.preventDefault();
+        
+        const form = this;
+        const formData = new FormData(form);
+        const courseId = $('#importExcelModal').data('course-id');
+        const submitBtn = $('#importBtn');
+        
+        // Validate file
+        const fileInput = $('#excel_file')[0];
+        if (!fileInput.files.length) {
+            $('#excel_file').addClass('is-invalid');
+            $('#excel-file-error').text('Vui lòng chọn file Excel');
+            return;
+        }
+
+        // Check file type
+        const fileName = fileInput.files[0].name;
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+        if (!['xlsx', 'xls'].includes(fileExtension)) {
+            $('#excel_file').addClass('is-invalid');
+            $('#excel-file-error').text('Chỉ chấp nhận file Excel (.xlsx, .xls)');
+            return;
+        }
+
+        // Clear previous errors
+        $('#importExcelModal .is-invalid').removeClass('is-invalid');
+        $('#importExcelModal .invalid-feedback').text('');
+
+        // Show loading state
+        submitBtn.prop('disabled', true);
+        submitBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang import...');
+
+        // Add loading overlay
+        $('#importExcelModal .modal-body').append(`
+            <div id="importLoadingOverlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.9); z-index: 1000; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+                <div class="spinner-border text-success mb-3" role="status">
+                    <span class="visually-hidden">Đang import...</span>
+                </div>
+                <div class="text-center">
+                    <strong>Đang import học viên...</strong><br>
+                    <small class="text-muted">Vui lòng không đóng cửa sổ này</small>
+                </div>
+            </div>
+        `);
+
+        // Submit form
+        $.ajax({
+            url: `/course-items/${courseId}/import-students`,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            },
+            success: function(response) {
+                // Close import modal
+                $('#importExcelModal').modal('hide');
+                
+                // Show success message
+                if (window.toastr && toastr.success) {
+                    toastr.success('Import Excel thành công!');
+                } else {
+                    showToast('Import Excel thành công!', 'success');
+                }
+                
+                // Refresh students list
+                if ($('#studentsModal').hasClass('show')) {
+                    openStudentsModal(courseId);
+                }
+            },
+            error: function(xhr) {
+                if (xhr.status === 422) {
+                    // Validation errors
+                    const errors = xhr.responseJSON.errors;
+                    for (const field in errors) {
+                        const input = $(`#importExcelModal [name="${field}"]`);
+                        input.addClass('is-invalid');
+                        $(`#${field.replace('_', '-')}-error`).text(errors[field][0]);
+                    }
+                    
+                    if (window.toastr && toastr.error) {
+                        toastr.error('Vui lòng kiểm tra lại thông tin!');
+                    } else {
+                        alert('Vui lòng kiểm tra lại thông tin!');
+                    }
+                } else {
+                    const message = xhr.responseJSON && xhr.responseJSON.message 
+                        ? xhr.responseJSON.message 
+                        : 'Có lỗi xảy ra khi import Excel';
+                    
+                    if (window.toastr && toastr.error) {
+                        toastr.error(message);
+                    } else {
+                        alert(message);
+                    }
+                }
+            },
+            complete: function() {
+                // Reset button
+                submitBtn.prop('disabled', false);
+                submitBtn.html('<i class="fas fa-upload me-1"></i>Import Excel');
+                
+                // Remove loading overlay
+                $('#importLoadingOverlay').remove();
+            }
+        });
+    });
 } 
