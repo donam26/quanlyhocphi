@@ -79,12 +79,27 @@
                                                 <i class="fas fa-minus-circle"></i>
                                             </span>
                                             <span class="item-icon"><i class="fas fa-graduation-cap"></i></span>
-                                            <a href="javascript:void(0)" class="course-link" data-id="{{ $rootItem->id }}">{{ $rootItem->name }}</a>
+                                            <a href="javascript:void(0)" class="course-link" data-id="{{ $rootItem->id }}">
+                                                {{ $rootItem->name }}
+                                                @if($rootItem->is_leaf)
+                                                    {!! $rootItem->status_badge !!}
+                                                @endif
+                                            </a>
                                             <div class="item-actions">
                                                 <button type="button" class="btn btn-sm btn-success open-add-child" title="Thêm khóa học"
                                                     data-parent-id="{{ $rootItem->id }}" data-parent-name="{{ $rootItem->name }}">
                                                     <i class="fas fa-plus"></i>
                                                 </button>
+                                              
+                                                @if($rootItem->is_leaf)
+                                                    @php $courseStatus = $rootItem->getStatusEnum(); @endphp
+                                                    <button type="button" class="btn btn-sm btn-{{ $courseStatus === App\Enums\CourseStatus::ACTIVE ? 'warning' : 'success' }} toggle-course-status" 
+                                                        data-course-id="{{ $rootItem->id }}" 
+                                                        data-current-status="{{ $courseStatus->value }}"
+                                                        title="{{ $courseStatus === App\Enums\CourseStatus::ACTIVE ? 'Kết thúc khóa học' : 'Mở lại khóa học' }}">
+                                                        <i class="fas fa-{{ $courseStatus === App\Enums\CourseStatus::ACTIVE ? 'stop' : 'play' }}"></i>
+                                                    </button>
+                                                @endif
                                               
                                                 <button type="button" class="btn btn-sm btn-info open-students-modal" data-course-id="{{ $rootItem->id }}" title="Xem học viên">
                                                     <i class="fas fa-user-graduate"></i>

@@ -29,6 +29,12 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
         
         foreach ($this->columns as $column) {
             switch ($column) {
+                case 'first_name':
+                    $headings[] = 'Họ';
+                    break;
+                case 'last_name':
+                    $headings[] = 'Tên';
+                    break;
                 case 'full_name':
                     $headings[] = 'Họ và tên';
                     break;
@@ -41,14 +47,20 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                 case 'date_of_birth':
                     $headings[] = 'Ngày sinh';
                     break;
+                case 'place_of_birth':
+                    $headings[] = 'Nơi sinh';
+                    break;
+                case 'nation':
+                    $headings[] = 'Dân tộc';
+                    break;
                 case 'gender':
                     $headings[] = 'Giới tính';
                     break;
-                case 'address':
-                    $headings[] = 'Địa chỉ';
-                    break;
                 case 'province':
                     $headings[] = 'Tỉnh/Thành phố';
+                    break;
+                case 'address':
+                    $headings[] = 'Địa chỉ';
                     break;
                 case 'enrollments':
                     $headings[] = 'Khóa học đã đăng ký';
@@ -65,11 +77,17 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
         
         foreach ($this->columns as $column) {
             switch ($column) {
+                case 'first_name':
+                    $row[] = $student->first_name ?: '';
+                    break;
+                case 'last_name':
+                    $row[] = $student->last_name ?: '';
+                    break;
                 case 'full_name':
                     $row[] = $student->full_name;
                     break;
                 case 'phone':
-                    $row[] = $student->phone;
+                    $row[] = $student->phone ?: '';
                     break;
                 case 'email':
                     $row[] = $student->email ?: '';
@@ -77,14 +95,20 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                 case 'date_of_birth':
                     $row[] = $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';
                     break;
+                case 'place_of_birth':
+                    $row[] = $student->place_of_birth ?: '';
+                    break;
+                case 'nation':
+                    $row[] = $student->nation ?: '';
+                    break;
                 case 'gender':
                     $row[] = $this->getGenderText($student->gender);
                     break;
-                case 'address':
-                    $row[] = $student->address ?: '';
-                    break;
                 case 'province':
                     $row[] = $student->province ? $student->province->name : '';
+                    break;
+                case 'address':
+                    $row[] = $student->address ?: '';
                     break;
               
                 case 'enrollments':

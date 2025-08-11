@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Payment;
 use App\Models\Student;
 use App\Models\Enrollment;
+use App\Enums\EnrollmentStatus;
 
 class SearchService
 {
@@ -36,7 +37,7 @@ class SearchService
             
             foreach ($student->enrollments as $enrollment) {
                 // Bỏ qua các ghi danh đã hủy
-                if ($enrollment->status === 'cancelled') {
+                if ($enrollment->status === EnrollmentStatus::CANCELLED) {
                     continue;
                 }
                 
@@ -65,7 +66,7 @@ class SearchService
             // Lấy danh sách chờ của học viên
             $waitingLists = Enrollment::where('student_id', $student->id)
                 ->with('courseItem')
-                ->where('enrollments.status', 'waiting')
+                ->where('enrollments.status', EnrollmentStatus::WAITING)
                 ->get();
                 
             $waitingListData = [];
@@ -124,18 +125,13 @@ class SearchService
     
     private function getEnrollmentStatusText($status)
     {
-        switch ($status) {
-            case 'enrolled':
-                return 'Đang học';
-            case 'completed':
-                return 'Đã hoàn thành';
-            case 'on_hold':
-                return 'Tạm dừng';
-            case 'cancelled':
-                return 'Đã hủy';
-            default:
-                return $status;
+        if ($status instanceof EnrollmentStatus) {
+            return $status->label();
         }
+        
+        // Fallback cho trường hợp status là string
+        $enum = EnrollmentStatus::fromString($status);
+        return $enum ? $enum->label() : $status;
     }
     
     private function getPaymentMethodText($method)

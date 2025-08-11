@@ -39,24 +39,52 @@ class ImportService
             $importedCount = 0;
             
             foreach ($rows as $row) {
-                // Kiểm tra dòng có đủ thông tin cần thiết
-                if (!isset($row[$mappedHeader['ho_ten']]) || !isset($row[$mappedHeader['so_dien_thoai']])) {
-                    continue;
+                // Kiểm tra dòng có đủ thông tin cần thiết (Họ, Tên, SĐT)
+                $firstName = isset($mappedHeader['Họ']) ? trim($row[$mappedHeader['Họ']]) : '';
+                $lastName = isset($mappedHeader['Tên']) ? trim($row[$mappedHeader['Tên']]) : '';
+                $phone = isset($mappedHeader['Số điện thoại']) ? trim($row[$mappedHeader['Số điện thoại']]) : '';
+                
+                if (empty($firstName) || empty($lastName) || empty($phone)) {
+                    continue; // Bỏ qua nếu thiếu thông tin bắt buộc
+                }
+                
+                // Xử lý ngày sinh
+                $dateOfBirth = null;
+                if (isset($mappedHeader['Ngày sinh']) && !empty($row[$mappedHeader['Ngày sinh']])) {
+                    try {
+                        $dateOfBirth = Carbon::createFromFormat('d/m/Y', $row[$mappedHeader['Ngày sinh']]);
+                    } catch (\Exception $e) {
+                        $dateOfBirth = null; // Bỏ qua nếu định dạng ngày không hợp lệ
+                    }
+                }
+                
+                // Xử lý tỉnh thành (tìm kiếm theo tên)
+                $provinceId = null;
+                if (isset($mappedHeader['Tỉnh/Thành phố']) && !empty($row[$mappedHeader['Tỉnh/Thành phố']])) {
+                    $provinceName = trim($row[$mappedHeader['Tỉnh/Thành phố']]);
+                    $province = \App\Models\Province::where('name', 'like', "%{$provinceName}%")->first();
+                    if ($province) {
+                        $provinceId = $province->id;
+                    }
                 }
                 
                 // Tạo dữ liệu từ row
                 $data = [
-                    'full_name' => $row[$mappedHeader['ho_ten']],
-                    'phone' => $row[$mappedHeader['so_dien_thoai']],
-                    'email' => isset($mappedHeader['email']) ? $row[$mappedHeader['email']] : null,
-                    'date_of_birth' => isset($mappedHeader['ngay_sinh']) ? 
-                        Carbon::createFromFormat('d/m/Y', $row[$mappedHeader['ngay_sinh']]) : null,
-                    'gender' => isset($mappedHeader['gioi_tinh']) ? 
-                        $this->mapGender($row[$mappedHeader['gioi_tinh']]) : null,
-                    'address' => isset($mappedHeader['dia_chi']) ? $row[$mappedHeader['dia_chi']] : null,
-                    'current_workplace' => isset($mappedHeader['noi_cong_tac']) ? $row[$mappedHeader['noi_cong_tac']] : null,
-                    'accounting_experience_years' => isset($mappedHeader['kinh_nghiem']) ? $row[$mappedHeader['kinh_nghiem']] : null,
-                    'notes' => isset($mappedHeader['ghi_chu']) ? $row[$mappedHeader['ghi_chu']] : null,
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'phone' => $phone,
+                    'email' => isset($mappedHeader['Email']) ? trim($row[$mappedHeader['Email']]) : null,
+                    'date_of_birth' => $dateOfBirth,
+                    'place_of_birth' => isset($mappedHeader['Nơi sinh']) ? trim($row[$mappedHeader['Nơi sinh']]) : null,
+                    'nation' => isset($mappedHeader['Dân tộc']) ? trim($row[$mappedHeader['Dân tộc']]) : null,
+                    'gender' => isset($mappedHeader['Giới tính']) ? 
+                        $this->mapGender($row[$mappedHeader['Giới tính']]) : null,
+                    'province_id' => $provinceId,
+                    'address' => isset($mappedHeader['Địa chỉ cụ thể']) ? trim($row[$mappedHeader['Địa chỉ cụ thể']]) : null,
+                    'current_workplace' => isset($mappedHeader['Nơi công tác']) ? trim($row[$mappedHeader['Nơi công tác']]) : null,
+                    'accounting_experience_years' => isset($mappedHeader['Kinh nghiệm kế toán']) ? 
+                        (int)$row[$mappedHeader['Kinh nghiệm kế toán']] : null,
+                    'notes' => isset($mappedHeader['Ghi chú']) ? trim($row[$mappedHeader['Ghi chú']]) : null,
                 ];
                 
                 // Tìm hoặc tạo học viên mới
@@ -172,13 +200,17 @@ class ImportService
      */
     private function mapGender($gender)
     {
+        if (empty($gender)) {
+            return null;
+        }
+        
         $gender = strtolower(trim($gender));
         
-        if (in_array($gender, ['nam', 'male', 'boy', 'm'])) {
+        if (in_array($gender, ['nam', 'male', 'boy', 'm', 'nam giới'])) {
             return 'male';
         }
         
-        if (in_array($gender, ['nữ', 'nu', 'female', 'girl', 'f'])) {
+        if (in_array($gender, ['nữ', 'nu', 'female', 'girl', 'f', 'nữ giới'])) {
             return 'female';
         }
         

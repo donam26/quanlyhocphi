@@ -286,22 +286,6 @@
                                         </div>
                                     </div>
                                     <div class="card-body">
-                                        <!-- Bulk actions -->
-                                        <div class="bulk-actions" id="bulk-actions-{{ $rootItem->id }}">
-                                            <div class="d-flex justify-content-between align-items-center">
-                                                <span>
-                                                    <strong id="selected-count-{{ $rootItem->id }}">0</strong> học viên được chọn
-                                                </span>
-                                                <div class="btn-group btn-group-sm">
-                                                    <button type="button" class="btn btn-success bulk-confirm-waiting" data-root-id="{{ $rootItem->id }}">
-                                                        <i class="fas fa-check-double"></i> Xác nhận hàng loạt
-                                                    </button>
-                                                    <button type="button" class="btn btn-secondary clear-selection" data-root-id="{{ $rootItem->id }}">
-                                                        <i class="fas fa-times"></i> Bỏ chọn
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
                                         
                                         <div id="waiting-students-container-{{ $rootItem->id }}" class="student-list-container">
                                             <div class="empty-state">
@@ -463,6 +447,9 @@ $(document).ready(function() {
     let selectedCourseName = '';
     let currentRootId = null;
     
+    // Khởi tạo Select2 khi DOM sẵn sàng
+    initWaitingCourseSelect2();
+    
     // Xử lý expand/collapse all
     $('#expand-all').on('click', function() {
         $('.collapse').addClass('show');
@@ -565,8 +552,7 @@ $(document).ready(function() {
                     <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
                             <div class="form-check">
-                                <input class="form-check-input student-checkbox" type="checkbox" 
-                                       value="${student.enrollment_id}" data-root-id="${rootId}">
+                               
                                 <label class="form-check-label">
                                     <h6 class="mb-1">${student.full_name}</h6>
                                 </label>
@@ -792,46 +778,6 @@ $(document).ready(function() {
         });
     }
     
-    // Xử lý xác nhận hàng loạt
-    $(document).on('click', '.bulk-confirm-waiting', function() {
-        const rootId = $(this).data('root-id');
-        const selectedIds = $(`.student-checkbox[data-root-id="${rootId}"]:checked`).map(function() {
-            return $(this).val();
-        }).get();
-        
-        if (selectedIds.length === 0) {
-            showAlert('warning', 'Vui lòng chọn ít nhất một học viên');
-            return;
-        }
-        
-        if (confirm(`Bạn có chắc chắn muốn xác nhận ${selectedIds.length} học viên đã chọn?`)) {
-            bulkConfirmWaiting(selectedIds, rootId);
-        }
-    });
-    
-    // Xác nhận hàng loạt
-    function bulkConfirmWaiting(enrollmentIds, rootId) {
-        $.post('/enrollments/bulk-confirm-waiting', {
-            _token: $('meta[name="csrf-token"]').attr('content'),
-            enrollment_ids: enrollmentIds
-        })
-        .done(function(response) {
-            if (selectedCourseId && currentRootId) {
-                loadWaitingStudents(selectedCourseId, currentRootId);
-            }
-            
-            showAlert('success', `Đã xác nhận ${response.confirmed_count} học viên thành công!`);
-        })
-        .fail(function(xhr) {
-            showAlert('danger', 'Có lỗi xảy ra: ' + (xhr.responseJSON?.message || 'Lỗi không xác định'));
-        });
-    }
-    
-    // Bỏ chọn tất cả
-    $(document).on('click', '.clear-selection', function() {
-        const rootId = $(this).data('root-id');
-        $(`.student-checkbox[data-root-id="${rootId}"]`).prop('checked', false).trigger('change');
-    });
     
         // Xử lý xem chi tiết học viên
     $(document).on('click', '.view-student-detail', function() {
@@ -1051,49 +997,63 @@ $(document).ready(function() {
         $('#add-to-waiting-btn').prop('disabled', true).data('student-id', '');
         
         // Load danh sách khóa học
-        loadCourseOptionsForWaiting();
+        initWaitingCourseSelect2();
         
         $('#addStudentToWaitingModal').modal('show');
     });
     
-    // Load danh sách khóa học cho modal thêm học viên
-    function loadCourseOptionsForWaiting() {
-        $('#waiting-course-select').html('<option value="">Đang tải...</option>');
-        
-        $.ajax({
-            url: '/api/course-items/leaf-courses',
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
+    // Khởi tạo Select2 cho khóa học với AJAX search (chỉ lấy khóa đang học)
+    function initWaitingCourseSelect2() {
+        $('#waiting-course-select').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Tìm kiếm và chọn khóa học...',
+            allowClear: true,
+            dropdownParent: $('#addStudentToWaitingModal'),
+            width: '100%',
+            minimumInputLength: 0,
+            ajax: {
+                url: '/api/course-items/search-active', // API mới chỉ lấy khóa học đang học
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return {
+                        q: params.term || ''
+                    };
+                },
+                processResults: function (response) {
+                    // API trả về array trực tiếp
+                    if (Array.isArray(response)) {
+                        return {
+                            results: response.map(function(course) {
+                                return {
+                                    id: course.id,
+                                    text: course.name + (course.path ? ' (' + course.path + ')' : ''),
+                                    fee: course.fee || 0,
+                                    status: course.status,
+                                    status_label: course.status_label
+                                };
+                            })
+                        };
+                    }
+                    return { results: [] };
+                },
+                cache: true
             }
-        })
-        .done(function(response) {
-            let options = '<option value="">Chọn khóa học</option>';
-            
-            if (response.courses && response.courses.length > 0) {
-                response.courses.forEach(function(course) {
-                    options += `<option value="${course.id}">${course.name} (${course.path})</option>`;
-                });
-            }
-            
-            $('#waiting-course-select').html(options);
-            
-            // Reinitialize Select2 sau khi load options
-            $('#waiting-course-select').select2({
-                theme: 'bootstrap-5',
-                placeholder: 'Chọn khóa học',
-                allowClear: true
-            });
-            
-            // Tự động chọn khóa học hiện tại nếu có
-            if (selectedCourseId) {
-                $('#waiting-course-select').val(selectedCourseId).trigger('change');
-            }
-        })
-        .fail(function() {
-            $('#waiting-course-select').html('<option value="">Lỗi tải danh sách khóa học</option>');
         });
+        
+        // Tự động chọn khóa học hiện tại nếu có
+        if (selectedCourseId) {
+            // Load option cho khóa học đã chọn
+            $.ajax({
+                url: `/api/course-items/${selectedCourseId}`,
+                method: 'GET'
+            }).done(function(course) {
+                if (course) {
+                    const option = new Option(course.name, course.id, true, true);
+                    $('#waiting-course-select').append(option).trigger('change');
+                }
+            });
+        }
     }
     
     // Tìm kiếm học viên

@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\Schedule;
 use App\Models\Student;
+use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -30,10 +31,10 @@ class DashboardService
         $totalCourses = CourseItem::where('is_leaf', true)->count();
         
         // Tổng số ghi danh đang hoạt động
-        $activeEnrollments = Enrollment::where('status', 'active')->count();
+        $activeEnrollments = Enrollment::where('status', EnrollmentStatus::ACTIVE)->count();
         
         // Tổng số ghi danh đang chờ
-        $waitingsCount = Enrollment::where('status', 'waiting')->count();
+        $waitingsCount = Enrollment::where('status', EnrollmentStatus::WAITING)->count();
         
         // Tổng doanh thu
         $totalRevenue = Payment::where('status', 'confirmed')->sum('amount');
@@ -247,7 +248,7 @@ class DashboardService
         
         // Lấy dữ liệu số học viên theo khóa học
         $courses = CourseItem::withCount(['enrollments as students_count' => function ($query) use ($startDate) {
-                $query->where('status', 'active')
+                $query->where('status', EnrollmentStatus::ACTIVE)
                     ->where('enrollment_date', '>=', $startDate);
             }])
             ->having('students_count', '>', 0)
@@ -256,7 +257,7 @@ class DashboardService
             ->get();
         
         // Tính tổng số học viên trong khoảng thời gian
-        $totalStudents = Enrollment::where('status', 'active')
+        $totalStudents = Enrollment::where('status', EnrollmentStatus::ACTIVE)
             ->whereDate('enrollment_date', '>=', $startDate)
             ->count();
             
@@ -432,7 +433,7 @@ class DashboardService
         $query = Enrollment::query();
         
         // Chỉ xét các ghi danh đang hoạt động
-        $query->where('status', 'active');
+        $query->where('status', EnrollmentStatus::ACTIVE);
         
         // Lọc theo khoảng thời gian nếu cần
         if ($range !== 'total') {
@@ -580,7 +581,7 @@ class DashboardService
     public function getWaitingListSummary() 
     {
         // Lấy tổng số học viên trong danh sách chờ
-        $totalWaiting = Enrollment::where('status', 'waiting')->count();
+        $totalWaiting = Enrollment::where('status', EnrollmentStatus::WAITING)->count();
         
         // Lấy số lượng học viên chờ theo khóa học
         $waitingByCourse = CourseItem::withCount(['waitingList as count'])
@@ -727,7 +728,7 @@ class DashboardService
     {
         // Lấy top khóa học có nhiều học viên đăng ký nhất
         return CourseItem::withCount(['enrollments' => function($query) {
-                $query->where('status', 'active');
+                $query->where('status', EnrollmentStatus::ACTIVE);
             }])
             ->having('enrollments_count', '>', 0)
             ->orderBy('enrollments_count', 'desc')
@@ -753,7 +754,7 @@ class DashboardService
     public function getPendingPayments()
     {
         // Lấy số lượng ghi danh chưa thanh toán đủ
-        $pendingEnrollments = Enrollment::where('status', 'active')
+        $pendingEnrollments = Enrollment::where('status', EnrollmentStatus::ACTIVE)
             ->whereDoesntHave('payments', function ($query) {
                 $query->where('status', 'confirmed');
             })

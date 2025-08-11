@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\CourseItem;
 use App\Services\CourseItemService;
 use App\Services\ImportService;
+use App\Enums\CourseStatus;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -504,7 +506,7 @@ class CourseItemController extends Controller
         $this->getAllChildrenIds($courseItem, $courseItemIds);
 
         $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->whereNotIn('status', ['waiting', 'cancelled'])
+            ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
             ->with(['student', 'courseItem', 'payments' => function($query) {
                 $query->orderBy('payment_date', 'desc');
             }])
@@ -729,7 +731,7 @@ class CourseItemController extends Controller
             
             // Lấy danh sách học viên đang chờ
             $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseIds)
-                ->where('status', 'waiting')
+                ->where('status', EnrollmentStatus::WAITING)
                 ->with(['student', 'courseItem'])
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -757,7 +759,7 @@ class CourseItemController extends Controller
         // Nếu không phải AJAX, chuyển hướng đến trang ghi danh
         return redirect()->route('enrollments.index', [
             'course_item_id' => $id,
-            'status' => 'waiting'
+            'status' => EnrollmentStatus::WAITING->value
         ]);
     }
 
@@ -803,7 +805,7 @@ class CourseItemController extends Controller
     public function getWaitingCount($courseItemId)
     {
         $count = \App\Models\Enrollment::where('course_item_id', $courseItemId)
-                    ->where('status', 'waiting')
+                    ->where('status', EnrollmentStatus::WAITING)
                     ->count();
 
         return response()->json(['count' => $count]);
@@ -874,5 +876,181 @@ class CourseItemController extends Controller
         }
         
         return $descendants;
+    }
+
+    /**
+     * Thay đổi trạng thái khóa học (active <-> completed)
+     */
+    public function toggleStatus(Request $request, $id)
+    {
+        try {
+            $courseItem = CourseItem::findOrFail($id);
+            
+            // Chỉ cho phép thay đổi trạng thái với khóa học lá (is_leaf = true)
+            if (!$courseItem->is_leaf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể thay đổi trạng thái của khóa học cụ thể (không phải nhóm khóa học)'
+                ], 400);
+            }
+
+            if ($courseItem->isActive()) {
+                // Chuyển từ active -> completed
+                $success = $courseItem->completeCourse();
+                $message = $success ? 'Đã kết thúc khóa học và cập nhật trạng thái tất cả học viên thành hoàn thành!' : 'Có lỗi xảy ra khi kết thúc khóa học';
+                $newStatus = EnrollmentStatus::COMPLETED->value;
+            } else {
+                // Chuyển từ completed -> active  
+                $success = $courseItem->reopenCourse();
+                $message = $success ? 'Đã mở lại khóa học!' : 'Có lỗi xảy ra khi mở lại khóa học';
+                $newStatus = EnrollmentStatus::ACTIVE->value;
+            }
+
+            if ($success) {
+                // Log thay đổi
+                Log::info("Course status changed", [
+                    'course_id' => $courseItem->id,
+                    'course_name' => $courseItem->name,
+                    'new_status' => $newStatus,
+                    'user_id' => auth()->id()
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'data' => [
+                        'id' => $courseItem->id,
+                        'status' => $newStatus,
+                        'status_badge' => $courseItem->fresh()->status_badge,
+                        'status_label' => $courseItem->fresh()->getStatusEnum()->label()
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => $message
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error toggling course status: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Kết thúc khóa học
+     */
+    public function completeCourse(Request $request, $id)
+    {
+        try {
+            $courseItem = CourseItem::findOrFail($id);
+            
+            if (!$courseItem->is_leaf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể kết thúc khóa học cụ thể'
+                ], 400);
+            }
+
+            if ($courseItem->isCompleted()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Khóa học đã được kết thúc rồi'
+                ], 400);
+            }
+
+            $success = $courseItem->completeCourse();
+            
+            if ($success) {
+                // Đếm số học viên bị ảnh hưởng
+                $affectedCount = $courseItem->enrollments()->where('status', EnrollmentStatus::COMPLETED)->count();
+                
+                return response()->json([
+                    'success' => true,
+                    'message' => "Đã kết thúc khóa học! {$affectedCount} học viên đã được cập nhật trạng thái thành hoàn thành.",
+                    'data' => [
+                        'affected_students' => $affectedCount,
+                        'course_status' => CourseStatus::COMPLETED->value
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra khi kết thúc khóa học'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error completing course: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Mở lại khóa học
+     */
+    public function reopenCourse(Request $request, $id)
+    {
+        try {
+            $courseItem = CourseItem::findOrFail($id);
+            
+            if (!$courseItem->is_leaf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể mở lại khóa học cụ thể'
+                ], 400);
+            }
+
+            if ($courseItem->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Khóa học đang hoạt động rồi'
+                ], 400);
+            }
+
+            // Đếm số học viên sẽ bị ảnh hưởng trước khi mở lại
+            $affectedCount = $courseItem->enrollments()
+                ->where('status', EnrollmentStatus::COMPLETED)
+                ->count();
+
+            $success = $courseItem->reopenCourse();
+            
+            if ($success) {
+                $message = $affectedCount > 0 
+                    ? "Đã mở lại khóa học! {$affectedCount} học viên đã được chuyển từ 'Hoàn thành' về 'Đang học'."
+                    : 'Đã mở lại khóa học!';
+                    
+                return response()->json([
+                    'success' => true,
+                    'message' => $message,
+                    'data' => [
+                        'course_status' => CourseStatus::ACTIVE->value,
+                        'affected_students' => $affectedCount
+                    ]
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi xảy ra khi mở lại khóa học'
+                ], 500);
+            }
+
+        } catch (\Exception $e) {
+            Log::error('Error reopening course: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

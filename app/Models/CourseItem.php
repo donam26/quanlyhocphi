@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Attendance;
+use App\Enums\CourseStatus;
+use App\Enums\EnrollmentStatus;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class CourseItem extends Model
 {
@@ -19,6 +23,7 @@ class CourseItem extends Model
         'is_leaf',
         'order_index',
         'active',
+        'status',
         'is_special',
         'custom_fields'
     ];
@@ -27,6 +32,7 @@ class CourseItem extends Model
         'fee' => 'decimal:2',
         'is_leaf' => 'boolean',
         'active' => 'boolean',
+        'status' => CourseStatus::class,
         'is_special' => 'boolean',
         'custom_fields' => 'array'
     ];
@@ -177,5 +183,108 @@ class CourseItem extends Model
             ->orWhereHas('enrollment', function ($query) use ($courseItemIds) {
                 $query->whereIn('course_item_id', $courseItemIds);
             });
+    }
+
+    /**
+     * Kiểm tra khóa học có đang hoạt động không
+     */
+    public function isActive(): bool
+    {
+        return $this->status === CourseStatus::ACTIVE;
+    }
+
+    /**
+     * Kiểm tra khóa học đã kết thúc chưa
+     */
+    public function isCompleted(): bool
+    {
+        return $this->status === CourseStatus::COMPLETED;
+    }
+
+    /**
+     * Lấy trạng thái dưới dạng enum
+     */
+    public function getStatusEnum(): CourseStatus
+    {
+        return $this->status instanceof CourseStatus ? $this->status : CourseStatus::fromString($this->status) ?? CourseStatus::ACTIVE;
+    }
+
+    /**
+     * Lấy badge HTML cho trạng thái khóa học
+     */
+    public function getStatusBadgeAttribute(): string
+    {
+        return $this->getStatusEnum()->badge();
+    }
+
+    /**
+     * Kết thúc khóa học và cập nhật trạng thái tất cả học viên thành completed
+     */
+    public function completeCourse(): bool
+    {
+        if ($this->isCompleted()) {
+            return true; // Đã kết thúc rồi
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Cập nhật trạng thái khóa học
+            $this->status = CourseStatus::COMPLETED;
+            $this->save();
+
+            // Cập nhật tất cả enrollment có status là 'active' thành 'completed'
+            $this->enrollments()
+                ->where('status', EnrollmentStatus::ACTIVE)
+                ->update([
+                    'status' => EnrollmentStatus::COMPLETED,
+                    'last_status_change' => now(),
+                    'previous_status' => EnrollmentStatus::ACTIVE->value
+                ]);
+
+            DB::commit();
+            return true;
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error completing course: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Mở lại khóa học (từ completed về active)
+     * Đồng thời chuyển tất cả học viên từ 'completed' về 'active'
+     */
+    public function reopenCourse(): bool
+    {
+        if ($this->isActive()) {
+            return true; // Đã mở rồi
+        }
+
+        try {
+            DB::beginTransaction();
+
+            // Cập nhật trạng thái khóa học
+            $this->status = CourseStatus::ACTIVE;
+            $this->save();
+
+            // Cập nhật tất cả enrollment có status là 'completed' thành 'active'
+            $this->enrollments()
+                ->where('status', EnrollmentStatus::COMPLETED)
+                ->update([
+                    'status' => EnrollmentStatus::ACTIVE,
+                    'last_status_change' => now(),
+                    'previous_status' => EnrollmentStatus::COMPLETED->value
+                ]);
+
+            DB::commit();
+            return true;
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error reopening course: ' . $e->getMessage());
+            return false;
+        }
     }
 }

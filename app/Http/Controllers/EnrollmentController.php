@@ -259,21 +259,12 @@ class EnrollmentController extends Controller
     public function confirmFromWaiting(Request $request, Enrollment $enrollment)
     {
         try {
-            if ($enrollment->status !== 'waiting') {
-                if ($request->ajax() || $request->expectsJson()) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'Chỉ có thể xác nhận từ trạng thái chờ!'
-                    ], 422);
-                }
-                return redirect()->back()
-                    ->withErrors(['error' => 'Chỉ có thể xác nhận từ trạng thái chờ!']);
-            }
+         
             
             DB::beginTransaction();
             
             // Cập nhật trạng thái
-            $enrollment->status = 'enrolled';
+            $enrollment->status = EnrollmentStatus::ACTIVE;
             $enrollment->confirmation_date = now();
             
             // Xử lý chiết khấu
@@ -351,8 +342,8 @@ class EnrollmentController extends Controller
             foreach ($request->enrollment_ids as $enrollmentId) {
                 $enrollment = Enrollment::find($enrollmentId);
                 
-                if ($enrollment && $enrollment->status === 'waiting') {
-                    $enrollment->status = 'enrolled';
+                if ($enrollment && $enrollment->status === EnrollmentStatus::WAITING) {
+                    $enrollment->status = EnrollmentStatus::ACTIVE;
                     $enrollment->confirmation_date = now();
                     $enrollment->save();
                     $confirmedCount++;
@@ -396,7 +387,7 @@ class EnrollmentController extends Controller
         ]);
         
         try {
-            if ($enrollment->status !== 'waiting') {
+            if ($enrollment->status !== EnrollmentStatus::WAITING) {
                 return redirect()->back()
                     ->withErrors(['error' => 'Chỉ có thể thêm ghi chú cho trạng thái chờ!']);
             }

@@ -886,7 +886,7 @@ function initCourseSelect2() {
         width: '100%',
         minimumInputLength: 0,
         ajax: {
-            url: '/api/course-items/search',
+            url: '/api/course-items/search-active', // API mới chỉ lấy khóa học đang học
             dataType: 'json',
             delay: 250,
             data: function (params) {
@@ -898,11 +898,13 @@ function initCourseSelect2() {
                 // API trả về array trực tiếp, không có wrapper
                 if (Array.isArray(response)) {
                     return {
-                        results: response.filter(item => item.is_leaf).map(function(course) {
+                        results: response.map(function(course) {
                             return {
                                 id: course.id,
                                 text: course.name + (course.path ? ' (' + course.path + ')' : ''),
-                                fee: course.fee || 0
+                                fee: course.fee || 0,
+                                status: course.status,
+                                status_label: course.status_label
                             };
                         })
                     };

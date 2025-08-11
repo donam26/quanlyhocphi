@@ -170,7 +170,7 @@ class EnrollmentService
             $enrollment->update($data);
             
             // Nếu trạng thái thay đổi từ waiting sang enrolled
-            if ($oldStatus === 'waiting' && isset($data['status']) && $data['status'] === 'enrolled') {
+            if ($oldStatus === EnrollmentStatus::WAITING && isset($data['status']) && $data['status'] === EnrollmentStatus::ACTIVE) {
                 $this->createLearningPathProgress($enrollment);
             }
             
@@ -210,7 +210,7 @@ class EnrollmentService
     public function getUnpaidEnrollments()
     {
         return Enrollment::with(['student', 'courseItem', 'payments'])
-            ->whereIn('status', ['enrolled', 'on_hold', 'active'])
+            ->whereIn('status', [EnrollmentStatus::ACTIVE])
             ->get()
             ->filter(function ($enrollment) {
                 $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');

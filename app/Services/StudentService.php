@@ -140,8 +140,8 @@ class StudentService
 
         $students = $query->get();
         
-        // Xác định các cột cần xuất
-        $columns = $filters['columns'] ?? ['full_name', 'phone', 'email', 'date_of_birth', 'enrollments'];
+        // Xác định các cột cần xuất (chuẩn hóa theo yêu cầu)
+        $columns = $filters['columns'] ?? ['first_name', 'last_name', 'phone', 'date_of_birth', 'place_of_birth', 'nation', 'email', 'gender', 'province'];
 
         $fileName = 'danh_sach_hoc_vien_' . date('Y_m_d_H_i_s') . '.xlsx';
         

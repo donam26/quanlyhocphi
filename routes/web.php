@@ -48,6 +48,10 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
     Route::get('course-items/download-template', [CourseItemController::class, 'exportTemplate'])->name('course-items.download-template');
     Route::post('course-items/{courseItem}/toggle-active', [CourseItemController::class, 'toggleActive'])->name('course-items.toggle-active');
+    // Quản lý trạng thái khóa học
+    Route::post('course-items/{id}/toggle-status', [CourseItemController::class, 'toggleStatus'])->name('course-items.toggle-status');
+    Route::post('course-items/{id}/complete', [CourseItemController::class, 'completeCourse'])->name('course-items.complete');
+    Route::post('course-items/{id}/reopen', [CourseItemController::class, 'reopenCourse'])->name('course-items.reopen');
     Route::get('course-items/tree', [CourseItemController::class, 'tree'])->name('course-items.tree');
     Route::get('course-items/{id}/students', [CourseItemController::class, 'showStudents'])->name('course-items.students');
     Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');

@@ -32,7 +32,9 @@ Route::prefix('course-items')->group(function () {
     Route::get('/', [CourseItemController::class, 'index']);
     Route::get('/available', [CourseItemController::class, 'available']);
     Route::get('/search', [CourseItemController::class, 'search']);
+    Route::get('/search-active', [CourseItemController::class, 'searchActiveCourses']);
     Route::get('/leaf-courses', [CourseItemController::class, 'getLeafCourses']);
+    Route::get('/active-leaf-courses', [CourseItemController::class, 'getActiveLeafCourses']);
     Route::get('/{id}', [CourseItemController::class, 'show']);
     Route::post('/', [CourseItemController::class, 'store']);
     Route::put('/{id}', [CourseItemController::class, 'update']);

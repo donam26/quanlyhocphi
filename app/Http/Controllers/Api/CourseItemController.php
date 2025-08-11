@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CourseItem;
 use App\Models\Classes;
+use App\Enums\EnrollmentStatus;
+use App\Enums\CourseStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 
@@ -88,7 +90,7 @@ class CourseItemController extends Controller
         return response()->json($courseItem, 201);
     }
 
-    /**
+        /**
      * Hiển thị chi tiết một item
      */
     public function show($id)
@@ -102,9 +104,53 @@ class CourseItemController extends Controller
             $courseItem->custom_fields = [];
         }
         
+        // Tính toán thống kê enrollment nếu là khóa học lá
+        $enrollmentCount = 0;
+        $totalRevenue = 0;
+        
+        if ($courseItem->is_leaf) {
+            $enrollmentCount = $courseItem->enrollments()
+                ->whereNotIn('status', [EnrollmentStatus::CANCELLED])
+                ->count();
+                
+            $totalRevenue = $courseItem->enrollments()
+                ->whereNotIn('status', [EnrollmentStatus::CANCELLED])
+                ->with('payments')
+                ->get()
+                ->sum(function($enrollment) {
+                    return $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                });
+        }
+        
+        // Tạo đường dẫn breadcrumb
+        $path = '';
+        if ($courseItem->parent_id) {
+            $ancestors = [];
+            $current = $courseItem->parent;
+            while ($current) {
+                array_unshift($ancestors, $current->name);
+                $current = $current->parent;
+            }
+            $path = implode(' / ', $ancestors);
+        }
+        
         return response()->json([
-            'success' => true,
-            'data' => $courseItem
+            'id' => $courseItem->id,
+            'name' => $courseItem->name,
+            'description' => $courseItem->description,
+            'code' => $courseItem->code,
+            'fee' => $courseItem->fee,
+            'level' => $courseItem->level,
+            'is_leaf' => $courseItem->is_leaf,
+            'is_special' => $courseItem->is_special,
+            'active' => $courseItem->active,
+            'status' => $courseItem->status,
+            'status_badge' => $courseItem->status_badge,
+            'custom_fields' => $courseItem->custom_fields,
+            'enrollment_count' => $enrollmentCount,
+            'total_revenue' => $totalRevenue,
+            'path' => $path,
+            'children' => $courseItem->children,
         ]);
     }
 
@@ -323,6 +369,82 @@ class CourseItemController extends Controller
                               });
         
         return response()->json($results);
+    }
+
+    /**
+     * Tìm kiếm khóa học chỉ những khóa đang học (status = active)
+     */
+    public function searchActiveCourses(Request $request)
+    {
+        $query = $request->get('q', '');
+        $rootId = $request->get('root_id');
+        
+        if (strlen($query) < 2) {
+            return response()->json([]);
+        }
+        
+        $searchQuery = CourseItem::where('active', true) // Khóa học còn hoạt động
+                                ->where('status', CourseStatus::ACTIVE) // Chỉ lấy khóa đang học
+                                ->where('is_leaf', true) // Chỉ lấy khóa học lá (có thể đăng ký)
+                                ->where('name', 'like', "%{$query}%");
+        
+        // Nếu có root_id, chỉ tìm trong phạm vi đó
+        if ($rootId) {
+            // Lấy tất cả descendants của root_id
+            $rootItem = CourseItem::find($rootId);
+            if ($rootItem) {
+                $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
+                $descendantIds[] = $rootId; // Bao gồm cả root item
+                
+                $searchQuery->whereIn('id', $descendantIds);
+            }
+        }
+        
+        $results = $searchQuery->orderBy('name')
+                              ->limit(20)
+                              ->get()
+                              ->map(function($item) {
+                                  return [
+                                      'id' => $item->id,
+                                      'text' => $item->name,
+                                      'name' => $item->name,
+                                      'path' => $this->getCoursePath($item),
+                                      'is_leaf' => $item->is_leaf,
+                                      'fee' => $item->fee,
+                                      'status' => $item->status->value,
+                                      'status_label' => $item->status->label(),
+                                      'status_badge' => $item->status_badge
+                                  ];
+                              });
+        
+        return response()->json($results);
+    }
+
+    /**
+     * Lấy danh sách khóa học đang học (cho dropdown)
+     */
+    public function getActiveLeafCourses()
+    {
+        $courses = CourseItem::where('is_leaf', true)
+                            ->where('active', true)
+                            ->where('status', CourseStatus::ACTIVE) // Chỉ lấy khóa đang học
+                            ->orderBy('name')
+                            ->get()
+                            ->map(function($course) {
+                                return [
+                                    'id' => $course->id,
+                                    'name' => $course->name,
+                                    'path' => $this->getCoursePath($course),
+                                    'fee' => $course->fee,
+                                    'status' => $course->status->value,
+                                    'status_label' => $course->status->label()
+                                ];
+                            });
+
+        return response()->json([
+            'success' => true,
+            'courses' => $courses
+        ]);
     }
 
     /**

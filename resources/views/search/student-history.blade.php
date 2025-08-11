@@ -192,19 +192,7 @@
                                         <td class="text-end">{{ number_format($totalPaid, 0, ',', '.') }} đ</td>
                                         <td class="text-end">{{ number_format($remainingAmount, 0, ',', '.') }} đ</td>
                                         <td>
-                                            @if($enrollment->status == 'active')
-                                                <span class="badge bg-success">Đang học</span>
-                                            @elseif($enrollment->status == 'completed')
-                                                <span class="badge bg-success">Đã hoàn thành</span>
-                                            @elseif($enrollment->status == 'waiting')
-                                                <span class="badge bg-warning text-dark">Danh sách chờ</span>
-                                            @elseif($enrollment->status == 'on_hold')
-                                                <span class="badge bg-warning text-dark">Tạm dừng</span>
-                                            @elseif($enrollment->status == 'cancelled')
-                                                <span class="badge bg-danger">Đã hủy</span>
-                                            @else
-                                                <span class="badge bg-secondary">{{ $enrollment->status }}</span>
-                                            @endif
+                                            {!! $enrollment->status->badge() !!}
                                         </td>
                                         <td>
                                             @if($paymentStatus == 'Đã thanh toán đủ')

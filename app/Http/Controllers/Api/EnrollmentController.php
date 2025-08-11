@@ -7,6 +7,7 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Services\EnrollmentService;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -212,7 +213,7 @@ class EnrollmentController extends Controller
             $enrollment = Enrollment::findOrFail($id);
 
             // Không cho phép hủy nếu đã ở trạng thái cancelled
-            if ($enrollment->status === 'cancelled') {
+            if ($enrollment->status === EnrollmentStatus::CANCELLED) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Ghi danh này đã được hủy rồi!'
@@ -231,8 +232,8 @@ class EnrollmentController extends Controller
             DB::beginTransaction();
 
             // Lưu trạng thái cũ
-            $enrollment->previous_status = $enrollment->status;
-            $enrollment->status = 'cancelled';
+            $enrollment->previous_status = $enrollment->status->value;
+            $enrollment->status = EnrollmentStatus::CANCELLED;
             $enrollment->cancelled_at = now();
             $enrollment->last_status_change = now();
             

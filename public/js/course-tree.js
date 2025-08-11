@@ -122,9 +122,16 @@ window.showCourseDetails = function(courseId) {
             // Cập nhật thông tin cơ bản
             $('#course-name').text(data.name);
             $('#course-id').text(data.id);
-            $('#course-status').html(data.active 
-                ? '<span class="badge bg-success">Hoạt động</span>' 
-                : '<span class="badge bg-danger">Không hoạt động</span>');
+            
+            // Hiển thị trạng thái khóa học (ưu tiên status enum, fallback sang active)
+            if (data.status_badge) {
+                $('#course-status').html(data.status_badge);
+            } else {
+                $('#course-status').html(data.active 
+                    ? '<span class="badge bg-success">Hoạt động</span>' 
+                    : '<span class="badge bg-danger">Không hoạt động</span>');
+            }
+            
             $('#course-special').html(data.is_special 
                 ? '<span class="badge bg-warning">Có</span>' 
                 : '<span class="badge bg-secondary">Không</span>');
@@ -672,7 +679,6 @@ function openStudentsModal(courseId){
                     <div class="btn-group">
                         <button class="btn btn-sm btn-primary" onclick="openEditStudentModal(${s.student.id})" title="Chỉnh sửa học viên"><i class="fas fa-user-edit"></i></button>
                         <button class="btn btn-sm btn-warning" onclick="openEditEnrollmentModal(${s.enrollment_id})" title="Chỉnh sửa đăng ký"><i class="fas fa-graduation-cap"></i></button>
-                        ${s.payment_status !== 'Đã đóng đủ' ? `<button class="btn btn-sm btn-success" onclick="openQuickPaymentModal(${s.enrollment_id})" title="Thanh toán nhanh"><i class=\"fas fa-money-bill\"></i></button>` : ''}
                     </div>
                 </td>
             </tr>`;
@@ -1229,15 +1235,35 @@ function openEditEnrollmentModal(enrollmentId){
     // Xử lý lưu
     $('#btnSaveEnrollment').off('click').on('click', function(){
         const $form = $('#editEnrollmentForm');
+        
+        // Validate form trước khi submit
+        const enrollmentDate = $form.find('[name="enrollment_date"]').val();
+        if (!enrollmentDate) {
+            alert('Vui lòng chọn ngày ghi danh');
+            return;
+        }
+        
+        const finalFee = parseFloat($form.find('[name="final_fee"]').val()) || 0;
+        if (finalFee <= 0) {
+            alert('Học phí cuối phải lớn hơn 0');
+            return;
+        }
+        
         const payload = {
-            enrollment_date: $form.find('[name="enrollment_date"]').val(),
+            enrollment_date: enrollmentDate,
             status: $form.find('[name="status"]').val(),
-            discount_percentage: $form.find('[name="discount_percentage"]').val() || 0,
-            discount_amount: $form.find('[name="discount_amount"]').val() || 0,
-            final_fee: $form.find('[name="final_fee"]').val() || 0,
+            discount_percentage: parseFloat($form.find('[name="discount_percentage"]').val()) || 0,
+            discount_amount: parseFloat($form.find('[name="discount_amount"]').val()) || 0,
+            final_fee: finalFee,
             notes: $form.find('[name="notes"]').val() || ''
         };
+        
+        console.log('Saving enrollment with payload:', payload);
+        
         const eid = $('#editEnrollmentModal').data('enrollment-id');
+
+        // Disable nút lưu để tránh click nhiều lần
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
 
         $.ajax({
             url: `/api/enrollments/${eid}`,
@@ -1270,6 +1296,7 @@ function openEditEnrollmentModal(enrollmentId){
                 }
             },
             error: function(xhr){
+                console.log('Error response:', xhr.responseJSON);
                 let msg = 'Có lỗi xảy ra';
                 if(xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors){
                     // Gộp thông báo lỗi validation
@@ -1279,6 +1306,10 @@ function openEditEnrollmentModal(enrollmentId){
                     msg = xhr.responseJSON.message;
                 }
                 if(window.toastr && toastr.error){ toastr.error(msg); } else { alert(msg); }
+            },
+            complete: function() {
+                // Reset nút lưu
+                $('#btnSaveEnrollment').prop('disabled', false).html('Lưu');
             }
         });
     });
@@ -2044,5 +2075,194 @@ function openImportExcelModal(courseId) {
                 $('#importLoadingOverlay').remove();
             }
         });
+    });
+}
+
+// ========== CHỨC NĂNG QUẢN LÝ TRẠNG THÁI KHÓA HỌC ==========
+
+// Xử lý toggle trạng thái khóa học
+$(document).on('click', '.toggle-course-status', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const $btn = $(this);
+    const courseId = $btn.data('course-id');
+    const currentStatus = $btn.data('current-status');
+    
+    // Xác nhận trước khi thay đổi
+    const action = currentStatus === 'active' ? 'kết thúc' : 'mở lại';
+    const message = currentStatus === 'active' 
+        ? 'Bạn có chắc muốn kết thúc khóa học này?\nTất cả học viên đang học sẽ được chuyển sang trạng thái "Hoàn thành".'
+        : 'Bạn có chắc muốn mở lại khóa học này?\nTất cả học viên đã hoàn thành sẽ được chuyển về trạng thái "Đang học".';
+    
+    if (!confirm(message)) {
+        return;
+    }
+    
+    // Disable button và hiển thị loading
+    const originalHtml = $btn.html();
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+    
+    // Gọi API
+    $.ajax({
+        url: `/course-items/${courseId}/toggle-status`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        success: function(response) {
+            if (response.success) {
+                // Hiển thị thông báo thành công
+                if (window.toastr && toastr.success) {
+                    toastr.success(response.message);
+                } else {
+                    alert(response.message);
+                }
+                
+                // Cập nhật UI
+                const newStatus = response.data.status;
+                const $courseLink = $btn.closest('.tree-item').find('.course-link');
+                
+                // Cập nhật badge trong tên khóa học
+                const courseName = $courseLink.text().trim().split('\n')[0]; // Lấy tên khóa học không có badge
+                $courseLink.html(courseName + ' ' + response.data.status_badge);
+                
+                // Cập nhật button
+                $btn.removeClass('btn-warning btn-success')
+                    .addClass(newStatus === 'active' ? 'btn-warning' : 'btn-success')
+                    .attr('title', newStatus === 'active' ? 'Kết thúc khóa học' : 'Mở lại khóa học')
+                    .attr('data-current-status', newStatus)
+                    .html(`<i class="fas fa-${newStatus === 'active' ? 'stop' : 'play'}"></i>`);
+                
+                // Log cho debugging
+                console.log('Course status updated:', response.data);
+                
+            } else {
+                // Hiển thị lỗi
+                if (window.toastr && toastr.error) {
+                    toastr.error(response.message);
+                } else {
+                    alert('Lỗi: ' + response.message);
+                }
+            }
+        },
+        error: function(xhr) {
+            console.error('Toggle status error:', xhr.responseJSON);
+            let errorMsg = 'Có lỗi xảy ra khi thay đổi trạng thái khóa học';
+            
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            
+            if (window.toastr && toastr.error) {
+                toastr.error(errorMsg);
+            } else {
+                alert('Lỗi: ' + errorMsg);
+            }
+        },
+        complete: function() {
+            // Reset button state
+            $btn.prop('disabled', false);
+            if ($btn.html().includes('fa-spinner')) {
+                $btn.html(originalHtml);
+            }
+        }
+    });
+});
+
+// Chức năng kết thúc khóa học (có thể gọi riêng)
+function completeCourse(courseId) {
+    if (!confirm('Bạn có chắc muốn kết thúc khóa học này?\nTất cả học viên đang học sẽ được chuyển sang trạng thái "Hoàn thành".')) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/course-items/${courseId}/complete`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        success: function(response) {
+            if (response.success) {
+                if (window.toastr && toastr.success) {
+                    toastr.success(response.message);
+                } else {
+                    alert(response.message);
+                }
+                
+                // Refresh trang hoặc cập nhật UI
+                location.reload();
+            } else {
+                if (window.toastr && toastr.error) {
+                    toastr.error(response.message);
+                } else {
+                    alert('Lỗi: ' + response.message);
+                }
+            }
+        },
+        error: function(xhr) {
+            console.error('Complete course error:', xhr.responseJSON);
+            let errorMsg = 'Có lỗi xảy ra khi kết thúc khóa học';
+            
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            
+            if (window.toastr && toastr.error) {
+                toastr.error(errorMsg);
+            } else {
+                alert('Lỗi: ' + errorMsg);
+            }
+        }
+    });
+}
+
+// Chức năng mở lại khóa học (có thể gọi riêng)
+function reopenCourse(courseId) {
+    if (!confirm('Bạn có chắc muốn mở lại khóa học này?')) {
+        return;
+    }
+    
+    $.ajax({
+        url: `/course-items/${courseId}/reopen`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+            'Accept': 'application/json'
+        },
+        success: function(response) {
+            if (response.success) {
+                if (window.toastr && toastr.success) {
+                    toastr.success(response.message);
+                } else {
+                    alert(response.message);
+                }
+                
+                // Refresh trang hoặc cập nhật UI
+                location.reload();
+            } else {
+                if (window.toastr && toastr.error) {
+                    toastr.error(response.message);
+                } else {
+                    alert('Lỗi: ' + response.message);
+                }
+            }
+        },
+        error: function(xhr) {
+            console.error('Reopen course error:', xhr.responseJSON);
+            let errorMsg = 'Có lỗi xảy ra khi mở lại khóa học';
+            
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
+            }
+            
+            if (window.toastr && toastr.error) {
+                toastr.error(errorMsg);
+            } else {
+                alert('Lỗi: ' + errorMsg);
+            }
+        }
     });
 } 

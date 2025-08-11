@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Student;
 use App\Services\StudentService;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
 
 class StudentController extends Controller
@@ -151,13 +152,13 @@ class StudentController extends Controller
                 $totalUnpaid += max(0, $enrollment->final_fee - $paidAmount);
 
                 switch ($enrollment->status) {
-                    case 'active':
+                    case EnrollmentStatus::ACTIVE:
                         $enrolledCount++;
                         break;
-                    case 'waiting':
+                    case EnrollmentStatus::WAITING:
                         $waitingCount++;
                         break;
-                    case 'completed':
+                    case EnrollmentStatus::COMPLETED:
                         $completedCount++;
                         break;
                 }

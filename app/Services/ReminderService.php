@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\CourseItem;
 use App\Jobs\ProcessReminderBatchJob;
 use App\Jobs\SendPaymentReminderJob;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -252,7 +253,7 @@ class ReminderService
         try {
             $enrollments = Enrollment::with(['student', 'courseItem', 'payments'])
                 ->whereIn('course_item_id', $courseItemIds)
-                ->whereIn('status', ['enrolled', 'on_hold', 'active'])
+                ->whereIn('status', [EnrollmentStatus::ACTIVE])
                 ->whereHas('student') // Đảm bảo enrollment có student
                 ->get();
 
