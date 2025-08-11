@@ -11,12 +11,12 @@ class Student extends Model
     use HasFactory, Date;
 
     protected $fillable = [
-        'full_name',
+        'first_name',
+        'last_name',
         'date_of_birth',
         'gender',
         'email',
         'phone',
-        'address',
         'province_id',
         'current_workplace',
         'accounting_experience_years',
@@ -26,6 +26,13 @@ class Student extends Model
         'education_level',
         'place_of_birth',
         'nation',
+    ];
+
+    /**
+     * Các accessor sẽ được append vào JSON response
+     */
+    protected $appends = [
+        'full_name',
     ];
 
     protected $casts = [
@@ -72,6 +79,28 @@ class Student extends Model
     public function setDateOfBirthAttribute($value)
     {
         $this->attributes['date_of_birth'] = static::parseDate($value);
+    }
+
+    /**
+     * Accessor để lấy full_name từ first_name + last_name
+     */
+
+    /**
+     * Mutator để tách full_name thành first_name và last_name khi assign
+     */
+    public function setFullNameAttribute($value)
+    {
+        if ($value) {
+            $parts = explode(' ', trim($value));
+            
+            if (count($parts) > 1) {
+                $this->attributes['last_name'] = array_pop($parts);
+                $this->attributes['first_name'] = implode(' ', $parts);
+            } else {
+                $this->attributes['first_name'] = '';
+                $this->attributes['last_name'] = $value;
+            }
+        }
     }
 
     /**
@@ -158,6 +187,14 @@ class Student extends Model
     }
 
     /**
+     * Accessor: Tự động tạo full_name từ first_name + last_name
+     */
+    public function getFullNameAttribute()
+    {
+        return trim(($this->first_name ?? '') . ' ' . ($this->last_name ?? ''));
+    }
+
+    /**
      * Scope tìm kiếm theo tên hoặc số điện thoại
      */
     public function scopeSearch($query, $term)
@@ -166,9 +203,14 @@ class Student extends Model
             // Nếu term chỉ chứa số, tìm kiếm chính xác theo số điện thoại
             return $query->where('phone', 'like', "%{$term}%");
         } else {
-            // Ngược lại, tìm kiếm theo tên hoặc số điện thoại
-            return $query->where('full_name', 'like', "%{$term}%")
-                        ->orWhere('phone', 'like', "%{$term}%");
+            // Ngược lại, tìm kiếm theo họ, tên hoặc số điện thoại
+            return $query->where(function($q) use ($term) {
+                $q->where('first_name', 'like', "%{$term}%")
+                  ->orWhere('last_name', 'like', "%{$term}%")
+                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$term}%"])
+                  ->orWhere('phone', 'like', "%{$term}%")
+                  ->orWhere('email', 'like', "%{$term}%");
+            });
         }
     }
 }

@@ -36,7 +36,7 @@ class AttendanceController extends Controller
         
         $attendances = $this->attendanceService->getAttendances($filters);
         $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->orderBy('name')->get();
-        $students = Student::orderBy('full_name')->get();
+        $students = Student::orderBy('first_name')->orderBy('last_name')->get();
         
         return view('attendance.index', compact('attendances', 'courseItems', 'students'));
     }

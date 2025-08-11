@@ -204,40 +204,53 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Hủy đăng ký (xóa khỏi danh sách chờ)
+     * Hủy đăng ký enrollment
      */
     public function cancelEnrollment(Request $request, $id)
     {
         try {
             $enrollment = Enrollment::findOrFail($id);
 
-            // Chỉ cho phép hủy nếu đang ở trạng thái chờ
-            if ($enrollment->status !== 'waiting') {
+            // Không cho phép hủy nếu đã ở trạng thái cancelled
+            if ($enrollment->status === 'cancelled') {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Chỉ có thể hủy đăng ký khi đang ở trạng thái chờ!'
+                    'message' => 'Ghi danh này đã được hủy rồi!'
+                ], 422);
+            }
+
+            // Kiểm tra xem có thanh toán nào chưa
+            $confirmedPayments = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
+            if ($confirmedPayments > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể hủy ghi danh đã có thanh toán. Vui lòng hoàn tiền trước khi hủy!'
                 ], 422);
             }
 
             DB::beginTransaction();
 
-            // Cập nhật trạng thái thành cancelled
+            // Lưu trạng thái cũ
+            $enrollment->previous_status = $enrollment->status;
             $enrollment->status = 'cancelled';
             $enrollment->cancelled_at = now();
+            $enrollment->last_status_change = now();
             
             // Thêm lý do hủy vào ghi chú
-            if ($request->filled('reason')) {
-                $currentNotes = $enrollment->notes ? $enrollment->notes . "\n" : '';
-                $enrollment->notes = $currentNotes . '[' . now()->format('d/m/Y H:i') . '] Hủy: ' . $request->reason;
-            }
+            $reason = $request->input('reason', 'Hủy từ popup học viên');
+            $currentNotes = $enrollment->notes ? $enrollment->notes . "\n" : '';
+            $enrollment->notes = $currentNotes . '[' . now()->format('d/m/Y H:i') . '] Hủy: ' . $reason;
 
             $enrollment->save();
+
+            // Hủy các lịch điểm danh trong tương lai (nếu có)
+            $enrollment->attendances()->where('attendance_date', '>', now())->delete();
 
             DB::commit();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã hủy đăng ký thành công!'
+                'message' => 'Đã hủy ghi danh thành công!'
             ]);
 
         } catch (\Exception $e) {

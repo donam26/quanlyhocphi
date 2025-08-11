@@ -98,13 +98,14 @@ class CourseItemController extends Controller
                         }])->findOrFail($id);
         
         // Đảm bảo custom_fields được trả về
-        if ($courseItem->is_special && !empty($courseItem->custom_fields)) {
-            $courseItem->custom_fields = $courseItem->custom_fields;
-        } else {
+        if (!$courseItem->is_special || empty($courseItem->custom_fields)) {
             $courseItem->custom_fields = [];
         }
         
-        return response()->json($courseItem);
+        return response()->json([
+            'success' => true,
+            'data' => $courseItem
+        ]);
     }
 
     /**

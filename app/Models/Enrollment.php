@@ -117,7 +117,8 @@ class Enrollment extends Model
      */
     public function getStatusEnum(): ?EnrollmentStatus
     {
-        return EnrollmentStatus::fromString($this->status);
+        // Status đã được cast thành EnrollmentStatus, không cần convert
+        return $this->status instanceof EnrollmentStatus ? $this->status : EnrollmentStatus::fromString($this->status);
     }
 
     /**

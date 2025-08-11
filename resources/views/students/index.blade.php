@@ -22,6 +22,13 @@
 #exportStudentModal .form-select {
     pointer-events: auto;
 }
+/* Đảm bảo modal chỉnh sửa ghi danh có z-index cao nhất */
+#editEnrollmentModal {
+    z-index: 1080 !important;
+}
+#editEnrollmentModal .modal-backdrop {
+    z-index: 1079 !important;
+}
 </style>
 @endsection
 
@@ -65,14 +72,6 @@
                                 {{ $courseItem->name }}
                             </option>
                         @endforeach
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <select name="status" class="form-select" onchange="this.form.submit()">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="active" {{ request('status') == 'active' ? 'selected' : '' }}>Đang học</option>
-                        <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Hoàn thành</option>
-                        <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Không hoạt động</option>
                     </select>
                 </div>
                 <div class="col-md-2">
@@ -364,13 +363,13 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Họ <span class="text-danger">*</span></label>
-                                <input type="text" name="first_name" id="edit-full-name" class="form-control" required>
+                                <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
                                 <div class="invalid-feedback" id="edit-first-name-error"></div>
                             </div>
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Tên</label>
-                                <input type="text" name="name" id="edit-name" class="form-control">
-                                <div class="invalid-feedback" id="edit-name-error"></div>
+                                <label class="form-label">Tên <span class="text-danger">*</span></label>
+                                <input type="text" name="last_name" id="edit-last-name" class="form-control" required>
+                                <div class="invalid-feedback" id="edit-last-name-error"></div>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -441,10 +440,7 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
-                                <!-- Hidden field to submit the selected province name -->
-                                <input type="hidden" name="current_workplace" id="edit-current-workplace">
-                                <!-- Visible select2 to pick a province -->
-                                <select id="edit-current-workplace-select" class="form-select" data-placeholder="Chọn nơi công tác (tỉnh/thành)"></select>
+                                <input type="text" name="current_workplace" id="edit-current-workplace" class="form-control" placeholder="Nhập nơi công tác hiện tại">
                                 <div class="invalid-feedback" id="edit-current-workplace-error"></div>
                             </div>
 
@@ -543,7 +539,7 @@
                             <div class="col-md-12">
                                 <div class="mb-3">
                                     <label for="course_item_id" class="form-label">Chọn khóa học <span class="text-danger">*</span></label>
-                                    <select name="course_item_id" id="course_item_id" class="form-select" required onchange="return false;">
+                                    <select name="course_item_id" id="course_item_id" class="form-select select2-course-search" required data-placeholder="Tìm kiếm và chọn khóa học...">
                                         <option value="">-- Chọn khóa học --</option>
                                     </select>
                                 </div>
@@ -655,9 +651,15 @@
                             </div>
 
                             <div class="col-md-6 mb-3">
-                                <label class="form-label">Họ và tên <span class="text-danger">*</span></label>
-                                <input type="text" name="full_name" id="create-full-name" class="form-control" required>
-                                <div class="invalid-feedback" id="create-full-name-error"></div>
+                                <label class="form-label">Họ và tên đệm <span class="text-danger">*</span></label>
+                                <input type="text" name="first_name" id="create-first-name" class="form-control" required placeholder="Nguyễn Văn">
+                                <div class="invalid-feedback" id="create-first-name-error"></div>
+                            </div>
+                            
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Tên <span class="text-danger">*</span></label>
+                                <input type="text" name="last_name" id="create-last-name" class="form-control" required placeholder="A">
+                                <div class="invalid-feedback" id="create-last-name-error"></div>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -719,11 +721,7 @@
                                 <div class="invalid-feedback" id="create-province-error"></div>
                             </div>
 
-                            <div class="col-md-12 mb-3">
-                                <label class="form-label">Địa chỉ chi tiết</label>
-                                <textarea name="address" id="create-address" class="form-control" rows="3" placeholder="Nhập địa chỉ chi tiết (số nhà, tên đường, phường/xã, quận/huyện...)"></textarea>
-                                <div class="invalid-feedback" id="create-address-error"></div>
-                            </div>
+
                         </div>
 
                         <!-- Thông tin bổ sung -->
@@ -736,12 +734,7 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Nơi công tác hiện tại</label>
-                                <!-- Hidden field to submit the selected province name -->
-                                <input type="hidden" name="current_workplace" id="create-current-workplace">
-                                <!-- Visible select2 to pick a province -->
-                                <select id="create-current-workplace-select" class="form-select" data-placeholder="Chọn nơi công tác (tỉnh/thành)">
-                                    <option value="">-- Chọn nơi công tác --</option>
-                                </select>
+                                <input type="text" name="current_workplace" id="create-current-workplace" class="form-control" placeholder="Nhập nơi công tác hiện tại">
                                 <div class="invalid-feedback" id="create-current-workplace-error"></div>
                             </div>
 
@@ -929,6 +922,7 @@
 
 @push('scripts')
 <script src="{{ asset('js/student-list.js') }}"></script>
+<script src="{{ asset('js/enrollment.js') }}"></script>
 <script>
 $(document).ready(function() {
     // Cấu hình Select2 cho ô tìm kiếm học viên với AJAX
@@ -1129,22 +1123,18 @@ function initProvinceSelect2() {
     });
 }
 
-// Khởi tạo select2 cho các trường chọn địa điểm (nơi sinh, nơi công tác)
+// Khởi tạo select2 cho các trường chọn địa điểm (chỉ nơi sinh)
 function initLocationSelect2(){
     try {
-        $('#edit-place-of-birth-select, #edit-current-workplace-select, #create-place-of-birth-select, #create-current-workplace-select').select2('destroy');
+        $('#edit-place-of-birth-select, #create-place-of-birth-select').select2('destroy');
     } catch (e) {}
 
-    $('#edit-place-of-birth-select, #edit-current-workplace-select, #create-place-of-birth-select, #create-current-workplace-select').each(function(){
+    $('#edit-place-of-birth-select, #create-place-of-birth-select').each(function(){
         let $hidden;
         if ($(this).attr('id') === 'edit-place-of-birth-select') {
             $hidden = $('#edit-place-of-birth');
-        } else if ($(this).attr('id') === 'edit-current-workplace-select') {
-            $hidden = $('#edit-current-workplace');
         } else if ($(this).attr('id') === 'create-place-of-birth-select') {
             $hidden = $('#create-place-of-birth');
-        } else if ($(this).attr('id') === 'create-current-workplace-select') {
-            $hidden = $('#create-current-workplace');
         }
 
         $(this).select2({
@@ -1354,3 +1344,88 @@ function deleteStudent(studentId, studentName) {
 }
 </script>
 @endpush
+
+<!-- Modal chỉnh sửa ghi danh (copied from enrollments page) -->
+<div class="modal fade" id="editEnrollmentModal" tabindex="-1" aria-labelledby="editEnrollmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="editEnrollmentModalLabel">Chỉnh sửa ghi danh</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Loading spinner -->
+                <div id="edit-enrollment-loading" class="text-center my-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                    <p class="mt-2">Đang tải thông tin ghi danh...</p>
+                </div>
+                
+                <!-- Form chỉnh sửa -->
+                <form id="enrollmentEditForm" method="POST" style="display: none;">
+                    @csrf
+                    <input type="hidden" id="edit-enrollment-id" name="id">
+                    <input type="hidden" id="edit-course-item-id" name="course_item_id">
+                    <input type="hidden" id="edit-course-fee" name="course_fee">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Học viên</label>
+                        <p class="form-control-plaintext fw-bold" id="edit-student-name"></p>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-enrollment-date" class="form-label">Ngày ghi danh</label>
+                        <input type="date" class="form-control" id="edit-enrollment-date" name="enrollment_date" required>
+                        <div class="invalid-feedback" id="edit-enrollment-date-error"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-status" class="form-label">Trạng thái</label>
+                        <select class="form-select" id="edit-status" name="status" required>
+                            <option value="active">Đang học</option>
+                            <option value="waiting">Danh sách chờ</option>
+                            <option value="completed">Đã hoàn thành</option>
+                            <option value="cancelled">Đã hủy</option>
+                        </select>
+                        <div class="invalid-feedback" id="edit-status-error"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-discount-percentage" class="form-label">Giảm giá (%)</label>
+                        <input type="number" class="form-control" id="edit-discount-percentage" name="discount_percentage" min="0" max="100" step="0.01" value="0">
+                        <div class="invalid-feedback" id="edit-discount-percentage-error"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-discount-amount" class="form-label">Giảm giá (VNĐ)</label>
+                        <input type="number" class="form-control" id="edit-discount-amount" name="discount_amount" min="0" value="0">
+                        <div class="invalid-feedback" id="edit-discount-amount-error"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-final-fee-display" class="form-label">Học phí cuối cùng</label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="edit-final-fee-display" readonly>
+                            <span class="input-group-text">VNĐ</span>
+                        </div>
+                        <input type="hidden" id="edit-final-fee" name="final_fee">
+                        <div class="invalid-feedback" id="edit-final-fee-error"></div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="edit-notes" class="form-label">Ghi chú</label>
+                        <textarea class="form-control" id="edit-notes" name="notes" rows="3"></textarea>
+                        <div class="invalid-feedback" id="edit-notes-error"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" id="save-enrollment-btn">
+                    <i class="fas fa-save me-1"></i> Lưu thay đổi
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

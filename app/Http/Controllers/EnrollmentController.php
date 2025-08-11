@@ -50,7 +50,7 @@ class EnrollmentController extends Controller
             ->orderBy('name')
             ->get();
             
-        $students = Student::orderBy('full_name')->get();
+        $students = Student::orderBy('first_name')->orderBy('last_name')->get();
 
         return view('enrollments.index', [
             'enrollments' => $enrollments,

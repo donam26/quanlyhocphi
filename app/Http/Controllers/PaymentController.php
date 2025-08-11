@@ -51,6 +51,11 @@ class PaymentController extends Controller
             });
         }
         
+        // Filter theo enrollment_id (thêm mới)
+        if ($request->filled('enrollment_id')) {
+            $query->where('enrollment_id', $request->enrollment_id);
+        }
+        
         // Filter theo phương thức thanh toán
         if ($request->filled('payment_method')) {
             $query->where('payment_method', $request->payment_method);
@@ -77,7 +82,9 @@ class PaymentController extends Controller
                 $q->where('transaction_reference', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
                   ->orWhereHas('enrollment.student', function($sq) use ($search) {
-                      $sq->where('full_name', 'like', "%{$search}%")
+                      $sq->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$search}%"])
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
                   });
@@ -329,7 +336,9 @@ class PaymentController extends Controller
                 $q->where('transaction_reference', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
                   ->orWhereHas('enrollment.student', function($sq) use ($search) {
-                      $sq->where('full_name', 'like', "%{$search}%")
+                      $sq->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$search}%"])
                         ->orWhere('phone', 'like', "%{$search}%")
                         ->orWhere('email', 'like', "%{$search}%");
                   });

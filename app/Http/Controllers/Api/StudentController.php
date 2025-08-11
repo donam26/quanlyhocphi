@@ -51,14 +51,14 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'full_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'date_of_birth' => 'nullable|date',
             'place_of_birth' => 'nullable|string|max:255',
             'nation' => 'nullable|string|max:255',
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
-            'address' => 'nullable|string',
             'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
@@ -66,9 +66,6 @@ class StudentController extends Controller
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
         ]);
-
-        // Set default status
-        $validated['status'] = 'active';
 
         $student = Student::create($validated);
 
@@ -97,8 +94,8 @@ class StudentController extends Controller
         Log::info('Student update request data:', $request->all());
 
         $validated = $request->validate([
-            'first_name' => 'nullable|string|max:255',
-            'name' => 'nullable|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
             'place_of_birth' => 'nullable|string|max:255',
             'nation' => 'nullable|string|max:255',
             'date_of_birth' => 'nullable|date_format:Y-m-d',
@@ -116,15 +113,7 @@ class StudentController extends Controller
         // Debug thông tin đã validate
         Log::info('Student update validated data:', $validated);
 
-        if (isset($validated['first_name']) || isset($validated['name'])) {
-            // Cập nhật tên đầy đủ nếu có thay đổi
-            $validated['full_name'] = trim(($validated['first_name'] ?? $student->first_name) . ' ' . ($validated['name'] ?? $student->name));
-        } else {
-            // Giữ nguyên tên đầy đủ nếu không có thay đổi
-            $validated['full_name'] = $student->full_name;
-        }
-
-        // Cập nhật tên đầy đủ nếu có thay đổi
+        // Cập nhật học viên (full_name sẽ được tự động tính toán từ first_name + last_name)
         $student->update($validated);
 
         return response()->json([
@@ -234,6 +223,18 @@ class StudentController extends Controller
             $enrollment->is_fully_paid = $enrollment->getRemainingAmount() <= 0;
             $enrollment->total_paid = $enrollment->getTotalPaidAmount();
             $enrollment->remaining_amount = $enrollment->getRemainingAmount();
+            
+            // Thêm thông tin chi tiết để hiển thị trong popup
+            $enrollment->discount_percentage = $enrollment->discount_percentage ?? 0;
+            $enrollment->discount_amount = $enrollment->discount_amount ?? 0;
+            $enrollment->notes = $enrollment->notes ?? '';
+            $enrollment->status_label = $enrollment->getStatusEnum() ? $enrollment->getStatusEnum()->label() : $enrollment->status;
+            
+            // Thêm thông tin về course item để hiển thị đầy đủ
+            if ($enrollment->courseItem) {
+                $enrollment->course_item_name = $enrollment->courseItem->name;
+                $enrollment->course_item_fee = $enrollment->courseItem->fee;
+            }
         }
 
         return response()->json([
@@ -295,17 +296,12 @@ class StudentController extends Controller
                 ];
             }
 
-            // Tách full_name thành first_name và name
-            $nameParts = explode(' ', trim($student->full_name), 2);
-            $firstName = $nameParts[0] ?? '';
-            $lastName = $nameParts[1] ?? '';
-
             return response()->json([
                 'success' => true,
                 'data' => [
                     'id' => $student->id,
-                    'first_name' => $firstName,
-                    'name' => $lastName,
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
                     'full_name' => $student->full_name,
                     'phone' => $student->phone,
                     'email' => $student->email,

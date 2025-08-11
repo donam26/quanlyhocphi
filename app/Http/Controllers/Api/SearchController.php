@@ -27,7 +27,9 @@ class SearchController extends Controller
             return response()->json([]);
         }
         
-        $students = Student::where('full_name', 'like', "%{$q}%")
+        $students = Student::where('first_name', 'like', "%{$q}%")
+            ->orWhere('last_name', 'like', "%{$q}%")
+            ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$q}%"])
             ->orWhere('phone', 'like', "%{$q}%")
             ->orWhere('email', 'like', "%{$q}%")
             ->limit(10)

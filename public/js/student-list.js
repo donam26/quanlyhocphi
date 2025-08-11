@@ -102,13 +102,41 @@ window.showStudentDetails = function(studentId) {
                     enrollmentsHtml += `<div class="list-group-item">
                         <div class="d-flex justify-content-between align-items-center">
                             <h6 class="mb-1">${enrollment.course_item.name}</h6>
-                            <div>
+                            <div class="d-flex align-items-center">
                                 ${statusBadge}
                                 ${paymentBadge}
+                                <!-- Action buttons -->
+                                <div class="btn-group btn-group-sm ms-2" role="group">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" 
+                                            onclick="editEnrollmentInStudentPopup(${enrollment.id})"
+                                            title="Chỉnh sửa ghi danh">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-success btn-sm"
+                                            onclick="viewEnrollmentPayments(${enrollment.id})"
+                                            title="Xem thanh toán">
+                                        <i class="fas fa-money-bill"></i>
+                                    </button>
+                                    ${enrollment.status !== 'cancelled' ? 
+                                        `<button type="button" class="btn btn-outline-danger btn-sm"
+                                                onclick="cancelEnrollmentInPopup(${enrollment.id})"
+                                                title="Hủy ghi danh">
+                                            <i class="fas fa-times"></i>
+                                        </button>` : ''
+                                    }
+                                </div>
                             </div>
                         </div>
                         <p class="mb-1 small">Ngày đăng ký: ${enrollment.formatted_enrollment_date}</p>
                         <p class="mb-1 small">Học phí: ${formatCurrency(enrollment.final_fee)} đ</p>
+                        ${enrollment.discount_percentage > 0 ? 
+                            `<p class="mb-1 small text-success">Chiết khấu: ${enrollment.discount_percentage}%</p>` : 
+                            enrollment.discount_amount > 0 ? 
+                            `<p class="mb-1 small text-success">Chiết khấu: ${formatCurrency(enrollment.discount_amount)} đ</p>` : ''
+                        }
+                        ${enrollment.notes ? 
+                            `<p class="mb-0 small text-muted"><i>Ghi chú: ${enrollment.notes}</i></p>` : ''
+                        }
                     </div>`;
                 });
                 enrollmentsHtml += '</div>';
@@ -162,20 +190,8 @@ window.editStudent = function(studentId) {
 
             // Điền thông tin vào form
             $('#edit-student-id').val(student.id);
-            // Tách Họ và Tên: lấy từ cuối cùng làm "Tên", phần còn lại là "Họ"
-            (function(){
-                const full = (student.full_name || '').trim();
-                if (!full) {
-                    $('#edit-full-name').val('');
-                    $('#edit-name').val('');
-                    return;
-                }
-                const parts = full.split(/\s+/);
-                const given = parts.pop();
-                const family = parts.join(' ');
-                $('#edit-full-name').val(family);
-                $('#edit-name').val(given);
-            })();
+            $('#edit-first-name').val(student.first_name || '');
+            $('#edit-last-name').val(student.last_name || '');
             $('#edit-phone').val(student.phone);
             $('#edit-email').val(student.email);
             $('#edit-gender').val(student.gender || '');
@@ -189,14 +205,8 @@ window.editStudent = function(studentId) {
             }
 
             $('#edit-notes').val(student.notes);
-            // Nơi công tác hiện tại (hiển thị bằng select2, submit qua hidden)
+            // Nơi công tác hiện tại (input text)
             $('#edit-current-workplace').val(student.current_workplace || '');
-            if (student.current_workplace) {
-                const optCW = new Option(student.current_workplace, student.current_workplace, true, true);
-                $('#edit-current-workplace-select').empty().append(optCW).trigger('change');
-            } else {
-                $('#edit-current-workplace-select').empty().val(null).trigger('change');
-            }
             $('#edit-experience').val(student.accounting_experience_years);
 
             // Cập nhật các trường mới
@@ -455,33 +465,15 @@ window.enrollStudent = function(studentId) {
             $('#enroll-student-name').text(student.full_name);
 
             // Tải danh sách khóa học
-            $.ajax({
-                url: '/api/course-items/available',
-                method: 'GET',
-                success: function(courseData) {
-                    if (courseData.success) {
-                        const courseSelect = $('#course_item_id');
-                        courseSelect.empty();
-                        courseSelect.append('<option value="">-- Chọn khóa học --</option>');
+            // Khởi tạo Select2 cho course dropdown
+            initCourseSelect2();
+            
+            // Ẩn loading và hiện form
+            $('#enroll-student-loading').hide();
+            $('#enroll-student-form').show();
 
-                        courseData.data.forEach(function(course) {
-                            courseSelect.append(`<option value="${course.id}" data-fee="${course.fee}">${course.name}</option>`);
-                        });
-
-                        // Ẩn loading và hiện form
-                        $('#enroll-student-loading').hide();
-                        $('#enroll-student-form').show();
-
-                        // Thiết lập sự kiện tính học phí
-                        setupFeeCalculation();
-                    } else {
-                        showToast('Không thể tải danh sách khóa học', 'error');
-                    }
-                },
-                error: function() {
-                    showToast('Không thể tải danh sách khóa học', 'error');
-                }
-            });
+            // Thiết lập sự kiện tính học phí
+            setupFeeCalculation();
         },
         error: function() {
             showToast('Không thể tải thông tin học viên', 'error');
@@ -490,38 +482,41 @@ window.enrollStudent = function(studentId) {
     });
 };
 
+// Helper function format tiền tệ (global)
+function formatCurrency(number) {
+    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+}
+
+// Tính toán học phí cuối cùng (global function)
+function calculateFinalFee() {
+    const selectedCourse = $('#course_item_id').find(':selected');
+    // Nếu chưa chọn khóa học, xóa thông tin học phí
+    if (!selectedCourse.val()) {
+        $('#final_fee_display').val('');
+        $('#final_fee').val('');
+        return;
+    }
+
+    const baseFee = parseFloat(selectedCourse.data('fee')) || 0;
+    let finalFee = baseFee;
+
+    const discountPercent = parseFloat($('#discount_percentage').val());
+    const discountAmount = parseFloat($('#discount_amount').val());
+
+    if (!isNaN(discountPercent) && discountPercent > 0) {
+        finalFee -= baseFee * (discountPercent / 100);
+    } else if (!isNaN(discountAmount) && discountAmount > 0) {
+        finalFee -= discountAmount;
+    }
+
+    finalFee = Math.max(0, finalFee);
+
+    $('#final_fee').val(finalFee);
+    $('#final_fee_display').val(formatCurrency(finalFee));
+}
+
 // Thiết lập tính toán học phí
 function setupFeeCalculation() {
-    function formatCurrency(number) {
-        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
-    }
-
-    function calculateFinalFee() {
-        const selectedCourse = $('#course_item_id').find(':selected');
-        // Nếu chưa chọn khóa học, xóa thông tin học phí
-        if (!selectedCourse.val()) {
-            $('#final_fee_display').val('');
-            $('#final_fee').val('');
-            return;
-        }
-
-        const baseFee = parseFloat(selectedCourse.data('fee')) || 0;
-        let finalFee = baseFee;
-
-        const discountPercent = parseFloat($('#discount_percentage').val());
-        const discountAmount = parseFloat($('#discount_amount').val());
-
-        if (!isNaN(discountPercent) && discountPercent > 0) {
-            finalFee -= baseFee * (discountPercent / 100);
-        } else if (!isNaN(discountAmount) && discountAmount > 0) {
-            finalFee -= discountAmount;
-        }
-
-        finalFee = Math.max(0, finalFee);
-
-        $('#final_fee').val(finalFee);
-        $('#final_fee_display').val(formatCurrency(finalFee));
-    }
 
     // Ngăn chặn form submit trực tiếp
     $('#enrollmentForm').on('submit', function(e) {
@@ -714,4 +709,222 @@ function createNewStudent() {
 function resetCreateButton() {
     $('#save-new-student-btn').html('<i class="fas fa-save me-1"></i> Lưu học viên');
     $('#save-new-student-btn').prop('disabled', false);
+}
+
+// ============================================
+// CÁC FUNCTION MỚI CHO EDIT ENROLLMENT TỪ POPUP
+// ============================================
+
+// Edit enrollment trực tiếp từ popup học viên
+window.editEnrollmentInStudentPopup = function(enrollmentId) {
+    console.log('editEnrollmentInStudentPopup called with ID:', enrollmentId);
+    
+    // Load enrollment.js nếu chưa có
+    loadEnrollmentScript().then(() => {
+        console.log('enrollment.js loaded, checking editEnrollment function...');
+        if (typeof window.editEnrollment === 'function') {
+            console.log('editEnrollment function found, calling with ID:', enrollmentId);
+            window.editEnrollment(enrollmentId);
+        } else {
+            console.error('editEnrollment function not found');
+            showToast('Không thể tải chức năng chỉnh sửa', 'error');
+        }
+    }).catch(error => {
+        console.error('Error loading enrollment script:', error);
+        showToast('Lỗi khi tải script enrollment', 'error');
+    });
+};
+
+// Xem thanh toán của enrollment  
+window.viewEnrollmentPayments = function(enrollmentId) {
+    // Mở trang thanh toán trong tab mới với filter theo enrollment
+    window.open(`/payments?enrollment_id=${enrollmentId}`, '_blank');
+};
+
+// Hủy enrollment với confirmation
+window.cancelEnrollmentInPopup = function(enrollmentId) {
+    if (!confirm('Bạn có chắc chắn muốn hủy ghi danh này?')) {
+        return;
+    }
+
+    // Hiển thị loading trên nút
+    const button = event.target.closest('button');
+    const originalHtml = button.innerHTML;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    button.disabled = true;
+
+    $.ajax({
+        url: `/api/enrollments/${enrollmentId}/cancel`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                showToast('Hủy ghi danh thành công');
+                // Reload popup để cập nhật trạng thái
+                showStudentDetails(currentStudentId);
+            } else {
+                showToast('Không thể hủy ghi danh: ' + response.message, 'error');
+                // Reset nút về trạng thái ban đầu
+                button.innerHTML = originalHtml;
+                button.disabled = false;
+            }
+        },
+        error: function(xhr) {
+            let errorMessage = 'Có lỗi xảy ra khi hủy ghi danh';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            showToast(errorMessage, 'error');
+            
+            // Reset nút về trạng thái ban đầu
+            button.innerHTML = originalHtml;
+            button.disabled = false;
+        }
+    });
+};
+
+// Load enrollment.js dynamically
+function loadEnrollmentScript() {
+    return new Promise((resolve, reject) => {
+        console.log('loadEnrollmentScript called');
+        
+        // Kiểm tra xem enrollment.js đã được load chưa
+        if (window.editEnrollment && typeof window.editEnrollment === 'function') {
+            console.log('enrollment.js already loaded');
+            resolve();
+            return;
+        }
+        
+        // Kiểm tra xem script đã tồn tại chưa
+        const existingScript = document.querySelector('script[src*="enrollment.js"]');
+        if (existingScript) {
+            console.log('enrollment.js script tag exists, waiting for function...');
+            // Script đã có nhưng chưa load xong, đợi một chút
+            setTimeout(() => {
+                if (window.editEnrollment && typeof window.editEnrollment === 'function') {
+                    console.log('enrollment.js function found after waiting');
+                    resolve();
+                } else {
+                    console.error('Script loaded but function not available after waiting');
+                    reject(new Error('Script loaded but function not available'));
+                }
+            }, 1000);
+            return;
+        }
+        
+        console.log('Creating new enrollment.js script tag');
+        // Tạo script tag mới
+        const script = document.createElement('script');
+        script.src = '/js/enrollment.js';
+        script.onload = () => {
+            console.log('enrollment.js script loaded, waiting for function...');
+            // Đợi một chút để đảm bảo script được execute
+            setTimeout(() => {
+                if (window.editEnrollment && typeof window.editEnrollment === 'function') {
+                    console.log('enrollment.js function available');
+                    resolve();
+                } else {
+                    console.error('Script loaded but editEnrollment function not found');
+                    reject(new Error('Script loaded but function not available'));
+                }
+            }, 500);
+        };
+        script.onerror = (error) => {
+            console.error('Error loading enrollment.js script:', error);
+            reject(error);
+        };
+        document.head.appendChild(script);
+    });
+}
+
+// Quick actions cho enrollment
+window.quickChangeEnrollmentStatus = function(enrollmentId, newStatus) {
+    $.ajax({
+        url: `/api/enrollments/${enrollmentId}`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        data: {
+            status: newStatus
+        },
+        success: function(response) {
+            if (response.success) {
+                showToast(`Đã chuyển trạng thái thành ${getStatusLabel(newStatus)}`);
+                // Reload popup để cập nhật
+                showStudentDetails(currentStudentId);
+            } else {
+                showToast('Không thể cập nhật trạng thái: ' + response.message, 'error');
+            }
+        },
+        error: function(xhr) {
+            showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
+        }
+    });
+};
+
+// Helper function để lấy label trạng thái
+function getStatusLabel(status) {
+    const labels = {
+        'waiting': 'Danh sách chờ',
+        'active': 'Đang học', 
+        'completed': 'Đã hoàn thành',
+        'cancelled': 'Đã hủy'
+    };
+    return labels[status] || status;
+}
+
+// Khởi tạo Select2 cho course dropdown
+function initCourseSelect2() {
+    $('#course_item_id').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm kiếm và chọn khóa học...',
+        allowClear: true,
+        dropdownParent: $('#enrollStudentModal'),
+        width: '100%',
+        minimumInputLength: 0,
+        ajax: {
+            url: '/api/course-items/search',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function (response) {
+                // API trả về array trực tiếp, không có wrapper
+                if (Array.isArray(response)) {
+                    return {
+                        results: response.filter(item => item.is_leaf).map(function(course) {
+                            return {
+                                id: course.id,
+                                text: course.name + (course.path ? ' (' + course.path + ')' : ''),
+                                fee: course.fee || 0
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            },
+            cache: true
+        }
+    });
+
+    // Handle change event để tính học phí
+    $('#course_item_id').on('select2:select', function (e) {
+        const data = e.params.data;
+        if (data && data.fee) {
+            // Set fee data attribute cho calculateFinalFee function
+            $(this).find(':selected').attr('data-fee', data.fee);
+        }
+        calculateFinalFee();
+    });
+
+    // Handle clear event
+    $('#course_item_id').on('select2:clear', function (e) {
+        calculateFinalFee();
+    });
 }

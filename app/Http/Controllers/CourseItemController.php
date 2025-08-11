@@ -610,7 +610,7 @@ class CourseItemController extends Controller
     public function addStudentForm($id)
     {
         $courseItem = $this->courseItemService->getCourseItem($id);
-        $students = \App\Models\Student::orderBy('full_name')->get();
+        $students = \App\Models\Student::orderBy('first_name')->orderBy('last_name')->get();
 
         return view('course-items.add-student', [
             'courseItem' => $courseItem,
@@ -629,7 +629,7 @@ class CourseItemController extends Controller
             'final_fee' => 'required|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
-            'status' => 'required|in:enrolled,completed,dropped',
+            'status' => 'required|in:waiting,active,completed,cancelled',
             'notes' => 'nullable|string'
         ]);
 
@@ -641,6 +641,13 @@ class CourseItemController extends Controller
                                       ->first();
 
         if ($existingEnrollment) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Học viên này đã được ghi danh vào khóa học này rồi!'
+                ], 422);
+            }
+            
             return back()
                 ->withInput()
                 ->withErrors(['error' => 'Học viên này đã được ghi danh vào khóa học này rồi!']);
@@ -676,10 +683,30 @@ class CourseItemController extends Controller
 
             DB::commit();
 
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Thêm học viên vào khóa học thành công!',
+                    'data' => [
+                        'enrollment_id' => $enrollment->id,
+                        'student_id' => $enrollment->student_id,
+                        'course_item_id' => $enrollment->course_item_id,
+                        'status' => $enrollment->status
+                    ]
+                ]);
+            }
+
             return redirect()->route('course-items.students', $id)
                            ->with('success', 'Thêm học viên vào khóa học thành công!');
         } catch (\Exception $e) {
             DB::rollBack();
+
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Đã xảy ra lỗi: ' . $e->getMessage()
+                ], 500);
+            }
 
             return back()
                 ->withInput()

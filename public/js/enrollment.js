@@ -168,8 +168,9 @@ window.showEnrollmentDetails = function(enrollmentId) {
 window.editEnrollment = function(enrollmentId) {
     currentEnrollmentId = enrollmentId;
 
-    // Đóng modal xem chi tiết nếu đang mở
+    // Đóng các modal khác nếu đang mở
     $('#viewEnrollmentModal').modal('hide');
+    $('#studentDetailModal').modal('hide'); // Đóng modal học viên nếu đang mở
 
     // Mở modal chỉnh sửa
     $('#editEnrollmentModal').modal('show');
@@ -441,30 +442,39 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('vi-VN').format(amount);
 }
 
-// Hiển thị thông báo toast
-function showToast(message, type = 'success') {
-    const toast = $(`
-        <div class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : type}" role="alert" aria-live="assertive" aria-atomic="true">
-            <div class="d-flex">
-                <div class="toast-body">
-                    ${message}
+// Sử dụng showToast global function nếu có, nếu không thì định nghĩa
+if (typeof window.showToast !== 'function') {
+    window.showToast = function(message, type = 'success') {
+        const toast = $(`
+            <div class="toast align-items-center text-white bg-${type === 'error' ? 'danger' : type}" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
                 </div>
-                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
             </div>
-        </div>
-    `);
+        `);
 
-    $('.toast-container').append(toast);
-    const bsToast = new bootstrap.Toast(toast, {
-        delay: 3000
-    });
+        $('.toast-container').append(toast);
+        const bsToast = new bootstrap.Toast(toast, {
+            delay: 3000
+        });
 
-    bsToast.show();
+        bsToast.show();
 
-    // Xóa toast sau khi ẩn
-    toast.on('hidden.bs.toast', function() {
-        $(this).remove();
-    });
+        // Xóa toast sau khi ẩn
+        toast.on('hidden.bs.toast', function() {
+            $(this).remove();
+        });
+    };
+}
+
+// Alias để backward compatibility
+function showToast(message, type = 'success') {
+    if (typeof window.showToast === 'function') {
+        window.showToast(message, type);
+    }
 }
 
 // Khởi tạo Select2 khi trang đã tải

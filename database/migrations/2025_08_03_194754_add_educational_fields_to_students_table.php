@@ -12,8 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('students', function (Blueprint $table) {
-            // Xóa trường custom_fields
-            $table->dropColumn('custom_fields');
+            // Xóa trường custom_fields nếu tồn tại
+            if (Schema::hasColumn('students', 'custom_fields')) {
+                $table->dropColumn('custom_fields');
+            }
             
             // Thêm các trường mới
             $table->enum('hard_copy_documents', ['submitted', 'not_submitted'])->nullable()->after('notes');
@@ -29,16 +31,24 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('students', function (Blueprint $table) {
-            // Xóa các trường mới
-            $table->dropColumn([
+            // Xóa các trường mới nếu tồn tại
+            $columnsToRemove = [
                 'hard_copy_documents',
-                'education_level',
+                'education_level', 
                 'workplace',
                 'experience_years'
-            ]);
+            ];
             
-            // Thêm lại trường custom_fields
-            $table->json('custom_fields')->nullable()->after('notes');
+            foreach ($columnsToRemove as $column) {
+                if (Schema::hasColumn('students', $column)) {
+                    $table->dropColumn($column);
+                }
+            }
+            
+            // Thêm lại trường custom_fields nếu chưa tồn tại
+            if (!Schema::hasColumn('students', 'custom_fields')) {
+                $table->json('custom_fields')->nullable()->after('notes');
+            }
         });
     }
 };

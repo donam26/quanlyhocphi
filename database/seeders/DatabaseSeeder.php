@@ -12,20 +12,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // \App\Models\User::factory(10)->create();
-
-        // \App\Models\User::factory()->create([
-        //     'name' => 'Test User',
-        //     'email' => 'test@example.com',
-        // ]);
-        
         // Chạy các seeder theo thứ tự phụ thuộc
         $this->call([
             AdminUserSeeder::class, // Thêm admin user seeder đầu tiên
             ProvinceSeeder::class,  // Seeder tỉnh thành
-            CourseSeeder::class,
-            SubCourseSeeder::class,
-            StudentSeeder::class,
+            EthnicitySeeder::class
         ]);
     }
 }

@@ -263,7 +263,7 @@ class ReportController extends Controller
         $reportData = $this->reportService->getAttendanceReport($filters);
         
         $courseItems = CourseItem::where('is_leaf', true)->where('active', true)->get();
-        $students = Student::orderBy('full_name')->get();
+        $students = Student::orderBy('first_name')->orderBy('last_name')->get();
         
         // Lấy thông tin khóa học nếu có
         $courseItem = null;

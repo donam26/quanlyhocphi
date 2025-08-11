@@ -63,7 +63,9 @@ class EnrollmentService
         if (isset($filters['search'])) {
             $search = $filters['search'];
             $query->whereHas('student', function ($q) use ($search) {
-                $q->where('full_name', 'like', '%' . $search . '%')
+                $q->where('first_name', 'like', '%' . $search . '%')
+                  ->orWhere('last_name', 'like', '%' . $search . '%')
+                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ['%' . $search . '%'])
                   ->orWhere('phone', 'like', '%' . $search . '%')
                   ->orWhere('email', 'like', '%' . $search . '%');
             });
@@ -324,7 +326,9 @@ class EnrollmentService
         if (isset($filters['search'])) {
             $search = $filters['search'];
             $query->whereHas('student', function($q) use ($search) {
-                $q->where('full_name', 'like', '%' . $search . '%')
+                $q->where('first_name', 'like', '%' . $search . '%')
+                  ->orWhere('last_name', 'like', '%' . $search . '%')
+                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ['%' . $search . '%'])
                   ->orWhere('phone', 'like', '%' . $search . '%');
             });
         }
