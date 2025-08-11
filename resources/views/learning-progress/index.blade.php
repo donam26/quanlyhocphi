@@ -69,10 +69,10 @@
                             <button type="button" class="btn btn-primary" onclick="showCourseProgress({{ $courseData['course']->id }})">
                                 <i class="fas fa-eye me-1"></i> Xem chi tiết
                             </button>
-                            <a href="{{ route('learning-paths.edit', $courseData['course']->id) }}" 
-                               class="btn btn-outline-secondary">
+                            <button type="button" class="btn btn-outline-secondary" 
+                                    onclick="openLearningPathModal({{ $courseData['course']->id }})">
                                 <i class="fas fa-edit me-1"></i> Chỉnh sửa lộ trình
-                            </a>
+                            </button>
                         </div>
                     </div>
                     <div class="card-footer text-muted">
@@ -123,9 +123,9 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <a href="#" id="edit-learning-path-btn" class="btn btn-primary">
+                <button type="button" id="edit-learning-path-btn" class="btn btn-primary">
                     <i class="fas fa-edit me-1"></i> Chỉnh sửa lộ trình
-                </a>
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
             </div>
         </div>
@@ -232,21 +232,83 @@
     .learning-path-item {
         margin-bottom: 10px;
         padding: 15px;
-        border-radius: 5px;
+        border-radius: 8px;
         background-color: #f8f9fa;
-        transition: background-color 0.3s ease;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
     }
     .learning-path-item.completed {
         background-color: #e8f5e9;
+        border-color: #28a745;
+        transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.1);
+    }
+    .learning-path-item.completed::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 5px;
+        height: 100%;
+        background: linear-gradient(to bottom, #28a745, #20c997);
+    }
+    .learning-path-item.completed .learning-path-title {
+        color: #28a745;
+        font-weight: 600;
+    }
+    .learning-path-item.loading {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+    .learning-path-item.loading::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
     }
     .form-check-input {
-        width: 20px;
-        height: 20px;
+        width: 22px;
+        height: 22px;
         margin-top: 2px;
         cursor: pointer;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+    }
+    .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+    }
+    .form-check-input:hover {
+        border-color: #28a745;
+        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+    }
+    .form-check-input:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
     }
     .form-check-label {
         margin-left: 8px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .completion-status {
+        transition: all 0.3s ease;
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
     }
     .progress {
         border-radius: 0.5rem;
@@ -256,6 +318,52 @@
         height: 1.5em;
     }
 </style>
+<!-- Modal cài đặt lộ trình -->
+<div class="modal fade" id="learningPathModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-road me-2"></i>Cài đặt lộ trình học tập
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center" id="learning-path-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+                
+                <div id="learning-path-content" style="display: none;">
+                    <form id="learningPathForm">
+                        <div class="mb-3">
+                            <label class="form-label">Khóa học:</label>
+                            <p class="fw-bold text-info" id="course-name-display"></p>
+                        </div>
+                        
+                        <div id="paths-container">
+                            <!-- Dynamic learning paths will be added here -->
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-primary" id="add-new-path">
+                                <i class="fas fa-plus me-1"></i>Thêm lộ trình
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" id="save-learning-paths">
+                    <i class="fas fa-save me-1"></i>Lưu lộ trình
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @push('scripts')
@@ -263,6 +371,196 @@
 // Biến lưu trữ các thay đổi
 let changedProgress = [];
 let currentCourseId = null;
+
+// ========== LEARNING PATH MODAL ==========
+function openLearningPathModal(courseId) {
+    console.log('Opening learning path modal for course:', courseId);
+    currentCourseId = courseId;
+    
+    // Show modal
+    $('#learningPathModal').modal('show');
+    $('#learning-path-loading').show();
+    $('#learning-path-content').hide();
+    
+    // Load course info and existing learning paths
+    loadLearningPaths(courseId);
+}
+
+function loadLearningPaths(courseId) {
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                // Display course name
+                $('#course-name-display').text(response.course_name || `Khóa học #${courseId}`);
+                
+                // Clear existing paths
+                $('#paths-container').empty();
+                
+                // Add existing paths
+                if (response.paths && response.paths.length > 0) {
+                    response.paths.forEach((path, index) => {
+                        addLearningPathItem(path, index);
+                    });
+                } else {
+                    // Add one empty path by default
+                    addLearningPathItem(null, 0);
+                }
+                
+                $('#learning-path-loading').hide();
+                $('#learning-path-content').show();
+            } else {
+                toastr.error('Không thể tải thông tin lộ trình: ' + (response.message || 'Lỗi không xác định'));
+                $('#learningPathModal').modal('hide');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading learning paths:', xhr);
+            toastr.error('Có lỗi xảy ra khi tải lộ trình học tập');
+            $('#learningPathModal').modal('hide');
+        }
+    });
+}
+
+function addLearningPathItem(pathData = null, index = 0) {
+    const pathItem = `
+        <div class="path-item mb-4 p-3 border rounded" data-index="${index}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-grip-vertical me-2 text-muted"></i>
+                    Lộ trình ${index + 1}
+                </h6>
+                <button type="button" class="btn btn-outline-danger btn-sm remove-path-btn" ${index === 0 ? 'style="display:none"' : ''}>
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            <input type="hidden" name="paths[${index}][id]" value="${pathData?.id || ''}" class="path-id">
+            
+            <div class="mb-3">
+                <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                <input type="text" class="form-control path-title" name="paths[${index}][title]" 
+                       value="${pathData?.title || ''}" placeholder="Nhập tên lộ trình..." required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Mô tả</label>
+                <textarea class="form-control path-description" name="paths[${index}][description]" 
+                          rows="3" placeholder="Mô tả chi tiết về lộ trình này...">${pathData?.description || ''}</textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Thứ tự</label>
+                    <input type="number" class="form-control path-order" name="paths[${index}][order]" 
+                           value="${pathData?.order || (index + 1)}" min="1" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Trạng thái</label>
+                    <select class="form-select path-required" name="paths[${index}][is_required]">
+                        <option value="1" ${pathData?.is_required !== false ? 'selected' : ''}>Bắt buộc</option>
+                        <option value="0" ${pathData?.is_required === false ? 'selected' : ''}>Tùy chọn</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#paths-container').append(pathItem);
+    updatePathIndexes();
+}
+
+function updatePathIndexes() {
+    $('#paths-container .path-item').each(function(index) {
+        $(this).attr('data-index', index);
+        $(this).find('h6').html(`<i class="fas fa-grip-vertical me-2 text-muted"></i>Lộ trình ${index + 1}`);
+        $(this).find('.path-id').attr('name', `paths[${index}][id]`);
+        $(this).find('.path-title').attr('name', `paths[${index}][title]`);
+        $(this).find('.path-description').attr('name', `paths[${index}][description]`);
+        $(this).find('.path-order').attr('name', `paths[${index}][order]`).val(index + 1);
+        $(this).find('.path-required').attr('name', `paths[${index}][is_required]`);
+        
+        // Hide delete button for first item
+        $(this).find('.remove-path-btn').toggle(index > 0);
+    });
+}
+
+// Event handlers for learning path modal
+$(document).on('click', '#add-new-path', function() {
+    const currentCount = $('#paths-container .path-item').length;
+    addLearningPathItem(null, currentCount);
+});
+
+$(document).on('click', '.remove-path-btn', function() {
+    $(this).closest('.path-item').remove();
+    updatePathIndexes();
+});
+
+$(document).on('click', '#save-learning-paths', function() {
+    const courseId = currentCourseId;
+    const formData = new FormData(document.getElementById('learningPathForm'));
+    
+    // Validate required fields
+    let isValid = true;
+    $('#paths-container .path-title[required]').each(function() {
+        if (!$(this).val().trim()) {
+            $(this).addClass('is-invalid');
+            isValid = false;
+        } else {
+            $(this).removeClass('is-invalid');
+        }
+    });
+    
+    if (!isValid) {
+        toastr.warning('Vui lòng điền đầy đủ thông tin bắt buộc');
+        return;
+    }
+    
+    // Disable button
+    const $btn = $(this);
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
+    
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                toastr.success('Đã lưu lộ trình học tập thành công!');
+                $('#learningPathModal').modal('hide');
+                
+                // Reload page to show updated learning paths
+                setTimeout(function() {
+                    location.reload();
+                }, 1000);
+            } else {
+                toastr.error(response.message || 'Có lỗi xảy ra khi lưu lộ trình');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error saving learning paths:', xhr);
+            if (xhr.status === 422 && xhr.responseJSON?.errors) {
+                let errorMessage = 'Lỗi validation:\n';
+                Object.keys(xhr.responseJSON.errors).forEach(key => {
+                    errorMessage += '- ' + xhr.responseJSON.errors[key][0] + '\n';
+                });
+                toastr.error(errorMessage);
+            } else {
+                toastr.error('Có lỗi xảy ra khi lưu lộ trình học tập');
+            }
+        },
+        complete: function() {
+            // Reset button
+            $btn.prop('disabled', false).html('<i class="fas fa-save me-1"></i>Lưu lộ trình');
+        }
+    });
+});
 let currentStudentId = null;
 
 // Hiển thị chi tiết tiến độ học tập của khóa học
@@ -308,8 +606,12 @@ function showCourseProgress(courseId) {
                 </div>
             `);
             
-            // Cập nhật link chỉnh sửa lộ trình
-            $('#edit-learning-path-btn').attr('href', `/course-items/${courseItem.id}/learning-paths/edit`);
+            // Cập nhật nút chỉnh sửa lộ trình
+            $('#edit-learning-path-btn').off('click').on('click', function(e) {
+                e.preventDefault();
+                $('#courseProgressModal').modal('hide');
+                openLearningPathModal(courseItem.id);
+            });
             
             // Cập nhật danh sách lộ trình
             if (learningPaths.length === 0) {
@@ -325,11 +627,11 @@ function showCourseProgress(courseId) {
                 let pathsHtml = '';
                 
                 learningPaths.forEach((path, index) => {
-                    const stats = pathCompletionStats[path.id] || null;
-                    const isCompleted = stats && stats.completed_count > 0;
+                    // Đọc trực tiếp từ field is_completed của path
+                    const isCompleted = path.is_completed || false;
                     
                     pathsHtml += `
-                        <div class="learning-path-item ${isCompleted ? 'completed' : ''}" id="path-item-${path.id}">
+                        <div class="learning-path-item ${isCompleted ? 'completed' : ''} p-3 mb-3 border rounded" id="path-item-${path.id}">
                             <div class="form-check">
                                 <input type="checkbox" class="form-check-input progress-checkbox" 
                                     id="path-${path.id}" 
@@ -337,10 +639,10 @@ function showCourseProgress(courseId) {
                                     data-course-id="${courseItem.id}"
                                     ${isCompleted ? 'checked' : ''}>
                                 <label class="form-check-label" for="path-${path.id}">
-                                    <div class="fw-bold">Buổi ${index + 1}</div>
+                                    <div class="fw-bold learning-path-title">Buổi ${index + 1}</div>
                                     <div class="text-muted">${path.title || path.id}</div>
                                     <div class="text-success completion-status" id="status-${path.id}" style="${isCompleted ? '' : 'display: none;'}">
-                                        <i class="fas fa-check-circle"></i> Đã hoàn thành
+                                        <i class="fas fa-check-circle me-1"></i> Đã hoàn thành
                                     </div>
                                 </label>
                             </div>
@@ -360,17 +662,20 @@ function showCourseProgress(courseId) {
                     
                     // Hiển thị loading
                     $(this).prop('disabled', true);
+                    pathItem.addClass('loading');
                     
                     // Gửi AJAX request để cập nhật trạng thái
                     $.ajax({
-                        url: '/api/learning-progress/update-path-status',
+                        url: `/api/learning-progress/toggle-path-completion/${pathId}`,
                         type: 'POST',
-                        data: {
-                            _token: '{{ csrf_token() }}',
-                            path_id: pathId,
-                            course_id: courseId,
-                            is_completed: isCompleted ? 1 : 0
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
                         },
+                        data: JSON.stringify({
+                            course_id: parseInt(courseId),
+                            is_completed: Boolean(isCompleted)
+                        }),
                         success: function(response) {
                             if (response.success) {
                                 // Cập nhật giao diện
@@ -385,6 +690,13 @@ function showCourseProgress(courseId) {
                                 // Kiểm tra xem tất cả các lộ trình đã hoàn thành chưa
                                 const totalCheckboxes = $('.progress-checkbox').length;
                                 const checkedCheckboxes = $('.progress-checkbox:checked').length;
+                                const progressPercent = Math.round((checkedCheckboxes / totalCheckboxes) * 100);
+                                
+                                // Cập nhật progress bar trong trang chính  
+                                const currentCard = $(`.card:has(button[onclick="showCourseProgress(${courseId})"])`);
+                                currentCard.find('.progress-bar').css('width', `${progressPercent}%`);
+                                currentCard.find('.progress-bar').parent().prev().find('span:last-child').text(`${progressPercent}%`);
+                                currentCard.find('.fw-bold:contains("/")').text(`${checkedCheckboxes}/${totalCheckboxes}`);
                                 
                                 if (totalCheckboxes === checkedCheckboxes) {
                                     // Nếu tất cả lộ trình đã hoàn thành, ẩn khóa học trên giao diện chính
@@ -396,7 +708,7 @@ function showCourseProgress(courseId) {
                                         setTimeout(function() {
                                             $('.btn-close').click();
                                             // Tìm card chứa khóa học này và ẩn đi với hiệu ứng
-                                            $(`.card:has(button[onclick="showCourseProgress(${courseId})")`).closest('.col-md-4').fadeOut('slow', function() {
+                                            currentCard.closest('.col-md-4').fadeOut('slow', function() {
                                                 $(this).remove();
                                                 
                                                 // Kiểm tra nếu không còn khóa học nào hiển thị
@@ -415,19 +727,24 @@ function showCourseProgress(courseId) {
                                     $('#success-message').fadeIn().delay(2000).fadeOut();
                                 }
                             } else {
-                                alert('Có lỗi xảy ra: ' + response.message);
+                                showToast(response.message || 'Có lỗi xảy ra khi cập nhật', 'error');
                                 // Khôi phục trạng thái checkbox nếu có lỗi
                                 $('.progress-checkbox[data-path-id="' + pathId + '"]').prop('checked', !isCompleted);
                             }
                         },
-                        error: function() {
-                            alert('Có lỗi xảy ra khi cập nhật tiến độ học tập');
+                        error: function(xhr) {
+                            let errorMessage = 'Có lỗi xảy ra khi cập nhật tiến độ học tập';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                errorMessage = xhr.responseJSON.message;
+                            }
+                            showToast(errorMessage, 'error');
                             // Khôi phục trạng thái checkbox nếu có lỗi
                             $('.progress-checkbox[data-path-id="' + pathId + '"]').prop('checked', !isCompleted);
                         },
                         complete: function() {
-                            // Bỏ disabled cho checkbox
+                            // Bỏ disabled cho checkbox và loading state
                             $('.progress-checkbox[data-path-id="' + pathId + '"]').prop('disabled', false);
+                            pathItem.removeClass('loading');
                         }
                     });
                 });
@@ -437,8 +754,12 @@ function showCourseProgress(courseId) {
             $('#course-progress-loading').hide();
             $('#course-progress-content').show();
         },
-        error: function() {
-            alert('Có lỗi xảy ra khi tải thông tin tiến độ học tập');
+        error: function(xhr) {
+            let errorMessage = 'Có lỗi xảy ra khi tải thông tin tiến độ học tập';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            showToast(errorMessage, 'error');
             $('#course-progress-loading').hide();
         }
     });
@@ -713,7 +1034,7 @@ function saveStudentProgress() {
         success: function(response) {
             if (response.success) {
                 // Hiển thị thông báo thành công
-                alert('Đã cập nhật tiến độ học tập thành công');
+                showToast('Đã cập nhật tiến độ học tập thành công', 'success');
                 // Xóa mảng thay đổi
                 changedProgress = [];
             } else {
@@ -721,7 +1042,11 @@ function saveStudentProgress() {
             }
         },
         error: function(xhr) {
-            alert('Có lỗi xảy ra khi cập nhật tiến độ học tập');
+            let errorMessage = 'Có lỗi xảy ra khi cập nhật tiến độ học tập';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMessage = xhr.responseJSON.message;
+            }
+            showToast(errorMessage, 'error');
             console.error(xhr);
         },
         complete: function() {

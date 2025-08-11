@@ -233,9 +233,10 @@
                                                     {{-- Nếu đang ở tab cụ thể, chỉ hiển thị các con trực tiếp --}}
                                                     @foreach($rootItem->children->sortBy('order_index') as $childItem)
                                                         <li>
-                                                            <div class="tree-item level-2 waiting-course-item {{ $childItem->active ? 'active' : 'inactive' }}" 
-                                                                 data-id="{{ $childItem->id }}" 
-                                                                 data-course-name="{{ $childItem->name }}">
+                                                                                                                    <div class="tree-item level-2 waiting-course-item {{ $childItem->active ? 'active' : 'inactive' }}" 
+                                                             data-id="{{ $childItem->id }}" 
+                                                             data-course-name="{{ $childItem->name }}"
+                                                             @if(!$childItem->is_leaf) title="Click để xem tất cả học viên đang chờ từ khóa này và các khóa con" @endif>
                                                                 <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#waiting-children-{{ $childItem->id }}">
                                                                     <i class="fas fa-minus-circle"></i>
                                                                 </span>
@@ -251,7 +252,8 @@
                                                     <li>
                                                         <div class="tree-item level-1 waiting-course-item {{ $rootItem->active ? 'active' : 'inactive' }}" 
                                                              data-id="{{ $rootItem->id }}" 
-                                                             data-course-name="{{ $rootItem->name }}">
+                                                             data-course-name="{{ $rootItem->name }}"
+                                                             @if(!$rootItem->is_leaf) title="Click để xem tất cả học viên đang chờ từ khóa này và các khóa con" @endif>
                                                             <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#waiting-tab-children-{{ $rootItem->id }}">
                                                                 <i class="fas fa-minus-circle"></i>
                                                             </span>
@@ -360,7 +362,58 @@
                     </div>
                 </div>
                 <div id="student-details" style="display: none;">
-                    <p>Chi tiết học viên sẽ được hiển thị ở đây</p>
+                    <!-- Thông tin cơ bản -->
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h4 id="student-name"></h4>
+                            <p class="text-muted">Mã học viên: <span id="student-id"></span></p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Thông tin chi tiết -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Thông tin cá nhân</h6>
+                            <table class="table table-sm">
+                                <tr><th width="40%">Giới tính:</th><td id="student-gender"></td></tr>
+                                <tr><th>Ngày sinh:</th><td id="student-dob"></td></tr>
+                                <tr><th>Số điện thoại:</th><td id="student-phone"></td></tr>
+                                <tr><th>Email:</th><td id="student-email"></td></tr>
+                                <tr><th>Tỉnh/Thành phố:</th><td id="student-address"></td></tr>
+                                <tr><th>Nơi sinh:</th><td id="student-place-of-birth"></td></tr>
+                                <tr><th>Dân tộc:</th><td id="student-nation"></td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Thông tin công việc</h6>
+                            <table class="table table-sm">
+                                <tr><th width="40%">Nơi công tác:</th><td id="student-workplace"></td></tr>
+                                <tr><th>Kinh nghiệm:</th><td id="student-experience"></td></tr>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Ghi chú -->
+                    <div id="student-notes-section" style="display: none;">
+                        <h6>Ghi chú</h6>
+                        <div class="alert alert-info">
+                            <p id="student-notes" class="mb-0"></p>
+                        </div>
+                    </div>
+
+                    <!-- Thông tin tùy chỉnh -->
+                    <div id="student-custom-fields-section" style="display: none;">
+                        <h6>Thông tin bổ sung</h6>
+                        <div id="student-custom-fields"></div>
+                    </div>
+
+                    <!-- Danh sách khóa học -->
+                    <div id="student-enrollments-section">
+                        <h6>Khóa học đã đăng ký</h6>
+                        <div id="student-enrollments"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -441,6 +494,8 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/date-utils.js') }}"></script>
+<script src="{{ asset('js/student-list.js') }}"></script>
 <script>
 $(document).ready(function() {
     let selectedCourseId = null;
@@ -491,12 +546,20 @@ $(document).ready(function() {
     
     // Load danh sách học viên chờ
     function loadWaitingStudents(courseId, rootId) {
+        // Kiểm tra xem có phải khóa cha hay không
+        const courseElement = $(`.waiting-course-item[data-id="${courseId}"]`);
+        const isParent = courseElement.find('.fas.fa-folder').length > 0 || courseElement.find('.fas.fa-graduation-cap').length > 0 || courseElement.find('.fas.fa-book').length > 0;
+        
+        const loadingMessage = isParent ? 
+            'Đang tải danh sách học viên từ tất cả khóa con...' : 
+            'Đang tải danh sách học viên...';
+            
         $(`#waiting-students-container-${rootId}`).html(`
             <div class="text-center py-4">
                 <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Đang tải...</span>
                 </div>
-                <p class="mt-2">Đang tải danh sách học viên...</p>
+                <p class="mt-2">${loadingMessage}</p>
             </div>
         `);
         
@@ -511,7 +574,7 @@ $(document).ready(function() {
             .done(function(response) {
                 console.log('Response:', response); // Debug log
                 const students = response.students || [];
-                displayWaitingStudents(students, rootId);
+                displayWaitingStudents(students, rootId, isParent);
                 updateWaitingCount(courseId, students.length);
             })
             .fail(function(xhr, status, error) {
@@ -526,7 +589,7 @@ $(document).ready(function() {
     }
     
     // Hiển thị danh sách học viên chờ
-    function displayWaitingStudents(students, rootId) {
+    function displayWaitingStudents(students, rootId, isParent = false) {
         // Kiểm tra và đảm bảo students là array
         if (!Array.isArray(students)) {
             console.warn('Students is not an array:', students);
@@ -534,17 +597,32 @@ $(document).ready(function() {
         }
         
         if (students.length === 0) {
+            const emptyMessage = isParent ? 
+                'Không có học viên nào đang chờ trong khóa học này và các khóa con' :
+                'Không có học viên nào đang chờ trong khóa học này';
+                
             $(`#waiting-students-container-${rootId}`).html(`
                 <div class="empty-state">
                     <i class="fas fa-user-check"></i>
                     <h5>Không có học viên chờ</h5>
-                    <p class="text-muted">Không có học viên nào đang chờ trong khóa học này</p>
+                    <p class="text-muted">${emptyMessage}</p>
+                    ${isParent ? '<p class="text-info small"><i class="fas fa-info-circle"></i> Đã kiểm tra tất cả khóa con</p>' : ''}
                 </div>
             `);
             return;
         }
         
+        // Thêm thông báo mô tả
         let html = '';
+        if (isParent) {
+            html += `
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    <strong>Đang hiển thị:</strong> Tất cả học viên đang chờ từ khóa học này và các khóa con
+                    <br><small class="text-muted">Bao gồm ${students.length} học viên từ các khóa con khác nhau</small>
+                </div>
+            `;
+        }
         
         students.forEach(function(student) {
             html += `
@@ -567,6 +645,9 @@ $(document).ready(function() {
                                 <div class="col-md-6">
                                     <small class="text-muted">
                                         <i class="fas fa-calendar"></i> Đăng ký: ${student.request_date}
+                                    </small>
+                                    <br><small class="text-primary">
+                                        <i class="fas fa-graduation-cap"></i> ${student.course_name}
                                     </small>
                                     ${student.notes ? `<br><small class="text-muted"><i class="fas fa-sticky-note"></i> ${student.notes}</small>` : ''}
                                 </div>
@@ -782,125 +863,11 @@ $(document).ready(function() {
         // Xử lý xem chi tiết học viên
     $(document).on('click', '.view-student-detail', function() {
         const studentId = $(this).data('student-id');
-        $('#student-loading').show();
-        $('#student-details').hide();
-        $('#viewStudentModal').modal('show');
         
-        // Load chi tiết học viên
-        loadStudentDetails(studentId);
+        // Sử dụng function từ student-list.js
+        showStudentDetails(studentId);
     });
-    
-    // Load chi tiết học viên
-    function loadStudentDetails(studentId) {
-        $.ajax({
-            url: `/api/students/${studentId}/details`,
-            method: 'GET',
-            headers: {
-                'X-Requested-With': 'XMLHttpRequest',
-                'Accept': 'application/json'
-            }
-        })
-        .done(function(response) {
-            $('#student-loading').hide();
-            
-            if (response.success && response.student) {
-                const student = response.student;
-                const enrollments = response.enrollments || [];
-                
-                let enrollmentHistory = '';
-                if (enrollments.length > 0) {
-                    enrollmentHistory = enrollments.map(enrollment => `
-                        <tr>
-                            <td>${enrollment.course_name}</td>
-                            <td><span class="badge bg-${getStatusColor(enrollment.status)}">${getStatusText(enrollment.status)}</span></td>
-                            <td>${enrollment.enrollment_date}</td>
-                            <td>${enrollment.final_fee}</td>
-                        </tr>
-                    `).join('');
-                } else {
-                    enrollmentHistory = '<tr><td colspan="4" class="text-center text-muted">Chưa có lịch sử ghi danh</td></tr>';
-                }
-                
-                $('#student-details').html(`
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="card mb-3">
-                                <div class="card-header bg-primary text-white">
-                                    <h6 class="mb-0"><i class="fas fa-user"></i> Thông tin cá nhân</h6>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm table-borderless">
-                                        <tr><th width="40%">Họ tên:</th><td><strong>${student.full_name}</strong></td></tr>
-                                        <tr><th>Số điện thoại:</th><td>${student.phone}</td></tr>
-                                        <tr><th>Email:</th><td>${student.email || 'Chưa có'}</td></tr>
-                                        <tr><th>Ngày sinh:</th><td>${student.date_of_birth || 'Chưa có'}</td></tr>
-                                        <tr><th>Địa chỉ:</th><td>${student.address || 'Chưa có'}</td></tr>
-                                        <tr><th>Ngày tạo:</th><td>${student.created_at}</td></tr>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="card mb-3">
-                                <div class="card-header bg-info text-white">
-                                    <h6 class="mb-0"><i class="fas fa-chart-line"></i> Thống kê</h6>
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm table-borderless">
-                                        <tr><th width="60%">Tổng số khóa đã đăng ký:</th><td><strong>${response.stats.total_enrollments}</strong></td></tr>
-                                        <tr><th>Đang học:</th><td><span class="badge bg-success">${response.stats.active_count}</span></td></tr>
-                                        <tr><th>Đang chờ:</th><td><span class="badge bg-warning">${response.stats.waiting_count}</span></td></tr>
-                                        <tr><th>Đã hoàn thành:</th><td><span class="badge bg-primary">${response.stats.completed_count}</span></td></tr>
-                                        <tr><th>Tổng học phí đã đóng:</th><td><strong class="text-success">${response.stats.total_paid}</strong></td></tr>
-                                        <tr><th>Còn nợ:</th><td><strong class="text-danger">${response.stats.total_unpaid}</strong></td></tr>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="card">
-                        <div class="card-header bg-secondary text-white">
-                            <h6 class="mb-0"><i class="fas fa-history"></i> Lịch sử ghi danh</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-sm table-hover">
-                                    <thead class="table-light">
-                                        <tr>
-                                            <th>Khóa học</th>
-                                            <th>Trạng thái</th>
-                                            <th>Ngày đăng ký</th>
-                                            <th>Học phí</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        ${enrollmentHistory}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                `).show();
-            } else {
-                $('#student-details').html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        Không thể tải thông tin học viên
-                    </div>
-                `).show();
-            }
-        })
-        .fail(function() {
-            $('#student-loading').hide();
-            $('#student-details').html(`
-                <div class="alert alert-danger">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    Có lỗi xảy ra khi tải thông tin học viên
-                </div>
-            `).show();
-        });
-    }
+
     
     // Helper functions
     function getStatusColor(status) {
@@ -1002,7 +969,7 @@ $(document).ready(function() {
         $('#addStudentToWaitingModal').modal('show');
     });
     
-    // Khởi tạo Select2 cho khóa học với AJAX search (chỉ lấy khóa đang học)
+    // Khởi tạo Select2 cho khóa học với AJAX search (tất cả khóa học hoạt động)
     function initWaitingCourseSelect2() {
         $('#waiting-course-select').select2({
             theme: 'bootstrap-5',
@@ -1012,7 +979,7 @@ $(document).ready(function() {
             width: '100%',
             minimumInputLength: 0,
             ajax: {
-                url: '/api/course-items/search-active', // API mới chỉ lấy khóa học đang học
+                url: '/api/course-items/search', // API tìm kiếm tất cả khóa học
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
@@ -1029,8 +996,7 @@ $(document).ready(function() {
                                     id: course.id,
                                     text: course.name + (course.path ? ' (' + course.path + ')' : ''),
                                     fee: course.fee || 0,
-                                    status: course.status,
-                                    status_label: course.status_label
+                                    is_leaf: course.is_leaf
                                 };
                             })
                         };
@@ -1172,7 +1138,7 @@ $(document).ready(function() {
                 course_item_id: courseId,
                 status: 'waiting',
                 notes: notes,
-                enrollment_date: new Date().toISOString().split('T')[0]
+                enrollment_date: getCurrentDate()
             }
         })
         .done(function(response) {
@@ -1232,6 +1198,59 @@ $(document).ready(function() {
             }
         });
     });
+    
+    // ========== HELPER FUNCTIONS ==========
+    
+    // Format giới tính
+    function formatGender(gender) {
+        switch (gender) {
+            case 'male': return 'Nam';
+            case 'female': return 'Nữ';
+            case 'other': return 'Khác';
+            default: return 'Chưa có';
+        }
+    }
+    
+    // Get region name
+    function getRegionName(region) {
+        switch (region) {
+            case 'north': return 'Miền Bắc';
+            case 'central': return 'Miền Trung';
+            case 'south': return 'Miền Nam';
+            default: return region;
+        }
+    }
+    
+    // Get enrollment status badge
+    function getEnrollmentStatusBadge(status) {
+        switch (status) {
+            case 'active':
+                return '<span class="badge bg-success">Đang học</span>';
+            case 'waiting':
+                return '<span class="badge bg-warning">Danh sách chờ</span>';
+            case 'completed':
+                return '<span class="badge bg-primary">Hoàn thành</span>';
+            case 'cancelled':
+                return '<span class="badge bg-danger">Đã hủy</span>';
+            default:
+                return '<span class="badge bg-secondary">' + status + '</span>';
+        }
+    }
+    
+    // Format currency
+    function formatCurrency(amount) {
+        if (!amount) return '0';
+        return new Intl.NumberFormat('vi-VN').format(amount);
+    }
+    
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        if (window.toastr && toastr[type]) {
+            toastr[type](message);
+        } else {
+            alert(message);
+        }
+    }
 });
 </script>
 @endpush 

@@ -17,6 +17,7 @@ class Student extends Model
         'gender',
         'email',
         'phone',
+        'address',
         'province_id',
         'current_workplace',
         'accounting_experience_years',
@@ -24,8 +25,11 @@ class Student extends Model
         'notes',
         'hard_copy_documents',
         'education_level',
+        'workplace',
+        'experience_years',
         'place_of_birth',
         'nation',
+        'user_note_id'
     ];
 
     /**

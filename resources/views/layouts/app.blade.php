@@ -921,6 +921,8 @@
 
     <!-- Các scripts cần thiết -->
     <script src="{{ asset('js/app.js') }}"></script>
+    <!-- Date utilities cho format dd/mm/yyyy -->
+    <script src="{{ asset('js/date-utils.js') }}"></script>
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
 

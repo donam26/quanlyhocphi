@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Services\PaymentService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use App\Rules\DateDDMMYYYY;
 
 class PaymentController extends Controller
 {
@@ -103,7 +104,7 @@ class PaymentController extends Controller
         $validated = $request->validate([
             'enrollment_id' => 'required|exists:enrollments,id',
             'amount' => 'required|numeric|min:1000',
-            'payment_date' => 'required|date',
+            'payment_date' => ['required', new DateDDMMYYYY],
             'payment_method' => 'required|in:cash,bank_transfer,card,qr_code,sepay,other',
             'notes' => 'nullable|string',
             'status' => 'required|in:pending,confirmed'
@@ -134,7 +135,7 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'amount' => 'required|numeric|min:1000',
-            'payment_date' => 'required|date',
+            'payment_date' => ['required', new DateDDMMYYYY],
             'payment_method' => 'required|in:cash,bank_transfer,card,qr_code,sepay,other',
             'notes' => 'nullable|string',
             'status' => 'required|in:pending,confirmed,cancelled,refunded'

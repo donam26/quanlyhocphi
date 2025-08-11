@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use App\Services\StudentService;
 use App\Enums\EnrollmentStatus;
+use App\Rules\DateDDMMYYYY;
 use Illuminate\Http\Request;
 
 class StudentController extends Controller
@@ -44,7 +45,7 @@ class StudentController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'date_of_birth' => 'required|date',
+            'date_of_birth' => ['required', new DateDDMMYYYY],
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => 'required|string|unique:students,phone',
@@ -166,7 +167,7 @@ class StudentController extends Controller
                 $enrollmentHistory[] = [
                     'course_name' => $enrollment->courseItem->name,
                     'status' => $enrollment->status,
-                    'enrollment_date' => $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A',
+                    'enrollment_date' => $enrollment->formatted_enrollment_date ?: 'N/A',
                     'final_fee' => number_format($enrollment->final_fee) . ' VNĐ'
                 ];
             }
@@ -177,7 +178,7 @@ class StudentController extends Controller
                     'full_name' => $student->full_name,
                     'phone' => $student->phone,
                     'email' => $student->email,
-                    'date_of_birth' => $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : null,
+                    'date_of_birth' => $student->formatted_date_of_birth,
                     'address' => $student->address,
                     'created_at' => $student->created_at->format('d/m/Y H:i')
                 ],

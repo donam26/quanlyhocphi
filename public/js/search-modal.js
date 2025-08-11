@@ -422,8 +422,7 @@ class SearchModalSystem {
 
     formatDate(dateString) {
         if (!dateString) return 'Chưa cập nhật';
-        const date = new Date(dateString);
-        return date.toLocaleDateString('vi-VN');
+        return window.formatDate(dateString);
     }
 
     getGenderText(gender) {

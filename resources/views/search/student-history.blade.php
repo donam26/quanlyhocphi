@@ -53,7 +53,7 @@
                             </tr>
                             <tr>
                                 <th>Ngày sinh:</th>
-                                <td>{{ $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : 'Không có' }}</td>
+                                <td>{{ $student->formatted_date_of_birth ?: 'Không có' }}</td>
                             </tr>
                             <tr>
                                 <th>Nơi công tác:</th>
@@ -187,7 +187,7 @@
                                     @endphp
                                     <tr>
                                         <td>{{ $enrollment->courseItem->name ?? 'N/A' }}</td>
-                                        <td>{{ $enrollment->enrollment_date->format('d/m/Y') }}</td>
+                                        <td>{{ $enrollment->formatted_enrollment_date }}</td>
                                         <td class="text-end">{{ number_format($enrollment->final_fee, 0, ',', '.') }} đ</td>
                                         <td class="text-end">{{ number_format($totalPaid, 0, ',', '.') }} đ</td>
                                         <td class="text-end">{{ number_format($remainingAmount, 0, ',', '.') }} đ</td>
@@ -242,7 +242,7 @@
                                 @forelse($payments as $index => $payment)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
-                                        <td>{{ $payment->payment_date->format('d/m/Y') }}</td>
+                                        <td>{{ $payment->formatted_payment_date }}</td>
                                         <td>{{ $payment->enrollment->courseItem->name ?? 'N/A' }}</td>
                                         <td class="text-end">{{ number_format($payment->amount, 0, ',', '.') }} đ</td>
                                         <td>
@@ -308,7 +308,7 @@
                                 @forelse($attendances as $index => $attendance)
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
-                                        <td>{{ $attendance->attendance_date->format('d/m/Y') }}</td>
+                                        <td>{{ $attendance->attendance_date->format(config('app.date_format', 'd/m/Y')) }}</td>
                                         <td>{{ $attendance->courseItem->name ?? 'N/A' }}</td>
                                         <td>
                                             @if($attendance->status == 'present')
@@ -352,7 +352,7 @@
                                     <tr>
                                         <td>{{ $index + 1 }}</td>
                                         <td>{{ $waitingList->courseItem->name ?? 'N/A' }}</td>
-                                        <td>{{ $waitingList->request_date ? $waitingList->request_date->format('d/m/Y') : $waitingList->enrollment_date->format('d/m/Y') }}</td>
+                                        <td>{{ $waitingList->formatted_request_date ?: $waitingList->formatted_enrollment_date }}</td>
                                         <td>
                                             <span class="badge bg-warning text-dark">Đang chờ</span>
                                         </td>

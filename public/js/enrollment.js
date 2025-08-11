@@ -199,11 +199,8 @@ window.editEnrollment = function(enrollmentId) {
 
             // Format và set ngày ghi danh
             if (enrollment.enrollment_date) {
-                const date = new Date(enrollment.enrollment_date);
-                const year = date.getFullYear();
-                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                const day = date.getDate().toString().padStart(2, '0');
-                $('#edit-enrollment-date').val(`${year}-${month}-${day}`);
+                const dateValue = enrollment.formatted_enrollment_date || formatDate(enrollment.enrollment_date);
+                $('#edit-enrollment-date').val(dateValue);
             } else {
                 $('#edit-enrollment-date').val('');
             }
@@ -412,14 +409,7 @@ function resetCreateButton(isLoading = false) {
     }
 }
 
-// Format date
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = (date.getMonth() + 1).toString().padStart(2, '0');
-    const year = date.getFullYear();
-    return `${day}/${month}/${year}`;
-}
+// formatDate function is now available from date-utils.js
 
 // Lấy badge trạng thái ghi danh
 function getEnrollmentStatusBadge(status) {
@@ -472,8 +462,17 @@ if (typeof window.showToast !== 'function') {
 
 // Alias để backward compatibility
 function showToast(message, type = 'success') {
-    if (typeof window.showToast === 'function') {
+    // Tránh recursive call bằng cách kiểm tra xem có phải đang gọi chính mình không
+    if (typeof window.showToast === 'function' && window.showToast !== showToast) {
         window.showToast(message, type);
+    } else {
+        // Fallback implementation
+        console.log(`Toast ${type}: ${message}`);
+        if (typeof toastr !== 'undefined') {
+            toastr[type === 'error' ? 'error' : type](message);
+        } else if (typeof alert !== 'undefined') {
+            alert(message);
+        }
     }
 }
 

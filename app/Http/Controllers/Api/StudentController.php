@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Student;
 use App\Models\Province;
+use App\Rules\DateDDMMYYYY;
 use App\Models\User;
 use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
@@ -54,7 +55,7 @@ class StudentController extends Controller
         $validated = $request->validate([
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
-            'date_of_birth' => 'nullable|date',
+            'date_of_birth' => ['nullable', new DateDDMMYYYY],
             'place_of_birth' => 'nullable|string|max:255',
             'nation' => 'nullable|string|max:255',
             'gender' => 'nullable|in:male,female,other',
@@ -99,7 +100,7 @@ class StudentController extends Controller
             'last_name' => 'required|string|max:255',
             'place_of_birth' => 'nullable|string|max:255',
             'nation' => 'nullable|string|max:255',
-            'date_of_birth' => 'nullable|date_format:Y-m-d',
+            'date_of_birth' => ['nullable', new DateDDMMYYYY],
             'gender' => 'nullable|in:male,female,other',
             'email' => 'nullable|email|max:255',
             'phone' => ['nullable', 'string', Rule::unique('students')->ignore($student->id)],
@@ -218,9 +219,9 @@ class StudentController extends Controller
             ], 404);
         }
 
-        // Thêm thông tin bổ sung cho mỗi ghi danh
-        foreach ($student->enrollments as $enrollment) {
-            $enrollment->formatted_enrollment_date = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : null;
+                    // Thêm thông tin bổ sung cho mỗi ghi danh
+            foreach ($student->enrollments as $enrollment) {
+                $enrollment->formatted_enrollment_date = $enrollment->formatted_enrollment_date;
             $enrollment->is_fully_paid = $enrollment->getRemainingAmount() <= 0;
             $enrollment->total_paid = $enrollment->getTotalPaidAmount();
             $enrollment->remaining_amount = $enrollment->getRemainingAmount();
@@ -292,7 +293,7 @@ class StudentController extends Controller
                 $enrollmentHistory[] = [
                     'course_name' => $enrollment->courseItem->name,
                     'status' => $enrollment->status,
-                    'enrollment_date' => $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A',
+                    'enrollment_date' => $enrollment->formatted_enrollment_date ?: 'N/A',
                     'final_fee' => number_format($enrollment->final_fee) . ' VNĐ'
                 ];
             }

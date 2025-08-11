@@ -40,39 +40,17 @@ class LearningProgressService
                 continue;
             }
             
-            // Đếm tổng số học viên đã đăng ký khóa học
+            // Đếm tổng số học viên đã đăng ký khóa học (cho hiển thị)
             $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
                 ->where('status', 'enrolled')
                 ->count();
                 
-            // Tính toán số lượng lộ trình đã hoàn thành
-            $completedCount = 0;
+            // Tính toán đơn giản dựa trên field is_completed
             $totalPathways = $learningPaths->count();
+            $completedCount = $learningPaths->where('is_completed', true)->count();
             
-            if ($totalStudents > 0) {
-                // Nếu có học viên đăng ký, tính toán hoàn thành dựa trên tiến độ học viên
-                foreach ($learningPaths as $path) {
-                    // Đếm số học viên đã hoàn thành path này
-                    $pathCompletedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
-                        $query->where('course_item_id', $courseItem->id)
-                            ->where('status', 'enrolled');
-                    })
-                    ->where('learning_path_id', $path->id)
-                    ->where('is_completed', true)
-                    ->count();
-                    
-                    // Một lộ trình được xem là hoàn thành khi tất cả học viên đều hoàn thành
-                    if ($pathCompletedCount >= $totalStudents && $totalStudents > 0) {
-                        $completedCount++;
-                    }
-                }
-                
-                // Tính phần trăm hoàn thành
-                $progressPercentage = $totalPathways > 0 ? round(($completedCount / $totalPathways) * 100) : 0;
-            } else {
-                // Nếu chưa có học viên đăng ký, đánh dấu là chưa hoàn thành (0%)
-                $progressPercentage = 0;
-            }
+            // Tính phần trăm hoàn thành
+            $progressPercentage = $totalPathways > 0 ? round(($completedCount / $totalPathways) * 100) : 0;
             
             // Thêm tất cả khóa học có lộ trình và chưa hoàn thành 100%
             if ($progressPercentage < 100) {
@@ -126,30 +104,16 @@ class LearningProgressService
      */
     public function getCourseProgressData(CourseItem $courseItem)
     {
-        // Lấy danh sách lộ trình học tập của khóa học
+        // Lấy danh sách lộ trình học tập của khóa học với trạng thái completion
         $learningPaths = $courseItem->learningPaths()->orderBy('order')->get();
         
-        // Đếm tổng số học viên đã đăng ký khóa học
-        $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
-            ->where('status', 'enrolled')
-            ->count();
-
-        // Tính toán tiến độ đơn giản - chỉ xác định lộ trình nào đã hoàn thành
+        // Tạo stats đơn giản dựa trên field is_completed
         $pathCompletionStats = [];
         
         foreach ($learningPaths as $path) {
-            // Đếm số học viên đã hoàn thành path này
-            $completedCount = LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
-                $query->where('course_item_id', $courseItem->id)
-                    ->where('status', 'enrolled');
-            })
-            ->where('learning_path_id', $path->id)
-            ->where('is_completed', true)
-            ->count();
-            
             $pathCompletionStats[$path->id] = [
                 'path' => $path,
-                'completed_count' => $completedCount
+                'completed_count' => $path->is_completed ? 1 : 0 // Đơn giản: 1 nếu completed, 0 nếu chưa
             ];
         }
         
@@ -157,7 +121,7 @@ class LearningProgressService
             'courseItem' => $courseItem,
             'learningPaths' => $learningPaths,
             'pathCompletionStats' => $pathCompletionStats,
-            'totalStudents' => $totalStudents
+            'totalStudents' => 0 // Không cần đếm students nữa
         ];
     }
 

@@ -72,9 +72,14 @@ trait Date
         // Chuyển đổi từ định dạng d/m/Y sang Y-m-d
         $parts = explode('/', $value);
         if (count($parts) === 3) {
-            $day = $parts[0];
-            $month = $parts[1];
+            $day = str_pad($parts[0], 2, '0', STR_PAD_LEFT);
+            $month = str_pad($parts[1], 2, '0', STR_PAD_LEFT);
             $year = $parts[2];
+            
+            // Validate các thành phần ngày tháng
+            if (!checkdate((int)$month, (int)$day, (int)$year)) {
+                return null; // Trả về null nếu ngày không hợp lệ
+            }
             
             return sprintf('%s-%s-%s', $year, $month, $day);
         }

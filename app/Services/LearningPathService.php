@@ -59,6 +59,13 @@ class LearningPathService
         return $learningPath;
     }
 
+    public function getLearningPathsByCourse(CourseItem $courseItem)
+    {
+        return LearningPath::where('course_item_id', $courseItem->id)
+                          ->orderBy('order')
+                          ->get();
+    }
+
     public function deleteLearningPath(LearningPath $learningPath)
     {
         DB::beginTransaction();
@@ -93,13 +100,6 @@ class LearningPathService
             DB::rollBack();
             throw $e;
         }
-    }
-
-    public function getLearningPathsByCourse(CourseItem $courseItem)
-    {
-        return LearningPath::where('course_item_id', $courseItem->id)
-            ->orderBy('order')
-            ->get();
     }
 
     public function getLearningPathProgress(LearningPath $learningPath, Student $student = null)

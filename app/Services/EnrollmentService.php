@@ -92,6 +92,12 @@ class EnrollmentService
         try {
             // Tính học phí sau khi giảm giá
             $courseItem = CourseItem::findOrFail($data['course_item_id']);
+            
+            // Kiểm tra khóa học phải có học phí > 0
+            if (!$courseItem->fee || $courseItem->fee <= 0) {
+                throw new \Exception('Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.');
+            }
+            
             $finalFee = $courseItem->fee;
             $discountAmount = 0;
             

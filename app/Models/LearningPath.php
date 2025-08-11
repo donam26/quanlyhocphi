@@ -9,7 +9,7 @@ class LearningPath extends Model
 {
     use HasFactory;
     
-    protected $fillable = ['course_item_id', 'title', 'description', 'order'];
+    protected $fillable = ['course_item_id', 'title', 'description', 'order', 'is_completed'];
     
     public function courseItem()
     {

@@ -184,7 +184,7 @@ class PaymentService
         
         $receipt = [
             'number' => $receiptNumber,
-            'date' => $payment->payment_date->format('d/m/Y'),
+            'date' => $payment->formatted_payment_date,
             'amount' => $payment->amount,
             'payment_method' => $this->getPaymentMethodText($payment->payment_method),
             'student' => $payment->enrollment->student->full_name,
@@ -209,13 +209,13 @@ class PaymentService
         
         $receipt = [
             'number' => $receiptNumber,
-            'date' => now()->format('d/m/Y'),
+            'date' => now()->format(config('app.date_format', 'd/m/Y')),
             'total_amount' => $payments->sum('amount'),
             'payment_count' => $payments->count(),
             'payments' => $payments->map(function($payment) {
                 return [
                     'id' => $payment->id,
-                    'date' => $payment->payment_date->format('d/m/Y'),
+                    'date' => $payment->formatted_payment_date,
                     'amount' => $payment->amount,
                     'payment_method' => $this->getPaymentMethodText($payment->payment_method),
                     'student' => $payment->enrollment->student->full_name,

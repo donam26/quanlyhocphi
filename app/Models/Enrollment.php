@@ -97,6 +97,38 @@ class Enrollment extends Model
     }
 
     /**
+     * Format ngày ghi danh theo định dạng dd/mm/yyyy
+     */
+    public function getFormattedEnrollmentDateAttribute()
+    {
+        return $this->formatDate('enrollment_date');
+    }
+    
+    /**
+     * Format ngày yêu cầu theo định dạng dd/mm/yyyy H:i:s
+     */
+    public function getFormattedRequestDateAttribute()
+    {
+        return $this->formatDateTime('request_date');
+    }
+    
+    /**
+     * Format ngày xác nhận theo định dạng dd/mm/yyyy H:i:s
+     */
+    public function getFormattedConfirmationDateAttribute()
+    {
+        return $this->formatDateTime('confirmation_date');
+    }
+    
+    /**
+     * Chuyển đổi ngày ghi danh từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
+     */
+    public function setEnrollmentDateAttribute($value)
+    {
+        $this->attributes['enrollment_date'] = static::parseDate($value);
+    }
+
+    /**
      * Số tiền còn thiếu
      */
     public function getRemainingAmount()
@@ -162,35 +194,4 @@ class Enrollment extends Model
         return $query->where('status', EnrollmentStatus::WAITING->value);
     }
 
-    /**
-     * Format ngày ghi danh theo định dạng dd/mm/yyyy
-     */
-    public function getFormattedEnrollmentDateAttribute()
-    {
-        return $this->formatDate('enrollment_date');
-    }
-
-    /**
-     * Format ngày yêu cầu theo định dạng dd/mm/yyyy HH:MM
-     */
-    public function getFormattedRequestDateAttribute()
-    {
-        return $this->request_date ? $this->request_date->format('d/m/Y H:i') : null;
-    }
-
-    /**
-     * Format ngày xác nhận theo định dạng dd/mm/yyyy HH:MM
-     */
-    public function getFormattedConfirmationDateAttribute()
-    {
-        return $this->confirmation_date ? $this->confirmation_date->format('d/m/Y H:i') : null;
-    }
-
-    /**
-     * Chuyển đổi ngày ghi danh từ định dạng dd/mm/yyyy sang Y-m-d khi gán giá trị
-     */
-    public function setEnrollmentDateAttribute($value)
-    {
-        $this->attributes['enrollment_date'] = static::parseDate($value);
-    }
 }

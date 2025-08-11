@@ -52,7 +52,7 @@ class SearchService
                 $enrollmentsData[] = [
                     'id' => $enrollment->id,
                     'course_item' => $enrollment->courseItem,
-                    'enrollment_date' => $enrollment->enrollment_date->format('d/m/Y'),
+                    'enrollment_date' => $enrollment->formatted_enrollment_date,
                     'status' => $this->getEnrollmentStatusText($enrollment->status),
                     'final_fee' => $enrollment->final_fee,
                     'total_paid' => $totalPaid,
@@ -74,7 +74,7 @@ class SearchService
                 $waitingListData[] = [
                     'id' => $waitingList->id,
                     'course_item' => $waitingList->courseItem,
-                    'registration_date' => $waitingList->request_date ? $waitingList->request_date->format('d/m/Y') : $waitingList->enrollment_date->format('d/m/Y'),
+                    'registration_date' => $waitingList->formatted_request_date ?: $waitingList->formatted_enrollment_date,
                     'status' => $waitingList->status,
                     'notes' => $waitingList->notes
                 ];

@@ -5,7 +5,8 @@
                 <li>
                     <div class="tree-item level-{{ $child->level }} waiting-course-item {{ $child->active ? 'active' : 'inactive' }}" 
                          data-id="{{ $child->id }}" 
-                         data-course-name="{{ $child->name }}">
+                         data-course-name="{{ $child->name }}"
+                         @if(!$child->is_leaf) title="Click để xem tất cả học viên đang chờ từ khóa này và các khóa con" @endif>
                         @if($child->children && $child->children->count() > 0)
                             <span class="toggle-icon" data-bs-toggle="collapse" data-bs-target="#{{ $tabPrefix ?? '' }}waiting-children-{{ $child->id }}">
                                 <i class="fas fa-minus-circle"></i>

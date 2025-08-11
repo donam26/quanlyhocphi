@@ -36,6 +36,8 @@ Route::prefix('course-items')->group(function () {
     Route::get('/leaf-courses', [CourseItemController::class, 'getLeafCourses']);
     Route::get('/active-leaf-courses', [CourseItemController::class, 'getActiveLeafCourses']);
     Route::get('/{id}', [CourseItemController::class, 'show']);
+    Route::get('/{id}/learning-paths', [CourseItemController::class, 'getLearningPaths']);
+    Route::post('/{id}/learning-paths', [CourseItemController::class, 'saveLearningPaths']);
     Route::post('/', [CourseItemController::class, 'store']);
     Route::put('/{id}', [CourseItemController::class, 'update']);
     Route::delete('/{id}', [CourseItemController::class, 'destroy']);
@@ -105,4 +107,5 @@ Route::prefix('learning-progress')->group(function () {
     Route::post('/update', [LearningProgressController::class, 'updateProgress']);
     Route::post('/update-bulk', [LearningProgressController::class, 'updateBulkProgress']);
     Route::post('/update-path-status', [LearningProgressController::class, 'updatePathStatus']);
+    Route::post('/toggle-path-completion/{pathId}', [LearningProgressController::class, 'togglePathCompletion']);
 });

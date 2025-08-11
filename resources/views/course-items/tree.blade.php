@@ -413,12 +413,104 @@
                     <a id="btn-students" href="#" class="btn btn-info">
                         <i class="fas fa-user-graduate"></i> Học viên
                     </a>
-                 
+                    <button type="button" class="btn btn-success" id="btn-learning-path" style="display: none;">
+                        <i class="fas fa-road"></i> Cài đặt lộ trình
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="btn-view-learning-path" style="display: none;">
+                        <i class="fas fa-road"></i> Lộ trình
+                    </button>
                 </div>
                 <button type="button" class="btn btn-primary" id="btn-edit-from-modal">
                     <i class="fas fa-edit"></i> Chỉnh sửa
                 </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal xem lộ trình -->
+<div class="modal fade" id="viewLearningPathModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-road me-2"></i>Lộ trình học tập
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center" id="view-learning-path-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+                
+                <div id="view-learning-path-content" style="display: none;">
+                    <div class="mb-3">
+                        <p class="fw-bold text-info" id="view-course-name-display"></p>
+                    </div>
+                    
+                    <div class="alert alert-success" id="view-success-message" style="display: none;">
+                        Đã cập nhật tiến độ học tập thành công!
+                    </div>
+                    
+                    <div id="view-paths-list">
+                        <!-- Learning paths will be displayed here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="btn-edit-paths">
+                    <i class="fas fa-edit me-1"></i>Chỉnh sửa
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal cài đặt lộ trình -->
+<div class="modal fade" id="learningPathModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-road me-2"></i>Cài đặt lộ trình học tập
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center" id="learning-path-loading">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Đang tải...</span>
+                    </div>
+                </div>
+                
+                <div id="learning-path-content" style="display: none;">
+                    <form id="learningPathForm">
+                        <div class="mb-3">
+                            <label class="form-label">Khóa học:</label>
+                            <p class="fw-bold text-info" id="course-name-display"></p>
+                        </div>
+                        
+                        <div id="paths-container">
+                            <!-- Dynamic learning paths will be added here -->
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-outline-primary" id="add-new-path">
+                                <i class="fas fa-plus me-1"></i>Thêm lộ trình
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" id="save-learning-paths">
+                    <i class="fas fa-save me-1"></i>Lưu lộ trình
+                </button>
             </div>
         </div>
     </div>
@@ -514,6 +606,92 @@
         </div>
     </div>
 </div>
+@endsection
+
+@section('styles')
+<style>
+    .learning-path-item {
+        margin-bottom: 10px;
+        padding: 15px;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        border: 2px solid transparent;
+        transition: all 0.3s ease;
+        position: relative;
+        overflow: hidden;
+    }
+    .learning-path-item.completed {
+        background-color: #e8f5e9;
+        border-color: #28a745;
+        transform: scale(1.02);
+        box-shadow: 0 4px 8px rgba(40, 167, 69, 0.1);
+    }
+    .learning-path-item.completed::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 5px;
+        height: 100%;
+        background: linear-gradient(to bottom, #28a745, #20c997);
+    }
+    .learning-path-item.completed .learning-path-title {
+        color: #28a745;
+        font-weight: 600;
+    }
+    .learning-path-item.loading {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+    .learning-path-item.loading::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        animation: shimmer 1.5s infinite;
+    }
+    @keyframes shimmer {
+        0% { left: -100%; }
+        100% { left: 100%; }
+    }
+    .form-check-input {
+        width: 22px;
+        height: 22px;
+        margin-top: 2px;
+        cursor: pointer;
+        border: 2px solid #dee2e6;
+        transition: all 0.3s ease;
+    }
+    .form-check-input:checked {
+        background-color: #28a745;
+        border-color: #28a745;
+        box-shadow: 0 0 0 3px rgba(40, 167, 69, 0.2);
+    }
+    .form-check-input:hover {
+        border-color: #28a745;
+        box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+    }
+    .form-check-input:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+    .form-check-label {
+        margin-left: 8px;
+        cursor: pointer;
+        user-select: none;
+    }
+    .completion-status {
+        transition: all 0.3s ease;
+        animation: fadeIn 0.5s ease-in-out;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
 @endsection
 
 @push('scripts')

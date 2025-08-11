@@ -8,6 +8,7 @@ use App\Models\Enrollment;
 use App\Models\Student;
 use App\Services\EnrollmentService;
 use App\Enums\EnrollmentStatus;
+use App\Rules\DateDDMMYYYY;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,7 @@ class EnrollmentController extends Controller
         $validator = Validator::make($request->all(), [
             'student_id' => 'required|exists:students,id',
             'course_item_id' => 'required|exists:course_items,id',
-            'enrollment_date' => 'required|date',
+            'enrollment_date' => ['required', new DateDDMMYYYY],
             'status' => 'required|in:active,waiting,completed,cancelled',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
@@ -40,7 +41,8 @@ class EnrollmentController extends Controller
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'errors' => $validator->errors()->first()
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()->toArray()
             ], 422);
         }
 
@@ -54,6 +56,15 @@ class EnrollmentController extends Controller
                 'success' => false,
                 'message' => 'Học viên này đã đăng ký khóa học này rồi'
             ], 200);
+        }
+
+        // Kiểm tra khóa học phải có học phí > 0
+        $courseItem = CourseItem::find($request->course_item_id);
+        if (!$courseItem->fee || $courseItem->fee <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.'
+            ], 422);
         }
 
         try {
@@ -117,7 +128,7 @@ class EnrollmentController extends Controller
             }])->findOrFail($id);
 
             // Thêm thông tin bổ sung
-            $enrollment->formatted_enrollment_date = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : null;
+            $enrollment->formatted_enrollment_date = $enrollment->formatted_enrollment_date;
             $enrollment->total_paid = $enrollment->getTotalPaidAmount();
             $enrollment->remaining_amount = $enrollment->getRemainingAmount();
             $enrollment->is_fully_paid = $enrollment->isFullyPaid();
@@ -145,26 +156,37 @@ class EnrollmentController extends Controller
             $enrollment = Enrollment::findOrFail($id);
 
             $validator = Validator::make($request->all(), [
-                'enrollment_date' => 'required|date',
+                'enrollment_date' => ['required', new DateDDMMYYYY],
                 'status' => 'required|in:active,waiting,completed,cancelled',
                 'discount_percentage' => 'nullable|numeric|min:0|max:100',
                 'discount_amount' => 'nullable|numeric|min:0',
                 'final_fee' => 'required|numeric|min:0',
                 'notes' => 'nullable|string',
+                'waiting_course_id' => 'nullable|exists:course_items,id',
             ]);
 
             if ($validator->fails()) {
                 return response()->json([
                     'success' => false,
-                    'errors' => $validator->errors()
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()->toArray()
                 ], 422);
             }
 
-            // Cập nhật thông tin
-            $enrollment->update($request->only([
+            // Chuẩn bị dữ liệu cập nhật
+            $updateData = $request->only([
                 'enrollment_date', 'status', 'discount_percentage',
                 'discount_amount', 'final_fee', 'notes'
-            ]));
+            ]);
+            
+            // Xử lý waiting_course_id khi chuyển về danh sách chờ
+            if ($request->status === 'waiting' && $request->waiting_course_id) {
+                $updateData['course_item_id'] = $request->waiting_course_id;
+                Log::info("Enrollment {$id} moved to waiting list for course {$request->waiting_course_id}");
+            }
+            
+            // Cập nhật thông tin
+            $enrollment->update($updateData);
 
             return response()->json([
                 'success' => true,

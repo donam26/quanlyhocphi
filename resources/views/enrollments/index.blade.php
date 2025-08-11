@@ -149,7 +149,7 @@
                         <td>
                             <span class="d-block">{{ $enrollment->courseItem->name }}</span>
                         </td>
-                        <td>{{ $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A' }}</td>
+                        <td>{{ $enrollment->formatted_enrollment_date ?: 'N/A' }}</td>
                         <td>{{ formatCurrency($enrollment->final_fee) }} đ</td>
                         <td>{{ formatCurrency($enrollment->getTotalPaidAmount()) }} đ</td>
                         <td>
@@ -293,7 +293,9 @@
                     
                     <div class="mb-3">
                         <label for="edit-enrollment-date" class="form-label">Ngày ghi danh</label>
-                        <input type="date" class="form-control" id="edit-enrollment-date" name="enrollment_date" required>
+                        <input type="text" class="form-control" id="edit-enrollment-date" name="enrollment_date" required
+                               placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                         <div class="invalid-feedback" id="edit-enrollment-date-error"></div>
                     </div>
                     
@@ -386,7 +388,9 @@
                     
                     <div class="mb-3">
                         <label for="create-enrollment-date" class="form-label">Ngày ghi danh</label>
-                        <input type="date" class="form-control" id="create-enrollment-date" name="enrollment_date" required value="{{ date('Y-m-d') }}">
+                        <input type="text" class="form-control" id="create-enrollment-date" name="enrollment_date" required value="{{ date('d/m/Y') }}"
+                               placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                         <div class="invalid-feedback" id="create-enrollment-date-error"></div>
                     </div>
                     

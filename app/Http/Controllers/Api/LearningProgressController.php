@@ -160,4 +160,47 @@ class LearningProgressController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Toggle trạng thái hoàn thành của một lộ trình học tập cho khóa học
+     */
+    public function togglePathCompletion(Request $request, $pathId)
+    {
+        $validated = $request->validate([
+            'course_id' => 'required|exists:course_items,id',
+            'is_completed' => 'required|boolean'
+        ]);
+        
+        try {
+            $learningPath = LearningPath::findOrFail($pathId);
+            
+            // Kiểm tra path thuộc về khóa học này
+            if ($learningPath->course_item_id != $validated['course_id']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Lộ trình không thuộc về khóa học này'
+                ], 422);
+            }
+            
+            // Cập nhật trạng thái đơn giản
+            $learningPath->is_completed = $validated['is_completed'];
+            $learningPath->save();
+                
+            return response()->json([
+                'success' => true,
+                'message' => $validated['is_completed'] 
+                    ? 'Đã đánh dấu hoàn thành lộ trình học tập!' 
+                    : 'Đã bỏ đánh dấu hoàn thành lộ trình học tập!',
+                'data' => [
+                    'path_id' => $pathId,
+                    'is_completed' => $validated['is_completed']
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 } 

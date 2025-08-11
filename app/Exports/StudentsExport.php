@@ -60,7 +60,28 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                     $headings[] = 'Tỉnh/Thành phố';
                     break;
                 case 'address':
-                    $headings[] = 'Địa chỉ';
+                    $headings[] = 'Địa chỉ cụ thể';
+                    break;
+                case 'current_workplace':
+                    $headings[] = 'Nơi công tác';
+                    break;
+                case 'accounting_experience_years':
+                    $headings[] = 'Kinh nghiệm kế toán (năm)';
+                    break;
+                case 'notes':
+                    $headings[] = 'Ghi chú';
+                    break;
+                case 'hard_copy_documents':
+                    $headings[] = 'Hồ sơ bản cứng';
+                    break;
+                case 'education_level':
+                    $headings[] = 'Bằng cấp';
+                    break;
+                case 'workplace':
+                    $headings[] = 'Nơi làm việc';
+                    break;
+                case 'experience_years':
+                    $headings[] = 'Kinh nghiệm (năm)';
                     break;
                 case 'enrollments':
                     $headings[] = 'Khóa học đã đăng ký';
@@ -93,7 +114,7 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                     $row[] = $student->email ?: '';
                     break;
                 case 'date_of_birth':
-                    $row[] = $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';
+                    $row[] = $student->formatted_date_of_birth;
                     break;
                 case 'place_of_birth':
                     $row[] = $student->place_of_birth ?: '';
@@ -110,7 +131,27 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
                 case 'address':
                     $row[] = $student->address ?: '';
                     break;
-              
+                case 'current_workplace':
+                    $row[] = $student->current_workplace ?: '';
+                    break;
+                case 'accounting_experience_years':
+                    $row[] = $student->accounting_experience_years ?: '';
+                    break;
+                case 'notes':
+                    $row[] = $student->notes ?: '';
+                    break;
+                case 'hard_copy_documents':
+                    $row[] = $this->getHardCopyDocumentsText($student->hard_copy_documents);
+                    break;
+                case 'education_level':
+                    $row[] = $this->getEducationLevelText($student->education_level);
+                    break;
+                case 'workplace':
+                    $row[] = $student->workplace ?: '';
+                    break;
+                case 'experience_years':
+                    $row[] = $student->experience_years ?: '';
+                    break;
                 case 'enrollments':
                     $enrollments = $student->enrollments->pluck('courseItem.name')->filter()->implode(', ');
                     $row[] = $enrollments ?: 'Chưa có khóa học';
@@ -129,5 +170,26 @@ class StudentsExport implements FromCollection, WithHeadings, ShouldAutoSize, Wi
             'other' => 'Khác'
         ];
         return $genderMap[$gender] ?? '';
+    }
+
+    private function getHardCopyDocumentsText($status)
+    {
+        $statusMap = [
+            'submitted' => 'Đã nộp',
+            'not_submitted' => 'Chưa nộp'
+        ];
+        return $statusMap[$status] ?? '';
+    }
+
+    private function getEducationLevelText($level)
+    {
+        $levelMap = [
+            'vocational' => 'Trung cấp',
+            'associate' => 'Cao đẳng',
+            'bachelor' => 'Đại học',
+            'master' => 'Thạc sĩ',
+            'secondary' => 'VB2'
+        ];
+        return $levelMap[$level] ?? '';
     }
 } 

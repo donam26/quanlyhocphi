@@ -112,11 +112,6 @@ window.showStudentDetails = function(studentId) {
                                             title="Chỉnh sửa ghi danh">
                                         <i class="fas fa-edit"></i>
                                     </button>
-                                    <button type="button" class="btn btn-outline-success btn-sm"
-                                            onclick="viewEnrollmentPayments(${enrollment.id})"
-                                            title="Xem thanh toán">
-                                        <i class="fas fa-money-bill"></i>
-                                    </button>
                                     ${enrollment.status !== 'cancelled' ? 
                                         `<button type="button" class="btn btn-outline-danger btn-sm"
                                                 onclick="cancelEnrollmentInPopup(${enrollment.id})"
@@ -197,11 +192,8 @@ window.editStudent = function(studentId) {
             $('#edit-gender').val(student.gender || '');
 
             if (student.date_of_birth) {
-                const date = new Date(student.date_of_birth);
-                const year = date.getFullYear();
-                const month = (date.getMonth() + 1).toString().padStart(2, '0');
-                const day = date.getDate().toString().padStart(2, '0');
-                $('#edit-date-of-birth').val(`${year}-${month}-${day}`);
+                // Sử dụng formatDate để đảm bảo định dạng dd/mm/yyyy
+                $('#edit-date-of-birth').val(student.formatted_date_of_birth || formatDate(student.date_of_birth) || '');
             }
 
             $('#edit-notes').val(student.notes);
@@ -498,6 +490,27 @@ function calculateFinalFee() {
     }
 
     const baseFee = parseFloat(selectedCourse.data('fee')) || 0;
+    
+    // Kiểm tra học phí > 0 trước khi cho phép đăng ký
+    if (baseFee <= 0) {
+        // Hiển thị cảnh báo
+        $('#enroll-course-form').prepend(`
+            <div class="alert alert-warning alert-dismissible fade show" role="alert" id="fee-warning-enroll">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>Lưu ý:</strong> Khóa học "${selectedCourse.text()}" chưa được thiết lập học phí. Không thể đăng ký vào khóa học này.
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `);
+        
+        // Disable submit button
+        $('#enroll-btn').prop('disabled', true).html('<i class="fas fa-ban me-1"></i>Không thể đăng ký');
+        return;
+    } else {
+        // Xóa cảnh báo nếu có và enable button
+        $('#fee-warning-enroll').remove();
+        $('#enroll-btn').prop('disabled', false).html('<i class="fas fa-user-plus me-1"></i> Đăng ký');
+    }
+    
     let finalFee = baseFee;
 
     const discountPercent = parseFloat($('#discount_percentage').val());
@@ -517,6 +530,8 @@ function calculateFinalFee() {
 
 // Thiết lập tính toán học phí
 function setupFeeCalculation() {
+    // Clear previous warnings khi setup
+    $('#fee-warning-enroll').remove();
 
     // Ngăn chặn form submit trực tiếp
     $('#enrollmentForm').on('submit', function(e) {

@@ -78,7 +78,7 @@ window.showCourseDetails = function(courseId) {
     // Kiểm tra modal có tồn tại không
     if ($('#viewCourseModal').length === 0) {
         console.error("Không tìm thấy modal #viewCourseModal");
-        alert("Lỗi: Không tìm thấy modal để hiển thị thông tin khóa học");
+        showToast("Lỗi: Không tìm thấy modal để hiển thị thông tin khóa học", "error");
         return;
     }
     
@@ -88,7 +88,7 @@ window.showCourseDetails = function(courseId) {
         console.log("Modal đã được gọi để hiển thị");
     } catch (error) {
         console.error("Lỗi khi hiển thị modal:", error);
-        alert("Có lỗi khi hiển thị thông tin khóa học");
+        showToast("Có lỗi khi hiển thị thông tin khóa học", "error");
         return;
     }
     
@@ -194,6 +194,9 @@ window.showCourseDetails = function(courseId) {
                 $('#learning-paths-section').hide();
             }
             
+            // Load learning paths để kiểm tra có lộ trình hay không
+            loadCourseLearningPathsStatus(courseId);
+            
             // Ẩn loading và hiển thị nội dung
             $('#course-loading').hide();
             $('#course-details').show();
@@ -237,6 +240,18 @@ $(function() {
     $(document).on('click', '#btn-edit-from-modal', function() {
         $('#viewCourseModal').modal('hide');
         setupEditModal(currentCourseId);
+    });
+
+    // Nút cài đặt lộ trình trong modal chi tiết
+    $(document).on('click', '#btn-learning-path', function() {
+        $('#viewCourseModal').modal('hide');
+        openLearningPathModal(currentCourseId);
+    });
+
+    // Nút xem lộ trình trong modal chi tiết
+    $(document).on('click', '#btn-view-learning-path', function() {
+        // Chỉ hiển thị danh sách lộ trình, không cho chỉnh sửa
+        showLearningPathsList(currentCourseId);
     });
 
     // Delegated handlers for new modal triggers
@@ -739,7 +754,9 @@ function openAddStudentModal(courseId) {
                     <div class="col-md-6">
                       <div class="mb-3">
                         <label for="enrollment_date" class="form-label">Ngày ghi danh <span class="text-danger">*</span></label>
-                        <input type="date" class="form-control" id="enrollment_date" name="enrollment_date" required>
+                        <input type="text" class="form-control" id="enrollment_date" name="enrollment_date" required 
+                               placeholder="dd/mm/yyyy" pattern="\\d{2}/\\d{2}/\\d{4}" 
+                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                       </div>
                     </div>
                     <div class="col-md-6">
@@ -795,14 +812,15 @@ function openAddStudentModal(courseId) {
     $('#addStudentModal').data('course-id', courseId);
     $('#addStudentModal').modal('show');
 
-    // Reset form
+    // Reset form và clear warnings
     $('#addStudentForm')[0].reset();
+    $('#fee-warning').remove(); // Xóa cảnh báo học phí cũ
     $('#addStudentModalLoading').show();
     $('#addStudentForm').hide();
     $('#saveStudentBtn').hide();
 
-    // Đặt ngày ghi danh mặc định là hôm nay
-    $('#enrollment_date').val(new Date().toISOString().substr(0, 10));
+    // Đặt ngày ghi danh mặc định là hôm nay (dd/mm/yyyy)
+    $('#enrollment_date').val(getCurrentDate());
 
     // Khởi tạo select2 cho dropdown học viên
     initAddStudentSelect2();
@@ -894,11 +912,32 @@ function loadCourseInfo(courseId) {
         method: 'GET',
         success: function(response) {
             // API trả về với wrapper success/data
-            if (response.success && response.data && response.data.fee) {
+            if (response.success && response.data) {
                 const baseFee = parseFloat(response.data.fee) || 0;
                 $('#final_fee').val(baseFee);
                 
                 console.log('Loaded course fee:', baseFee, 'for course:', response.data.name);
+                
+                // Kiểm tra học phí > 0
+                if (baseFee <= 0) {
+                    // Hiển thị cảnh báo và disable form
+                    $('#addStudentForm').prepend(`
+                        <div class="alert alert-warning alert-dismissible fade show" role="alert" id="fee-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Lưu ý:</strong> Khóa học "${response.data.name}" chưa được thiết lập học phí. Không thể thêm học viên vào khóa học này.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    `);
+                    
+                    // Disable submit button
+                    $('#saveStudentBtn').prop('disabled', true).html('<i class="fas fa-ban me-1"></i>Không thể thêm học viên');
+                    
+                    return;
+                } else {
+                    // Xóa cảnh báo nếu có
+                    $('#fee-warning').remove();
+                    $('#saveStudentBtn').prop('disabled', false).html('<i class="fas fa-save me-1"></i>Thêm học viên');
+                }
                 
                 // Setup event listeners cho tính toán học phí
                 $('#discount_percentage, #discount_amount').off('input').on('input', function() {
@@ -929,6 +968,19 @@ function loadCourseInfoFromDOM(courseId) {
             $('#final_fee').val(baseFee);
             
             console.log('Loaded course fee from DOM:', baseFee);
+            
+            // Kiểm tra học phí > 0 (fallback từ DOM)
+            if (baseFee <= 0) {
+                $('#addStudentForm').prepend(`
+                    <div class="alert alert-warning alert-dismissible fade show" role="alert" id="fee-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Lưu ý:</strong> Khóa học này chưa được thiết lập học phí. Không thể thêm học viên vào khóa học này.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `);
+                $('#saveStudentBtn').prop('disabled', true).html('<i class="fas fa-ban me-1"></i>Không thể thêm học viên');
+                return;
+            }
             
             $('#discount_percentage, #discount_amount').off('input').on('input', function() {
                 calculateFinalFee(baseFee);
@@ -1044,7 +1096,7 @@ $(document).off('click', '#saveStudentBtn').on('click', '#saveStudentBtn', funct
     
     // Validate
     if (!$('#student_select').val()) {
-        alert('Vui lòng chọn học viên');
+        showToast('Vui lòng chọn học viên', 'warning');
         return;
     }
     
@@ -1091,7 +1143,7 @@ $(document).off('click', '#saveStudentBtn').on('click', '#saveStudentBtn', funct
                 // Hiển thị thông báo thành công
                 showToast('Thêm học viên thành công!', 'success');
             } else {
-                alert(response.message || 'Có lỗi xảy ra khi thêm học viên');
+                showToast(response.message || 'Có lỗi xảy ra khi thêm học viên', 'error');
             }
         },
         error: function(xhr) {
@@ -1105,18 +1157,18 @@ $(document).off('click', '#saveStudentBtn').on('click', '#saveStudentBtn', funct
                     Object.keys(response.errors).forEach(key => {
                         errorMessage += '- ' + response.errors[key][0] + '\n';
                     });
-                    alert(errorMessage);
+                    showToast(errorMessage, 'error');
                 } else if (response && response.message) {
-                    alert(response.message);
+                    showToast(response.message, 'error');
                 } else {
-                    alert('Lỗi validation. Vui lòng kiểm tra lại thông tin.');
+                    showToast('Lỗi validation. Vui lòng kiểm tra lại thông tin.', 'error');
                 }
             } else if (xhr.status === 500) {
                 const response = xhr.responseJSON;
                 const message = response && response.message ? response.message : 'Lỗi server';
-                alert('Lỗi hệ thống: ' + message);
+                showToast('Lỗi hệ thống: ' + message, 'error');
             } else {
-                alert('Có lỗi xảy ra khi thêm học viên. Status: ' + xhr.status);
+                showToast('Có lỗi xảy ra khi thêm học viên. Status: ' + xhr.status, 'error');
             }
         },
         complete: function() {
@@ -1146,15 +1198,26 @@ function openEditEnrollmentModal(enrollmentId){
                   <div class="row g-2">
                     <div class="col-6">
                       <label class="form-label">Ngày ghi danh</label>
-                      <input type="date" class="form-control" name="enrollment_date" required>
+                      <input type="text" class="form-control" name="enrollment_date" required
+                             placeholder="dd/mm/yyyy" pattern="\\d{2}/\\d{2}/\\d{4}"
+                             title="Nhập ngày theo định dạng dd/mm/yyyy">
                     </div>
                     <div class="col-6">
                       <label class="form-label">Trạng thái</label>
-                      <select class="form-select" name="status" required>
+                      <select class="form-select" name="status" required id="ee-status-select">
                         <option value="active">Đang học</option>
                         <option value="waiting">Danh sách chờ</option>
                         <option value="completed">Đã hoàn thành</option>
                         <option value="cancelled">Đã hủy</option>
+                      </select>
+                    </div>
+                  </div>
+                  <!-- Khóa học chờ - chỉ hiển thị khi trạng thái là waiting -->
+                  <div class="row g-2 mt-2" id="ee-waiting-course-row" style="display: none;">
+                    <div class="col-12">
+                      <label class="form-label">Khóa học muốn chuyển về <span class="text-muted">(tùy chọn - để trống sẽ giữ khóa hiện tại)</span></label>
+                      <select class="form-select" name="waiting_course_id" id="ee-waiting-course-select">
+                        <option value="">-- Giữ khóa hiện tại --</option>
                       </select>
                     </div>
                   </div>
@@ -1196,7 +1259,7 @@ function openEditEnrollmentModal(enrollmentId){
         if(!res.success){
             $('#editEnrollLoading').hide();
             $('#editEnrollmentForm').hide();
-            alert(res.message || 'Không tải được thông tin ghi danh');
+            showToast(res.message || 'Không tải được thông tin ghi danh', 'error');
             return;
         }
         const d = res.data;
@@ -1204,17 +1267,18 @@ function openEditEnrollmentModal(enrollmentId){
         $('#ee-student-name').text(d.student ? d.student.full_name : '');
         $('#ee-course-name').text(d.course_item ? d.course_item.name : (d.courseItem ? d.courseItem.name : ''));
 
-        // Chuẩn hoá ngày về YYYY-MM-DD
+        // Format ngày về dd/mm/yyyy cho input text
         let dateVal = '';
         if(d.enrollment_date){
+            // Nếu nhận được formatted date (dd/mm/yyyy) hoặc ISO date
             if(typeof d.enrollment_date === 'string'){
-                dateVal = d.enrollment_date.substring(0,10); // 2025-07-20...
+                dateVal = d.formatted_enrollment_date || formatDate(d.enrollment_date);
             } else if(d.enrollment_date.date){
-                dateVal = d.enrollment_date.date.substring(0,10);
+                dateVal = formatDate(d.enrollment_date.date);
             }
         }
         const $form = $('#editEnrollmentForm');
-        $form.find('[name="enrollment_date"]').val(dateVal || new Date().toISOString().substring(0,10));
+        $form.find('[name="enrollment_date"]').val(dateVal || getCurrentDate());
         $form.find('[name="status"]').val(d.status || 'active');
         $form.find('[name="discount_percentage"]').val(d.discount_percentage || 0);
         $form.find('[name="discount_amount"]').val(d.discount_amount || 0);
@@ -1225,11 +1289,20 @@ function openEditEnrollmentModal(enrollmentId){
         $('#editEnrollmentModal').data('enrollment-id', d.id);
         $('#editEnrollmentModal').data('course-id', (d.course_item_id || (d.courseItem ? d.courseItem.id : null)));
 
+        // Khởi tạo Select2 cho waiting course select
+        initWaitingCourseSelect2ForEdit();
+        
+        // Setup event handler cho status change
+        setupStatusChangeHandler();
+        
+        // Trigger initial status change để hiển thị/ẩn waiting course field
+        $form.find('[name="status"]').trigger('change');
+
         $('#editEnrollLoading').hide();
         $form.show();
     }).fail(function(xhr){
         $('#editEnrollLoading').hide();
-        alert('Lỗi tải dữ liệu: ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Không xác định'));
+        showToast('Lỗi tải dữ liệu: ' + (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Không xác định'), 'error');
     });
 
     // Xử lý lưu
@@ -1239,13 +1312,13 @@ function openEditEnrollmentModal(enrollmentId){
         // Validate form trước khi submit
         const enrollmentDate = $form.find('[name="enrollment_date"]').val();
         if (!enrollmentDate) {
-            alert('Vui lòng chọn ngày ghi danh');
+            showToast('Vui lòng chọn ngày ghi danh', 'warning');
             return;
         }
         
         const finalFee = parseFloat($form.find('[name="final_fee"]').val()) || 0;
         if (finalFee <= 0) {
-            alert('Học phí cuối phải lớn hơn 0');
+            showToast('Học phí cuối phải lớn hơn 0', 'warning');
             return;
         }
         
@@ -1255,7 +1328,8 @@ function openEditEnrollmentModal(enrollmentId){
             discount_percentage: parseFloat($form.find('[name="discount_percentage"]').val()) || 0,
             discount_amount: parseFloat($form.find('[name="discount_amount"]').val()) || 0,
             final_fee: finalFee,
-            notes: $form.find('[name="notes"]').val() || ''
+            notes: $form.find('[name="notes"]').val() || '',
+            waiting_course_id: $form.find('[name="waiting_course_id"]').val() || null
         };
         
         console.log('Saving enrollment with payload:', payload);
@@ -1292,7 +1366,7 @@ function openEditEnrollmentModal(enrollmentId){
                     }
                 } else {
                     const msg = (res && res.message) ? res.message : 'Không thể cập nhật đăng ký';
-                    if(window.toastr && toastr.error){ toastr.error(msg); } else { alert(msg); }
+                    showToast(msg, 'error');
                 }
             },
             error: function(xhr){
@@ -1305,13 +1379,69 @@ function openEditEnrollmentModal(enrollmentId){
                 } else if(xhr.responseJSON && xhr.responseJSON.message){
                     msg = xhr.responseJSON.message;
                 }
-                if(window.toastr && toastr.error){ toastr.error(msg); } else { alert(msg); }
+                showToast(msg, 'error');
             },
             complete: function() {
                 // Reset nút lưu
                 $('#btnSaveEnrollment').prop('disabled', false).html('Lưu');
             }
         });
+    });
+}
+
+// ========== HELPER FUNCTIONS FOR EDIT ENROLLMENT MODAL ==========
+
+// Khởi tạo Select2 cho waiting course select trong edit modal
+function initWaitingCourseSelect2ForEdit() {
+    $('#ee-waiting-course-select').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm kiếm khóa học...',
+        allowClear: true,
+        dropdownParent: $('#editEnrollmentModal'),
+        width: '100%',
+        minimumInputLength: 0,
+        ajax: {
+            url: '/api/course-items/search',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function (response) {
+                if (Array.isArray(response)) {
+                    return {
+                        results: response.map(function(course) {
+                            return {
+                                id: course.id,
+                                text: course.name + (course.path ? ' (' + course.path + ')' : ''),
+                                name: course.name,
+                                path: course.path
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            },
+            cache: true
+        }
+    });
+}
+
+// Setup event handler cho status change
+function setupStatusChangeHandler() {
+    $('#ee-status-select').off('change').on('change', function() {
+        const status = $(this).val();
+        const $waitingRow = $('#ee-waiting-course-row');
+        
+        if (status === 'waiting') {
+            $waitingRow.slideDown();
+        } else {
+            $waitingRow.slideUp();
+            // Reset select2 khi ẩn
+            $('#ee-waiting-course-select').val('').trigger('change');
+        }
     });
 }
 
@@ -1409,17 +1539,387 @@ $(document).on('click', '#btn-save-attendance', function(){
         data: JSON.stringify({ course_item_id: courseId, date, attendances }),
         success: function(res){
             if(res.success){
-                toastr && toastr.success ? toastr.success(res.message || 'Đã lưu điểm danh') : alert(res.message || 'Đã lưu điểm danh');
+                showToast(res.message || 'Đã lưu điểm danh', 'success');
             } else {
-                toastr && toastr.error ? toastr.error(res.message || 'Không thể lưu') : alert(res.message || 'Không thể lưu');
+                showToast(res.message || 'Không thể lưu', 'error');
             }
         },
         error: function(xhr){
             const msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Có lỗi xảy ra';
-            toastr && toastr.error ? toastr.error(msg) : alert(msg);
+            showToast(msg, 'error');
         }
     });
 });
+
+// ========== LEARNING PATH MODAL ==========
+function openLearningPathModal(courseId) {
+    console.log('Opening learning path modal for course:', courseId);
+    
+    // Show modal
+    $('#learningPathModal').modal('show');
+    $('#learning-path-loading').show();
+    $('#learning-path-content').hide();
+    
+    // Load course info and existing learning paths
+    loadLearningPaths(courseId);
+}
+
+function loadLearningPaths(courseId) {
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                // Display course name
+                $('#course-name-display').text(response.course_name || `Khóa học #${courseId}`);
+                
+                // Clear existing paths
+                $('#paths-container').empty();
+                
+                // Add existing paths
+                if (response.paths && response.paths.length > 0) {
+                    response.paths.forEach((path, index) => {
+                        addLearningPathItem(path, index);
+                    });
+                } else {
+                    // Add one empty path by default
+                    addLearningPathItem(null, 0);
+                }
+                
+                $('#learning-path-loading').hide();
+                $('#learning-path-content').show();
+            } else {
+                showToast('Không thể tải thông tin lộ trình: ' + (response.message || 'Lỗi không xác định'), 'error');
+                $('#learningPathModal').modal('hide');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error loading learning paths:', xhr);
+            showToast('Có lỗi xảy ra khi tải lộ trình học tập', 'error');
+            $('#learningPathModal').modal('hide');
+        }
+    });
+}
+
+function addLearningPathItem(pathData = null, index = 0) {
+    const pathItem = `
+        <div class="path-item mb-4 p-3 border rounded" data-index="${index}">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="mb-0">
+                    <i class="fas fa-grip-vertical me-2 text-muted"></i>
+                    Lộ trình ${index + 1}
+                </h6>
+                <button type="button" class="btn btn-outline-danger btn-sm remove-path-btn" ${index === 0 ? 'style="display:none"' : ''}>
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            
+            <input type="hidden" name="paths[${index}][id]" value="${pathData?.id || ''}" class="path-id">
+            
+            <div class="mb-3">
+                <label class="form-label">Tên lộ trình <span class="text-danger">*</span></label>
+                <input type="text" class="form-control path-title" name="paths[${index}][title]" 
+                       value="${pathData?.title || ''}" placeholder="Nhập tên lộ trình..." required>
+            </div>
+            
+            <div class="mb-3">
+                <label class="form-label">Mô tả</label>
+                <textarea class="form-control path-description" name="paths[${index}][description]" 
+                          rows="3" placeholder="Mô tả chi tiết về lộ trình này...">${pathData?.description || ''}</textarea>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Thứ tự</label>
+                    <input type="number" class="form-control path-order" name="paths[${index}][order]" 
+                           value="${pathData?.order || (index + 1)}" min="1" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Trạng thái</label>
+                    <select class="form-select path-required" name="paths[${index}][is_required]">
+                        <option value="1" ${pathData?.is_required !== false ? 'selected' : ''}>Bắt buộc</option>
+                        <option value="0" ${pathData?.is_required === false ? 'selected' : ''}>Tùy chọn</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#paths-container').append(pathItem);
+    updatePathIndexes();
+}
+
+function updatePathIndexes() {
+    $('#paths-container .path-item').each(function(index) {
+        $(this).attr('data-index', index);
+        $(this).find('h6').html(`<i class="fas fa-grip-vertical me-2 text-muted"></i>Lộ trình ${index + 1}`);
+        $(this).find('.path-id').attr('name', `paths[${index}][id]`);
+        $(this).find('.path-title').attr('name', `paths[${index}][title]`);
+        $(this).find('.path-description').attr('name', `paths[${index}][description]`);
+        $(this).find('.path-order').attr('name', `paths[${index}][order]`).val(index + 1);
+        $(this).find('.path-required').attr('name', `paths[${index}][is_required]`);
+        
+        // Hide delete button for first item
+        $(this).find('.remove-path-btn').toggle(index > 0);
+    });
+}
+
+// Event handlers for learning path modal
+$(document).on('click', '#add-new-path', function() {
+    const currentCount = $('#paths-container .path-item').length;
+    addLearningPathItem(null, currentCount);
+});
+
+$(document).on('click', '.remove-path-btn', function() {
+    $(this).closest('.path-item').remove();
+    updatePathIndexes();
+});
+
+$(document).on('click', '#save-learning-paths', function() {
+    const courseId = currentCourseId;
+    const formData = new FormData(document.getElementById('learningPathForm'));
+    
+    // Validate required fields
+    let isValid = true;
+    $('#paths-container .path-title[required]').each(function() {
+        if (!$(this).val().trim()) {
+            $(this).addClass('is-invalid');
+            isValid = false;
+        } else {
+            $(this).removeClass('is-invalid');
+        }
+    });
+    
+    if (!isValid) {
+        showToast('Vui lòng điền đầy đủ thông tin bắt buộc', 'warning');
+        return;
+    }
+    
+    // Disable button
+    $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang lưu...');
+    
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                showToast('Đã lưu lộ trình học tập thành công!', 'success');
+                $('#learningPathModal').modal('hide');
+                
+                // Reload learning paths status để cập nhật nút
+                if (currentCourseId) {
+                    loadCourseLearningPathsStatus(currentCourseId);
+                    
+                    // Cập nhật modal xem lộ trình nếu đang mở
+                    if ($('#viewLearningPathModal').hasClass('show')) {
+                        // Reload modal content to reflect changes
+                        setTimeout(() => {
+                            showLearningPathsList(currentCourseId);
+                        }, 1000);
+                    }
+                }
+            } else {
+                showToast(response.message || 'Có lỗi xảy ra khi lưu lộ trình', 'error');
+            }
+        },
+        error: function(xhr) {
+            console.error('Error saving learning paths:', xhr);
+            if (xhr.status === 422 && xhr.responseJSON?.errors) {
+                let errorMessage = 'Lỗi validation:\n';
+                Object.keys(xhr.responseJSON.errors).forEach(key => {
+                    errorMessage += '- ' + xhr.responseJSON.errors[key][0] + '\n';
+                });
+                showToast(errorMessage, 'error');
+            } else {
+                showToast('Có lỗi xảy ra khi lưu lộ trình học tập', 'error');
+            }
+        },
+        complete: function() {
+            // Reset button
+            $('#save-learning-paths').prop('disabled', false).html('<i class="fas fa-save me-1"></i>Lưu lộ trình');
+        }
+    });
+});
+
+// Load trạng thái lộ trình để hiển thị nút phù hợp
+function loadCourseLearningPathsStatus(courseId) {
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                const hasLearningPaths = response.paths && response.paths.length > 0;
+                
+                if (hasLearningPaths) {
+                    // Có lộ trình → hiện nút "Lộ trình"
+                    $('#btn-learning-path').hide();
+                    $('#btn-view-learning-path').show();
+                } else {
+                    // Chưa có lộ trình → hiện nút "Cài đặt lộ trình"
+                    $('#btn-learning-path').show();
+                    $('#btn-view-learning-path').hide();
+                }
+            } else {
+                // Lỗi hoặc chưa có lộ trình → hiện nút cài đặt
+                $('#btn-learning-path').show();
+                $('#btn-view-learning-path').hide();
+            }
+        },
+        error: function() {
+            // Lỗi → hiện nút cài đặt
+            $('#btn-learning-path').show();
+            $('#btn-view-learning-path').hide();
+        }
+    });
+}
+
+// Hiển thị danh sách lộ trình (chỉ xem)
+function showLearningPathsList(courseId) {
+    // Show modal
+    $('#viewLearningPathModal').modal('show');
+    $('#view-learning-path-loading').show();
+    $('#view-learning-path-content').hide();
+    
+    // Setup edit button
+    $('#btn-edit-paths').off('click').on('click', function() {
+        $('#viewLearningPathModal').modal('hide');
+        openLearningPathModal(courseId);
+    });
+    
+    $.ajax({
+        url: `/api/course-items/${courseId}/learning-paths`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success && response.paths && response.paths.length > 0) {
+                // Display course name
+                $('#view-course-name-display').text(response.course_name || `Khóa học #${courseId}`);
+                
+                let pathsList = '';
+                response.paths.forEach((path, index) => {
+                    // Lấy trạng thái hoàn thành từ API
+                    const isCompleted = path.is_completed || false;
+                    
+                    pathsList += `
+                        <div class="learning-path-item ${isCompleted ? 'completed' : ''} p-3 mb-3 border rounded" id="view-path-item-${path.id}">
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input view-progress-checkbox" 
+                                    id="view-path-${path.id}" 
+                                    data-path-id="${path.id}"
+                                    data-course-id="${courseId}"
+                                    ${isCompleted ? 'checked' : ''}>
+                                <label class="form-check-label" for="view-path-${path.id}">
+                                    <div class="fw-bold learning-path-title">Buổi ${index + 1}</div>
+                                    <div class="text-muted">${path.title}</div>
+                                    ${path.description ? `<div class="text-muted small">${path.description}</div>` : ''}
+
+                                    <div class="text-success completion-status" id="view-status-${path.id}" style="${isCompleted ? '' : 'display: none;'}">
+                                        <i class="fas fa-check-circle me-1"></i> Đã hoàn thành
+                                    </div>
+                                </label>
+                            </div>
+                            <div class="mt-2">
+                                <span class="badge bg-${path.is_required ? 'warning' : 'secondary'}">
+                                    ${path.is_required ? 'Bắt buộc' : 'Tùy chọn'}
+                                </span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                // Thêm event listener cho checkbox
+                setTimeout(() => {
+                    $('.view-progress-checkbox').change(function() {
+                        const pathId = $(this).data('path-id');
+                        const courseId = $(this).data('course-id');
+                        const isCompleted = $(this).is(':checked');
+                        const pathItem = $('#view-path-item-' + pathId);
+                        const completionStatus = $('#view-status-' + pathId);
+                        const checkbox = $(this);
+                        
+                        // Disable checkbox để tránh click liên tục
+                        checkbox.prop('disabled', true);
+                        pathItem.addClass('loading');
+                        
+                        // Gọi API để cập nhật
+                        $.ajax({
+                            url: `/api/learning-progress/toggle-path-completion/${pathId}`,
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+                            },
+                            data: JSON.stringify({
+                                course_id: parseInt(courseId),
+                                is_completed: Boolean(isCompleted)
+                            }),
+                            success: function(response) {
+                                if (response.success) {
+                                    // Cập nhật giao diện
+                                    if (isCompleted) {
+                                        pathItem.removeClass('incomplete').addClass('completed');
+                                        completionStatus.show();
+                                    } else {
+                                        pathItem.removeClass('completed').addClass('incomplete');
+                                        completionStatus.hide();
+                                    }
+                                    
+                                    // Hiển thị thông báo
+                                    showToast(response.message, 'success');
+                                } else {
+                                    // Revert checkbox state
+                                    checkbox.prop('checked', !isCompleted);
+                                    showToast(response.message || 'Có lỗi xảy ra', 'error');
+                                }
+                            },
+                            error: function(xhr) {
+                                // Revert checkbox state
+                                checkbox.prop('checked', !isCompleted);
+                                
+                                let errorMessage = 'Có lỗi xảy ra khi cập nhật tiến độ';
+                                if (xhr.responseJSON && xhr.responseJSON.message) {
+                                    errorMessage = xhr.responseJSON.message;
+                                }
+                                showToast(errorMessage, 'error');
+                            },
+                            complete: function() {
+                                // Re-enable checkbox và ẩn loading
+                                checkbox.prop('disabled', false);
+                                pathItem.removeClass('loading');
+                            }
+                        });
+                    });
+                }, 100);
+                
+                $('#view-paths-list').html(pathsList);
+                $('#view-learning-path-loading').hide();
+                $('#view-learning-path-content').show();
+            } else {
+                $('#view-learning-path-loading').hide();
+                $('#view-learning-path-content').html(`
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Khóa học này chưa có lộ trình học tập.
+                    </div>
+                `).show();
+            }
+        },
+        error: function() {
+            $('#view-learning-path-loading').hide();
+            $('#view-learning-path-content').html(`
+                <div class="alert alert-danger">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Có lỗi xảy ra khi tải lộ trình học tập.
+                </div>
+            `).show();
+        }
+    });
+}
 
 // Placeholder: mở modal thanh toán theo khoá
 function openPaymentsModal(courseId){
@@ -1474,7 +1974,9 @@ function openEditStudentModal(studentId) {
 
                                     <div class="col-md-6 mb-3">
                                         <label class="form-label">Ngày sinh</label>
-                                        <input type="date" name="date_of_birth" id="edit-date-of-birth" class="form-control">
+                                        <input type="text" name="date_of_birth" id="edit-date-of-birth" class="form-control" 
+                                               placeholder="dd/mm/yyyy" pattern="\\d{2}/\\d{2}/\\d{4}" 
+                                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                                         <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
                                     </div>
 
@@ -1615,7 +2117,7 @@ function openEditStudentModal(studentId) {
                 $('#edit-first-name').val(student.first_name || '');
                 $('#edit-name').val(student.last_name || '');
                 $('#edit-phone').val(student.phone || '');
-                $('#edit-date-of-birth').val(student.date_of_birth || '');
+                $('#edit-date-of-birth').val(student.formatted_date_of_birth || formatDate(student.date_of_birth) || '');
                 $('#edit-email').val(student.email || '');
                 $('#edit-gender').val(student.gender || '');
                 $('#edit-address').val(student.address || '');
@@ -1638,12 +2140,12 @@ function openEditStudentModal(studentId) {
                     $('#edit-first-name').focus();
                 }, 200);
             } else {
-                alert('Không thể tải thông tin học viên: ' + (response.message || 'Lỗi không xác định'));
+                showToast('Không thể tải thông tin học viên: ' + (response.message || 'Lỗi không xác định'), 'error');
                 $('#editStudentModal').modal('hide');
             }
         },
         error: function(xhr) {
-            alert('Có lỗi xảy ra khi tải thông tin học viên');
+            showToast('Có lỗi xảy ra khi tải thông tin học viên', 'error');
             $('#editStudentModal').modal('hide');
         }
     });
@@ -1696,7 +2198,7 @@ function openEditStudentModal(studentId) {
                     if (window.toastr && toastr.error) {
                         toastr.error(response.message || 'Có lỗi xảy ra!');
                     } else {
-                        alert(response.message || 'Có lỗi xảy ra!');
+                        showToast(response.message || 'Có lỗi xảy ra!', 'error');
                     }
                 }
             },
@@ -1712,13 +2214,13 @@ function openEditStudentModal(studentId) {
                     if (window.toastr && toastr.error) {
                         toastr.error('Vui lòng kiểm tra lại thông tin!');
                     } else {
-                        alert('Vui lòng kiểm tra lại thông tin!');
+                        showToast('Vui lòng kiểm tra lại thông tin!', 'warning');
                     }
                 } else {
                     if (window.toastr && toastr.error) {
                         toastr.error('Có lỗi xảy ra khi cập nhật học viên!');
                     } else {
-                        alert('Có lỗi xảy ra khi cập nhật học viên!');
+                        showToast('Có lỗi xảy ra khi cập nhật học viên!', 'error');
                     }
                 }
             },
@@ -2052,7 +2554,7 @@ function openImportExcelModal(courseId) {
                     if (window.toastr && toastr.error) {
                         toastr.error('Vui lòng kiểm tra lại thông tin!');
                     } else {
-                        alert('Vui lòng kiểm tra lại thông tin!');
+                        showToast('Vui lòng kiểm tra lại thông tin!', 'warning');
                     }
                 } else {
                     const message = xhr.responseJSON && xhr.responseJSON.message 
@@ -2062,7 +2564,7 @@ function openImportExcelModal(courseId) {
                     if (window.toastr && toastr.error) {
                         toastr.error(message);
                     } else {
-                        alert(message);
+                        showToast(message, 'error');
                     }
                 }
             },
@@ -2117,7 +2619,7 @@ $(document).on('click', '.toggle-course-status', function(e) {
                 if (window.toastr && toastr.success) {
                     toastr.success(response.message);
                 } else {
-                    alert(response.message);
+                    showToast(response.message, 'success');
                 }
                 
                 // Cập nhật UI
@@ -2143,7 +2645,7 @@ $(document).on('click', '.toggle-course-status', function(e) {
                 if (window.toastr && toastr.error) {
                     toastr.error(response.message);
                 } else {
-                    alert('Lỗi: ' + response.message);
+                    showToast('Lỗi: ' + response.message, 'error');
                 }
             }
         },
@@ -2158,7 +2660,7 @@ $(document).on('click', '.toggle-course-status', function(e) {
             if (window.toastr && toastr.error) {
                 toastr.error(errorMsg);
             } else {
-                alert('Lỗi: ' + errorMsg);
+                showToast('Lỗi: ' + errorMsg, 'error');
             }
         },
         complete: function() {
@@ -2189,7 +2691,7 @@ function completeCourse(courseId) {
                 if (window.toastr && toastr.success) {
                     toastr.success(response.message);
                 } else {
-                    alert(response.message);
+                    showToast(response.message, 'success');
                 }
                 
                 // Refresh trang hoặc cập nhật UI
@@ -2198,7 +2700,7 @@ function completeCourse(courseId) {
                 if (window.toastr && toastr.error) {
                     toastr.error(response.message);
                 } else {
-                    alert('Lỗi: ' + response.message);
+                    showToast('Lỗi: ' + response.message, 'error');
                 }
             }
         },
@@ -2213,7 +2715,7 @@ function completeCourse(courseId) {
             if (window.toastr && toastr.error) {
                 toastr.error(errorMsg);
             } else {
-                alert('Lỗi: ' + errorMsg);
+                showToast('Lỗi: ' + errorMsg, 'error');
             }
         }
     });
@@ -2237,7 +2739,7 @@ function reopenCourse(courseId) {
                 if (window.toastr && toastr.success) {
                     toastr.success(response.message);
                 } else {
-                    alert(response.message);
+                    showToast(response.message, 'success');
                 }
                 
                 // Refresh trang hoặc cập nhật UI
@@ -2246,7 +2748,7 @@ function reopenCourse(courseId) {
                 if (window.toastr && toastr.error) {
                     toastr.error(response.message);
                 } else {
-                    alert('Lỗi: ' + response.message);
+                    showToast('Lỗi: ' + response.message, 'error');
                 }
             }
         },
@@ -2261,7 +2763,7 @@ function reopenCourse(courseId) {
             if (window.toastr && toastr.error) {
                 toastr.error(errorMsg);
             } else {
-                alert('Lỗi: ' + errorMsg);
+                showToast('Lỗi: ' + errorMsg, 'error');
             }
         }
     });

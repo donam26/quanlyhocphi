@@ -50,7 +50,9 @@
 
                                 <div class="mb-3">
                                     <label for="enrollment_date" class="form-label">Ngày ghi danh <span class="text-danger">*</span></label>
-                                    <input type="date" class="form-control" id="enrollment_date" name="enrollment_date" value="{{ old('enrollment_date', date('Y-m-d')) }}" required>
+                                    <input type="text" class="form-control" id="enrollment_date" name="enrollment_date" value="{{ old('enrollment_date', date('d/m/Y')) }}" required
+                                           placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                                           title="Nhập ngày theo định dạng dd/mm/yyyy">
                                 </div>
                                 
                                 <div class="mb-3">
@@ -146,7 +148,9 @@
                                     
                                     <div class="mb-3">
                                         <label for="payment_date" class="form-label">Ngày thanh toán</label>
-                                        <input type="date" class="form-control" id="payment_date" name="payment_date" value="{{ old('payment_date', date('Y-m-d')) }}">
+                                        <input type="text" class="form-control" id="payment_date" name="payment_date" value="{{ old('payment_date', date('d/m/Y')) }}"
+                                               placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                                     </div>
                                     
                                     <div class="mb-3">

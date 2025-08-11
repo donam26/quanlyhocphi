@@ -5,13 +5,23 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\CourseItem;
 use App\Models\Classes;
+use App\Models\LearningPath;
 use App\Enums\EnrollmentStatus;
 use App\Enums\CourseStatus;
+use App\Services\LearningPathService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 
 class CourseItemController extends Controller
 {
+    protected $learningPathService;
+
+    public function __construct(LearningPathService $learningPathService)
+    {
+        $this->learningPathService = $learningPathService;
+    }
+
     /**
      * Lấy danh sách các item cấp cao nhất
      */
@@ -461,5 +471,103 @@ class CourseItemController extends Controller
         }
         
         return implode(' > ', $path);
+    }
+
+    /**
+     * Lấy danh sách lộ trình học tập của khóa học
+     */
+    public function getLearningPaths($id)
+    {
+        try {
+            $courseItem = CourseItem::findOrFail($id);
+            $paths = $this->learningPathService->getLearningPathsByCourse($courseItem);
+            
+            return response()->json([
+                'success' => true,
+                'course_name' => $courseItem->name,
+                'paths' => $paths->map(function($path) {
+                    return [
+                        'id' => $path->id,
+                        'title' => $path->title,
+                        'description' => $path->description,
+                        'order' => $path->order,
+                        'is_required' => $path->is_required,
+                        'is_completed' => $path->is_completed
+                    ];
+                })
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Learning paths get error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tải lộ trình: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lưu lộ trình học tập cho khóa học
+     */
+    public function saveLearningPaths(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'paths' => 'required|array',
+                'paths.*.id' => 'nullable|exists:learning_paths,id',
+                'paths.*.title' => 'required|string|max:255',
+                'paths.*.description' => 'nullable|string',
+                'paths.*.order' => 'required|integer|min:1',
+                'paths.*.is_required' => 'required|boolean'
+            ]);
+
+            $courseItem = CourseItem::findOrFail($id);
+            
+            // Xóa các lộ trình không còn trong danh sách
+            $existingPathIds = collect($validated['paths'])->pluck('id')->filter()->toArray();
+            $currentPaths = $this->learningPathService->getLearningPathsByCourse($courseItem);
+            
+            foreach ($currentPaths as $path) {
+                if (!in_array($path->id, $existingPathIds)) {
+                    $this->learningPathService->deleteLearningPath($path);
+                }
+            }
+                
+            // Cập nhật hoặc tạo mới lộ trình
+            foreach ($validated['paths'] as $pathData) {
+                if (!empty($pathData['id'])) {
+                    // Cập nhật lộ trình hiện có
+                    $learningPath = $this->learningPathService->getLearningPath($pathData['id']);
+                    $this->learningPathService->updateLearningPath($learningPath, [
+                        'title' => $pathData['title'],
+                        'description' => $pathData['description'] ?? null,
+                        'order' => $pathData['order'],
+                        'is_required' => $pathData['is_required']
+                    ]);
+                } else {
+                    // Tạo mới lộ trình
+                    $this->learningPathService->createLearningPath([
+                        'course_item_id' => $courseItem->id,
+                        'title' => $pathData['title'],
+                        'description' => $pathData['description'] ?? null,
+                        'order' => $pathData['order'],
+                        'is_required' => $pathData['is_required']
+                    ]);
+                }
+            }
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã lưu lộ trình học tập thành công!'
+            ]);
+            
+        } catch (\Exception $e) {
+            Log::error('Learning paths save error: ' . $e->getMessage());
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi lưu lộ trình: ' . $e->getMessage()
+            ], 500);
+        }
     }
 } 

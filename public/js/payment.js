@@ -296,7 +296,9 @@ function editPayment(paymentId) {
 
                             <div class="col-md-6 mb-3">
                                 <label for="edit_payment_date" class="form-label">Ngày thanh toán <span class="text-danger">*</span></label>
-                                <input type="date" name="payment_date" id="edit_payment_date" class="form-control" value="${payment.payment_date.split(' ')[0]}" required>
+                                <input type="text" name="payment_date" id="edit_payment_date" class="form-control" value="${formatDate(payment.payment_date)}" required
+                                       placeholder="dd/mm/yyyy" pattern="\\d{2}/\\d{2}/\\d{4}" 
+                                       title="Nhập ngày theo định dạng dd/mm/yyyy">
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -500,11 +502,7 @@ function formatCurrency(amount) {
     return new Intl.NumberFormat('vi-VN').format(amount);
 }
 
-// Định dạng ngày tháng
-function formatDate(dateString) {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN');
-}
+// formatDate function is now available from date-utils.js
 
 // Lấy text trạng thái thanh toán
 function getPaymentStatusText(status) {

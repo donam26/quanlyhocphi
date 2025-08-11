@@ -8,6 +8,7 @@ use App\Services\ImportService;
 use App\Enums\CourseStatus;
 use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
+use App\Rules\DateDDMMYYYY;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -445,7 +446,7 @@ class CourseItemController extends Controller
             foreach ($enrollment->payments as $payment) {
                 if ($payment->notes) {
                     $paymentNotes[] = [
-                        'date' => $payment->payment_date->format('d/m/Y'),
+                        'date' => $payment->formatted_payment_date,
                         'amount' => $payment->amount,
                         'method' => $this->getPaymentMethodText($payment->payment_method),
                         'status' => $payment->status,
@@ -522,7 +523,7 @@ class CourseItemController extends Controller
             foreach ($enrollment->payments as $payment) {
                 if ($payment->notes) {
                     $paymentNotes[] = [
-                        'date' => $payment->payment_date->format('d/m/Y'),
+                        'date' => $payment->formatted_payment_date,
                         'amount' => $payment->amount,
                         'method' => $this->getPaymentMethodText($payment->payment_method),
                         'status' => $payment->status,
@@ -627,15 +628,34 @@ class CourseItemController extends Controller
     {
         $request->validate([
             'student_id' => 'required|exists:students,id',
-            'enrollment_date' => 'required|date',
+            'enrollment_date' => ['required', new DateDDMMYYYY],
             'final_fee' => 'required|numeric|min:0',
             'discount_percentage' => 'nullable|numeric|min:0|max:100',
             'discount_amount' => 'nullable|numeric|min:0',
             'status' => 'required|in:waiting,active,completed,cancelled',
-            'notes' => 'nullable|string'
+            'notes' => 'nullable|string',
+            // Validation cho payment fields (nếu có)
+            'payment_amount' => 'nullable|numeric|min:0',
+            'payment_date' => ['nullable', new DateDDMMYYYY],
+            'payment_method' => 'nullable|string',
+            'payment_notes' => 'nullable|string'
         ]);
 
         $courseItem = $this->courseItemService->getCourseItem($id);
+
+        // Kiểm tra khóa học phải có học phí > 0
+        if (!$courseItem->fee || $courseItem->fee <= 0) {
+            if ($request->expectsJson() || $request->ajax()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.'
+                ], 422);
+            }
+            
+            return back()
+                ->withInput()
+                ->withErrors(['error' => 'Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.']);
+        }
 
         // Kiểm tra xem học viên đã ghi danh vào khóa học này chưa
         $existingEnrollment = \App\Models\Enrollment::where('student_id', $request->student_id)
@@ -743,7 +763,7 @@ class CourseItemController extends Controller
                     'full_name' => $enrollment->student->full_name,
                     'phone' => $enrollment->student->phone,
                     'email' => $enrollment->student->email,
-                    'request_date' => $enrollment->created_at->format('d/m/Y'),
+                    'request_date' => $enrollment->created_at->format(config('app.date_format', 'd/m/Y')),
                     'notes' => $enrollment->notes,
                     'course_name' => $enrollment->courseItem->name,
                     'final_fee' => number_format($enrollment->final_fee)

@@ -82,8 +82,12 @@ class ImportService
                     'province_id' => $provinceId,
                     'address' => isset($mappedHeader['Địa chỉ cụ thể']) ? trim($row[$mappedHeader['Địa chỉ cụ thể']]) : null,
                     'current_workplace' => isset($mappedHeader['Nơi công tác']) ? trim($row[$mappedHeader['Nơi công tác']]) : null,
-                    'accounting_experience_years' => isset($mappedHeader['Kinh nghiệm kế toán']) ? 
-                        (int)$row[$mappedHeader['Kinh nghiệm kế toán']] : null,
+                    'accounting_experience_years' => isset($mappedHeader['Kinh nghiệm kế toán (năm)']) ? 
+                        (int)$row[$mappedHeader['Kinh nghiệm kế toán (năm)']] : null,
+                    'hard_copy_documents' => isset($mappedHeader['Hồ sơ bản cứng']) ? 
+                        $this->mapHardCopyDocuments($row[$mappedHeader['Hồ sơ bản cứng']]) : null,
+                    'education_level' => isset($mappedHeader['Bằng cấp']) ? 
+                        $this->mapEducationLevel($row[$mappedHeader['Bằng cấp']]) : null,
                     'notes' => isset($mappedHeader['Ghi chú']) ? trim($row[$mappedHeader['Ghi chú']]) : null,
                 ];
                 
@@ -92,6 +96,11 @@ class ImportService
                     ['phone' => $data['phone']],
                     $data
                 );
+                
+                // Kiểm tra khóa học phải có học phí > 0
+                if (!$courseItem->fee || $courseItem->fee <= 0) {
+                    continue; // Bỏ qua học viên này và tiếp tục import những học viên khác
+                }
                 
                 // Tính học phí
                 $finalFee = $courseItem->fee;
@@ -141,47 +150,38 @@ class ImportService
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Đặt tiêu đề cột
-        $sheet->setCellValue('A1', 'ho_ten');
-        $sheet->setCellValue('B1', 'so_dien_thoai');
-        $sheet->setCellValue('C1', 'email');
-        $sheet->setCellValue('D1', 'ngay_sinh');
-        $sheet->setCellValue('E1', 'gioi_tinh');
-        $sheet->setCellValue('F1', 'dia_chi');
-        $sheet->setCellValue('G1', 'noi_cong_tac');
-        $sheet->setCellValue('H1', 'kinh_nghiem');
-        $sheet->setCellValue('I1', 'ghi_chu');
+        // Đặt tiêu đề cột (chuẩn hóa theo yêu cầu mới với đầy đủ fields)
+        $headings = [
+            'Họ', 'Tên', 'Số điện thoại', 'Email', 'Ngày sinh', 'Nơi sinh', 'Dân tộc', 
+            'Giới tính', 'Tỉnh/Thành phố', 'Địa chỉ cụ thể', 'Nơi công tác', 
+            'Kinh nghiệm kế toán (năm)', 'Hồ sơ bản cứng', 'Bằng cấp', 'Ghi chú'
+        ];
+        $sheet->fromArray($headings, NULL, 'A1');
         
-        // Thêm dữ liệu mẫu dòng đầu tiên
-        $sheet->setCellValue('A2', 'Nguyễn Văn A');
-        $sheet->setCellValue('B2', '0901234567');
-        $sheet->setCellValue('C2', 'nguyenvana@example.com');
-        $sheet->setCellValue('D2', '01/01/1990');
-        $sheet->setCellValue('E2', 'nam');
-        $sheet->setCellValue('F2', 'Hà Nội');
-        $sheet->setCellValue('G2', 'Công ty ABC');
-        $sheet->setCellValue('H2', '5');
-        $sheet->setCellValue('I2', 'Học viên VIP');
-        
-        // Thêm dữ liệu mẫu dòng thứ hai
-        $sheet->setCellValue('A3', 'Trần Thị B');
-        $sheet->setCellValue('B3', '0909876543');
-        $sheet->setCellValue('C3', 'tranthib@example.com');
-        $sheet->setCellValue('D3', '15/05/1995');
-        $sheet->setCellValue('E3', 'nữ');
-        $sheet->setCellValue('F3', 'TP. Hồ Chí Minh');
-        $sheet->setCellValue('G3', 'Công ty XYZ');
-        $sheet->setCellValue('H3', '3');
-        $sheet->setCellValue('I3', 'Học viên mới');
+        // Thêm dữ liệu mẫu
+        $sampleData = [
+            ['Nguyễn', 'Văn A', '0901234567', 'nguyenvana@example.com', '01/01/1990', 'Hà Nội', 'Kinh', 'Nam', 'Hà Nội', 'Số 1, đường ABC', 'Công ty X', '5', 'Đã nộp', 'Đại học', 'Học viên tiềm năng'],
+            ['Trần', 'Thị B', '0909876543', 'tranthib@example.com', '15/05/1995', 'TP. Hồ Chí Minh', 'Tày', 'Nữ', 'TP. Hồ Chí Minh', 'Số 2, đường XYZ', 'Công ty Y', '3', 'Chưa nộp', 'Cao đẳng', 'Đã liên hệ'],
+        ];
+        $sheet->fromArray($sampleData, NULL, 'A2');
         
         // Định dạng tiêu đề
-        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:I1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DDDDDD');
+        $sheet->getStyle('A1:O1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:O1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DDDDDD');
         
         // Tự động điều chỉnh độ rộng cột
-        foreach(range('A','I') as $col) {
+        foreach(range('A','O') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
+        
+        // Thêm note về format dữ liệu
+        $sheet->setCellValue('A5', 'Lưu ý:');
+        $sheet->setCellValue('B5', '- Ngày sinh định dạng: DD/MM/YYYY');
+        $sheet->setCellValue('B6', '- Giới tính: Nam, Nữ, hoặc để trống');
+        $sheet->setCellValue('B7', '- Hồ sơ bản cứng: Đã nộp, Chưa nộp, hoặc để trống');
+        $sheet->setCellValue('B8', '- Bằng cấp: Đại học, Cao đẳng, Trung cấp, Thạc sĩ, VB2, hoặc để trống');
+        $sheet->setCellValue('B9', '- Các cột bắt buộc: Họ, Tên, Số điện thoại');
+        $sheet->getStyle('A5:B9')->getFont()->setItalic(true)->getSize(9);
         
         // Tạo đối tượng Writer
         $writer = new Xlsx($spreadsheet);
@@ -215,5 +215,61 @@ class ImportService
         }
         
         return 'other';
+    }
+    
+    /**
+     * Chuyển đổi hồ sơ bản cứng từ text sang giá trị trong DB
+     */
+    private function mapHardCopyDocuments($status)
+    {
+        if (empty($status)) {
+            return null;
+        }
+        
+        $status = strtolower(trim($status));
+        
+        if (in_array($status, ['đã nộp', 'da nop', 'submitted', 'nộp rồi', 'có'])) {
+            return 'submitted';
+        }
+        
+        if (in_array($status, ['chưa nộp', 'chua nop', 'not_submitted', 'chưa có', 'chưa', 'không'])) {
+            return 'not_submitted';
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Chuyển đổi bằng cấp từ text sang giá trị trong DB
+     */
+    private function mapEducationLevel($level)
+    {
+        if (empty($level)) {
+            return null;
+        }
+        
+        $level = strtolower(trim($level));
+        
+        if (in_array($level, ['trung cấp', 'trung cap', 'vocational', 'tc'])) {
+            return 'vocational';
+        }
+        
+        if (in_array($level, ['cao đẳng', 'cao dang', 'associate', 'cd'])) {
+            return 'associate';
+        }
+        
+        if (in_array($level, ['đại học', 'dai hoc', 'bachelor', 'đh', 'dh'])) {
+            return 'bachelor';
+        }
+        
+        if (in_array($level, ['thạc sĩ', 'thac si', 'master', 'ths'])) {
+            return 'master';
+        }
+        
+        if (in_array($level, ['vb2', 'secondary', 'văn bằng 2', 'van bang 2'])) {
+            return 'secondary';
+        }
+        
+        return null;
     }
 } 

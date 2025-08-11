@@ -153,7 +153,7 @@
                                         <div class="mb-1">
                                             <span class="fw-medium">{{ $enrollment->courseItem ? $enrollment->courseItem->name : 'N/A' }}</span>
                                             <br>
-                                            <small class="text-muted">{{ $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : 'N/A' }}</small>
+                                            <small class="text-muted">{{ $enrollment->formatted_enrollment_date ?: 'N/A' }}</small>
                                         </div>
                                     @endforeach
                                     @if($student->enrollments->count() > 2)
@@ -380,7 +380,9 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Ngày sinh</label>
-                                <input type="date" name="date_of_birth" id="edit-date-of-birth" class="form-control">
+                                <input type="text" name="date_of_birth" id="edit-date-of-birth" class="form-control" 
+                                       placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                                       title="Nhập ngày theo định dạng dd/mm/yyyy">
                                 <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
                             </div>
 
@@ -548,8 +550,9 @@
                             <div class="col-md-6">
                                 <div class="mb-3">
                                     <label for="enrollment_date" class="form-label">Ngày đăng ký <span class="text-danger">*</span></label>
-                                    <input type="date" name="enrollment_date" id="enrollment_date" class="form-control"
-                                           value="{{ date('Y-m-d') }}" required>
+                                    <input type="text" name="enrollment_date" id="enrollment_date" class="form-control"
+                                           value="{{ date('d/m/Y') }}" required placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                                           title="Nhập ngày theo định dạng dd/mm/yyyy">
                                 </div>
                             </div>
 
@@ -670,7 +673,9 @@
 
                             <div class="col-md-6 mb-3">
                                 <label class="form-label">Ngày sinh</label>
-                                <input type="date" name="date_of_birth" id="create-date-of-birth" class="form-control">
+                                <input type="text" name="date_of_birth" id="create-date-of-birth" class="form-control" 
+                                       placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                                       title="Nhập ngày theo định dạng dd/mm/yyyy">
                                 <div class="invalid-feedback" id="create-date-of-birth-error"></div>
                             </div>
 
@@ -851,11 +856,13 @@
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Từ ngày sinh</label>
-                            <input type="date" name="date_of_birth_from" class="form-control">
+                            <input type="text" name="date_of_birth_from" class="form-control" placeholder="dd/mm/yyyy" 
+                                   pattern="\d{2}/\d{2}/\d{4}" title="Nhập ngày theo định dạng dd/mm/yyyy">
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Đến ngày sinh</label>
-                            <input type="date" name="date_of_birth_to" class="form-control">
+                            <input type="text" name="date_of_birth_to" class="form-control" placeholder="dd/mm/yyyy" 
+                                   pattern="\d{2}/\d{2}/\d{4}" title="Nhập ngày theo định dạng dd/mm/yyyy">
                         </div>
                         <div class="col-12 mb-3">
                             <label class="form-label">Các cột cần xuất</label>
@@ -1376,7 +1383,9 @@ function deleteStudent(studentId, studentName) {
                     
                     <div class="mb-3">
                         <label for="edit-enrollment-date" class="form-label">Ngày ghi danh</label>
-                        <input type="date" class="form-control" id="edit-enrollment-date" name="enrollment_date" required>
+                        <input type="text" class="form-control" id="edit-enrollment-date" name="enrollment_date" required
+                               placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
+                               title="Nhập ngày theo định dạng dd/mm/yyyy">
                         <div class="invalid-feedback" id="edit-enrollment-date-error"></div>
                     </div>
                     
