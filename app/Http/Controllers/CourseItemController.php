@@ -158,7 +158,7 @@ class CourseItemController extends Controller
             // Đếm số học viên đã hoàn thành path này
             $completedCount = \App\Models\LearningPathProgress::whereHas('enrollment', function($query) use ($courseItem) {
                 $query->where('course_item_id', $courseItem->id)
-                    ->where('status', 'enrolled');
+                    ->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value);
             })
             ->where('learning_path_id', $path->id)
             ->where('is_completed', true)

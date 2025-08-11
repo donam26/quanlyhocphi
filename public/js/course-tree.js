@@ -1125,6 +1125,8 @@ $(document).off('click', '#saveStudentBtn').on('click', '#saveStudentBtn', funct
             'X-Requested-With': 'XMLHttpRequest'
         },
         success: function(response) {
+            console.log('Add student response:', response);
+            
             if (response.success) {
                 // Đóng modal
                 $('#addStudentModal').modal('hide');
@@ -1143,7 +1145,14 @@ $(document).off('click', '#saveStudentBtn').on('click', '#saveStudentBtn', funct
                 // Hiển thị thông báo thành công
                 showToast('Thêm học viên thành công!', 'success');
             } else {
+                // Hiển thị thông báo lỗi từ server
+                console.error('Server returned error:', response.message);
                 showToast(response.message || 'Có lỗi xảy ra khi thêm học viên', 'error');
+                
+                // Nếu showToast không hoạt động, sử dụng alert backup
+                if (typeof showToast !== 'function' || !window.showToast) {
+                    alert(response.message || 'Có lỗi xảy ra khi thêm học viên');
+                }
             }
         },
         error: function(xhr) {

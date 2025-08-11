@@ -28,7 +28,7 @@ class ReportService
         
         return [
             'total_count' => $students->count(),
-            'active_count' => Enrollment::where('status', 'enrolled')->distinct('student_id')->count('student_id'),
+            'active_count' => Enrollment::where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)->distinct('student_id')->count('student_id'),
             'recent_count' => Student::where('created_at', '>=', now()->subDays(30))->count(),
             'students' => $students
         ];
@@ -310,11 +310,11 @@ class ReportService
             
         // Số khóa học có học viên đăng ký
         $activeCourses = CourseItem::whereHas('enrollments', function($query) {
-                $query->where('status', 'enrolled');
+                $query->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value);
             })->count();
             
         // Số lượng ghi danh đang chờ thanh toán
-        $pendingPayments = Enrollment::where('status', 'enrolled')
+        $pendingPayments = Enrollment::where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)
             ->whereRaw('(select sum(amount) from payments where payments.enrollment_id = enrollments.id and payments.status = "confirmed") < enrollments.final_fee')
             ->orWhereDoesntHave('payments')
             ->count();
@@ -327,7 +327,7 @@ class ReportService
             'active_courses' => $activeCourses,
             'pending_payments' => $pendingPayments,
             'total_students' => Student::count(),
-            'total_enrollments' => Enrollment::where('status', 'enrolled')->count()
+            'total_enrollments' => Enrollment::where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)->count()
         ];
     }
 

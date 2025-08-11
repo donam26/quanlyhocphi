@@ -164,7 +164,7 @@ class LearningPathController extends Controller
         if (Auth::check() && Auth::user()->is_admin) {
             // Lấy tất cả enrollment của khóa học
             $enrollments = Enrollment::where('course_item_id', $courseItem->id)
-                ->where('status', 'enrolled')
+                ->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)
                 ->get();
             
             foreach ($enrollments as $enrollment) {

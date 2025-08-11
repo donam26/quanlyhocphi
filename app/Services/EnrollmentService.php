@@ -92,12 +92,7 @@ class EnrollmentService
         try {
             // Tính học phí sau khi giảm giá
             $courseItem = CourseItem::findOrFail($data['course_item_id']);
-            
-            // Kiểm tra khóa học phải có học phí > 0
-            if (!$courseItem->fee || $courseItem->fee <= 0) {
-                throw new \Exception('Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.');
-            }
-            
+         
             $finalFee = $courseItem->fee;
             $discountAmount = 0;
             
@@ -295,10 +290,10 @@ class EnrollmentService
             ->where('payments.status', 'confirmed')
             ->sum('payments.amount');
             
-        $totalFees = Enrollment::whereIn('status', [EnrollmentStatus::ACTIVE->value, 'enrolled'])->sum('final_fee');
+        $totalFees = Enrollment::where('status', EnrollmentStatus::ACTIVE->value)->sum('final_fee');
         $totalUnpaid = max(0, $totalFees - $totalPaid);
             
-        $pendingCount = Enrollment::whereIn('status', [EnrollmentStatus::ACTIVE->value, 'enrolled'])
+        $pendingCount = Enrollment::where('status', EnrollmentStatus::ACTIVE->value)
             ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
             ->count();
             

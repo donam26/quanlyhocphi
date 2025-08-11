@@ -280,7 +280,7 @@ class ScheduleService
     public function getEnrollmentCountForCourse($courseItemId)
     {
         return Enrollment::where('course_item_id', $courseItemId)
-                        ->where('status', 'enrolled')
+                        ->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)
                         ->count();
     }
 

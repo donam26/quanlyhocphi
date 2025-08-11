@@ -7,6 +7,7 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Schedule;
 use App\Models\Student;
+use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +57,7 @@ class AttendanceService
         
         // Lấy tất cả ghi danh của các khóa học
         $enrollments = Enrollment::whereIn('course_item_id', $childCourseItemIds)
-            ->where('status', 'enrolled') // Chỉ lấy học viên đang học
+            ->where('status', EnrollmentStatus::ACTIVE->value) // Chỉ lấy học viên đang học
             ->with('student', 'courseItem')
             ->get();
         
@@ -105,7 +106,7 @@ class AttendanceService
         
         // Lấy tất cả ghi danh của các khóa học
         $enrollments = Enrollment::whereIn('course_item_id', $childCourseItemIds)
-            ->where('status', 'enrolled') // Chỉ lấy học viên đang học
+            ->where('status', EnrollmentStatus::ACTIVE->value) // Chỉ lấy học viên đang học
             ->with('student', 'courseItem')
             ->get();
         
@@ -136,7 +137,7 @@ class AttendanceService
     {
         // Lấy tất cả ghi danh cho khóa học
         $enrollments = Enrollment::where('course_item_id', $courseItem->id)
-            ->where('status', 'enrolled')
+            ->where('status', EnrollmentStatus::ACTIVE->value)
             ->get();
         
         DB::beginTransaction();
@@ -255,7 +256,7 @@ class AttendanceService
         
         // Lấy tất cả ghi danh
         $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->where('status', 'enrolled')
+            ->where('status', EnrollmentStatus::ACTIVE->value)
             ->get();
         
         // Lấy tất cả điểm danh trong tháng

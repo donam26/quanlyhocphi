@@ -344,7 +344,7 @@ class ScheduleController extends Controller
 
         // Lấy danh sách học viên đã ghi danh vào khóa học
         $enrollments = Enrollment::where('course_item_id', $schedule->course_item_id)
-            ->where('status', 'enrolled')
+            ->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value)
             ->with(['student'])
             ->get();
 

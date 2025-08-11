@@ -921,6 +921,8 @@
 
     <!-- Các scripts cần thiết -->
     <script src="{{ asset('js/app.js') }}"></script>
+    <!-- Toast utilities -->
+    <script src="{{ asset('js/toast-utils.js') }}"></script>
     <!-- Date utilities cho format dd/mm/yyyy -->
     <script src="{{ asset('js/date-utils.js') }}"></script>
     <!-- SweetAlert2 JS -->

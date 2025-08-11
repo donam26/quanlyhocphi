@@ -7,6 +7,7 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Student;
 use App\Services\AttendanceService;
+use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -206,7 +207,7 @@ class AttendanceController extends Controller
         
         // Lấy danh sách học viên đã ghi danh vào khóa học
         $enrollments = Enrollment::where('course_item_id', $courseItem->id)
-            ->where('status', 'enrolled')
+            ->where('status', EnrollmentStatus::ACTIVE->value)
             ->with(['student'])
             ->get();
 

@@ -58,15 +58,6 @@ class EnrollmentController extends Controller
             ], 200);
         }
 
-        // Kiểm tra khóa học phải có học phí > 0
-        $courseItem = CourseItem::find($request->course_item_id);
-        if (!$courseItem->fee || $courseItem->fee <= 0) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Không thể đăng ký khóa học không có học phí. Khóa học "' . $courseItem->name . '" chưa được thiết lập học phí.'
-            ], 422);
-        }
-
         try {
             DB::beginTransaction();
 

@@ -109,7 +109,7 @@ class StudentService
 
         if (!empty($filters['status'])) {
             $statusMap = [
-                'active' => ['enrolled'],
+                'active' => [\App\Enums\EnrollmentStatus::ACTIVE->value],
                 'completed' => ['completed'],
                 'waiting' => ['waiting'],
                 'inactive' => ['cancelled', 'dropped']

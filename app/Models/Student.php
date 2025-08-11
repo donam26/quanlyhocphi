@@ -155,7 +155,7 @@ class Student extends Model
      */
     public function activeEnrollments()
     {
-        return $this->enrollments()->where('enrollments.status', 'enrolled');
+        return $this->enrollments()->where('enrollments.status', 'active');
     }
 
     /**
@@ -171,7 +171,7 @@ class Student extends Model
      */
     public function getTotalFeeAmount()
     {
-        return $this->enrollments()->where('enrollments.status', 'enrolled')->sum('final_fee');
+        return $this->enrollments()->where('enrollments.status', \App\Enums\EnrollmentStatus::ACTIVE->value)->sum('final_fee');
     }
 
     /**

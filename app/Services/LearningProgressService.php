@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\EnrollmentStatus;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\LearningPath;
@@ -42,7 +43,7 @@ class LearningProgressService
             
             // Đếm tổng số học viên đã đăng ký khóa học (cho hiển thị)
             $totalStudents = Enrollment::where('course_item_id', $courseItem->id)
-                ->where('status', 'enrolled')
+                ->where('status', EnrollmentStatus::ACTIVE->value)
                 ->count();
                 
             // Tính toán đơn giản dựa trên field is_completed
@@ -73,7 +74,7 @@ class LearningProgressService
     public function getStudentProgressData(Student $student, $selectedEnrollmentId = null)
     {
         $enrollments = Enrollment::where('student_id', $student->id)
-                                ->where('status', 'enrolled')
+                                ->where('status', EnrollmentStatus::ACTIVE->value)
                                 ->with('courseItem')
                                 ->get();
         
