@@ -52,6 +52,7 @@ class StudentController extends Controller
             'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
+            'training_specialization' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',

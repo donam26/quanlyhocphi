@@ -282,6 +282,9 @@
                                             <button type="button" class="btn btn-success add-student-to-waiting" data-root-id="{{ $rootItem->id }}">
                                                 <i class="fas fa-plus"></i> Học viên
                                             </button>
+                                            <button type="button" class="btn btn-info import-students-to-waiting" data-root-id="{{ $rootItem->id }}">
+                                                <i class="fas fa-file-excel"></i> Import
+                                            </button>
                                             <button type="button" class="btn btn-outline-primary refresh-waiting-list" data-root-id="{{ $rootItem->id }}">
                                                 <i class="fas fa-sync-alt"></i> Làm mới
                                             </button>
@@ -492,6 +495,69 @@
     </div>
 </div>
 @endsection
+
+<!-- Modal Import Excel cho danh sách chờ -->
+<div class="modal fade" id="importWaitingStudentsModal" tabindex="-1" aria-labelledby="importWaitingStudentsModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importWaitingStudentsModalLabel">Import học viên vào danh sách chờ</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="importWaitingForm" enctype="multipart/form-data">
+                @csrf
+                <input type="hidden" id="import-course-item-id" name="course_item_id">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>Khóa học:</strong> <span id="import-course-name" class="text-primary"></span></label>
+                        <div class="form-text">Học viên sẽ được thêm vào danh sách chờ của khóa học này</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="waiting_excel_file" class="form-label">File Excel <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="waiting_excel_file" name="excel_file" required accept=".xlsx,.xls,.csv">
+                        <div class="form-text">
+                            Chỉ chấp nhận file Excel (.xlsx, .xls) hoặc CSV
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="waiting_notes" class="form-label">Ghi chú cho tất cả học viên</label>
+                        <textarea class="form-control" id="waiting_notes" name="notes" rows="3" 
+                                  placeholder="Ghi chú chung cho tất cả học viên được import (tùy chọn)"></textarea>
+                        <div class="form-text">
+                            Ghi chú này sẽ được thêm vào tất cả học viên được import
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <h6 class="mb-2">Định dạng file Excel:</h6>
+                        <p class="mb-1">- Dòng đầu tiên là tiêu đề cột</p>
+                        <p class="mb-1">- Các cột bắt buộc: <strong>ho_ten</strong>, <strong>so_dien_thoai</strong></p>
+                        <p class="mb-1">- Các cột tùy chọn: email, ngay_sinh (dd/mm/yyyy), gioi_tinh, dia_chi, noi_cong_tac, kinh_nghiem, ghi_chu</p>
+                        <div class="mt-2">
+                            <a href="{{ route('course-items.download-template') }}" class="btn btn-sm btn-success">
+                                <i class="fas fa-download"></i> Tải xuống template
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Lưu ý:</strong> Học viên sẽ được thêm vào danh sách chờ với trạng thái "Chờ xác nhận". 
+                        Bạn có thể xác nhận và chuyển thành đăng ký chính thức sau này.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-file-excel me-1"></i> Import vào danh sách chờ
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 @push('scripts')
 <script src="{{ asset('js/date-utils.js') }}"></script>
@@ -1243,6 +1309,99 @@ $(document).ready(function() {
         return new Intl.NumberFormat('vi-VN').format(amount);
     }
     
+    // Xử lý nút Import Excel
+    $(document).on('click', '.import-students-to-waiting', function() {
+        const rootId = $(this).data('root-id');
+        
+        if (!selectedCourseId) {
+            showToast('Vui lòng chọn một khóa học trước khi import', 'warning');
+            return;
+        }
+        
+        // Lấy tên khóa học đã chọn
+        const courseName = $('#selected-course-name-' + rootId).text();
+        if (courseName === 'Chọn khóa học') {
+            showToast('Vui lòng chọn một khóa học trước khi import', 'warning');
+            return;
+        }
+        
+        // Điền thông tin vào modal
+        $('#import-course-item-id').val(selectedCourseId);
+        $('#import-course-name').text(courseName);
+        
+        // Reset form
+        $('#importWaitingForm')[0].reset();
+        $('#import-course-item-id').val(selectedCourseId); // Đặt lại sau khi reset
+        
+        // Mở modal
+        $('#importWaitingStudentsModal').modal('show');
+    });
+
+    // Xử lý submit form import
+    $('#importWaitingForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        const courseId = $('#import-course-item-id').val();
+        
+        if (!courseId) {
+            showToast('Lỗi: Không xác định được khóa học', 'error');
+            return;
+        }
+        
+        // Disable submit button
+        const submitBtn = $(this).find('button[type="submit"]');
+        const originalText = submitBtn.html();
+        submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-2"></span>Đang import...');
+        
+        $.ajax({
+            url: `/course-items/${courseId}/import-students-to-waiting`,
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Đóng modal
+                    $('#importWaitingStudentsModal').modal('hide');
+                    
+                    // Hiển thị thông báo thành công
+                    showToast(response.message || 'Import thành công!', 'success');
+                    
+                    // Refresh danh sách học viên đang chờ nếu có khóa học được chọn
+                    if (selectedCourseId) {
+                        loadWaitingStudents(selectedCourseId);
+                        
+                        // Cập nhật số lượng chờ
+                        updateWaitingCount(selectedCourseId);
+                    }
+                } else {
+                    showToast(response.message || 'Import thất bại', 'error');
+                }
+            },
+            error: function(xhr) {
+                let errorMessage = 'Có lỗi xảy ra khi import';
+                
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                } else if (xhr.responseJSON && xhr.responseJSON.errors) {
+                    const errors = xhr.responseJSON.errors;
+                    errorMessage = Object.keys(errors).map(key => errors[key].join(', ')).join('\n');
+                }
+                
+                showToast(errorMessage, 'error');
+                console.error('Import error:', xhr.responseJSON);
+            },
+            complete: function() {
+                // Reset submit button
+                submitBtn.prop('disabled', false).html(originalText);
+            }
+        });
+    });
+
     // Show toast notification
     function showToast(message, type = 'info') {
         if (window.toastr && toastr[type]) {

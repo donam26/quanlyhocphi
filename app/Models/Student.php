@@ -25,6 +25,7 @@ class Student extends Model
         'notes',
         'hard_copy_documents',
         'education_level',
+        'training_specialization',
         'workplace',
         'experience_years',
         'place_of_birth',

@@ -475,6 +475,11 @@
                                 <div class="invalid-feedback" id="edit-education-level-error"></div>
                             </div>
 
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Chuyên môn đào tạo</label>
+                                <input type="text" name="training_specialization" id="edit-training-specialization" class="form-control" placeholder="Ví dụ: Kế toán doanh nghiệp, Kế toán tài chính...">
+                                <div class="invalid-feedback" id="edit-training-specialization-error"></div>
+                            </div>
                       
                         </div>
 
@@ -772,7 +777,11 @@
                                 <div class="invalid-feedback" id="create-education-level-error"></div>
                             </div>
 
-
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Chuyên môn đào tạo</label>
+                                <input type="text" name="training_specialization" id="create-training-specialization" class="form-control" placeholder="Ví dụ: Kế toán doanh nghiệp, Kế toán tài chính...">
+                                <div class="invalid-feedback" id="create-training-specialization-error"></div>
+                            </div>
 
                         </div>
 

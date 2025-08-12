@@ -548,6 +548,11 @@ window.SearchModals = {
                 </div>
                 
                 <div class="mb-3">
+                    <label for="training_specialization" class="form-label">Chuyên môn đào tạo</label>
+                    <input type="text" class="form-control" id="training_specialization" name="training_specialization" value="${student.training_specialization || ''}" placeholder="Ví dụ: Kế toán doanh nghiệp, Kế toán tài chính...">
+                </div>
+                
+                <div class="mb-3">
                     <label for="notes" class="form-label">Ghi chú</label>
                     <textarea class="form-control" id="notes" name="notes" rows="3">${student.notes || ''}</textarea>
                 </div>

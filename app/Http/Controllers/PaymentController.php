@@ -12,7 +12,8 @@ use Illuminate\Support\Facades\DB;
 use App\Mail\PaymentReminderMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Log;
-use App\Models\CourseItem; 
+use App\Models\CourseItem;
+use App\Rules\DateDDMMYYYY; 
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
@@ -152,10 +153,12 @@ class PaymentController extends Controller
         try {
             $validated = $request->validate([
                 'enrollment_id' => 'required|exists:enrollments,id',
-                'amount' => 'required|numeric|min:0',
-                'payment_method' => 'required|string',
+                'amount' => 'required|numeric|min:1000',
+                'payment_date' => ['required', new DateDDMMYYYY],
+                'payment_method' => 'required|in:cash,bank_transfer,card,qr_code,sepay,other',
                 'note' => 'nullable|string',
-                'status' => 'nullable|string'
+                'notes' => 'nullable|string', // Support cả 2 field name
+                'status' => 'nullable|in:pending,confirmed,cancelled,refunded'
             ]);
             
             $enrollment = Enrollment::findOrFail($validated['enrollment_id']);
@@ -164,8 +167,9 @@ class PaymentController extends Controller
             $payment = $this->paymentService->createPayment([
                 'enrollment_id' => $validated['enrollment_id'],
                 'amount' => $validated['amount'],
+                'payment_date' => $validated['payment_date'],
                 'payment_method' => $validated['payment_method'],
-                'note' => $validated['note'] ?? '',
+                'notes' => $validated['notes'] ?? $validated['note'] ?? '', // Support cả 2 field name
                 'status' => $validated['status'] ?? 'pending',
                 'created_by' => auth()->id(),
             ]);
@@ -203,7 +207,7 @@ class PaymentController extends Controller
     {
         $validated = $request->validate([
             'amount' => 'required|numeric|min:1000',
-            'payment_date' => 'required|date',
+            'payment_date' => ['required', new DateDDMMYYYY],
             'payment_method' => 'required|in:cash,bank_transfer,card,qr_code,sepay,other',
             'notes' => 'nullable|string',
             'status' => 'required|in:pending,confirmed,cancelled,refunded',

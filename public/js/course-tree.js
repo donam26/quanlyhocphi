@@ -1217,7 +1217,7 @@ function openEditEnrollmentModal(enrollmentId){
                         <option value="active">Đang học</option>
                         <option value="waiting">Danh sách chờ</option>
                         <option value="completed">Đã hoàn thành</option>
-                        <option value="cancelled">Đã hủy</option>
+                        <!-- Ẩn trạng thái "Đã hủy" - sử dụng nút Xóa thay thế -->
                       </select>
                     </div>
                   </div>
@@ -1251,6 +1251,9 @@ function openEditEnrollmentModal(enrollmentId){
                 </form>
               </div>
               <div class="modal-footer">
+                <button type="button" class="btn btn-danger me-auto" id="btnDeleteEnrollment">
+                  <i class="fas fa-times me-1"></i>Xóa
+                </button>
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
                 <button type="button" id="btnSaveEnrollment" class="btn btn-primary">Lưu</button>
               </div>
@@ -1393,6 +1396,125 @@ function openEditEnrollmentModal(enrollmentId){
             complete: function() {
                 // Reset nút lưu
                 $('#btnSaveEnrollment').prop('disabled', false).html('Lưu');
+            }
+        });
+    });
+
+    // Xử lý nút Xóa (Hủy đăng ký)
+    $('#btnDeleteEnrollment').off('click').on('click', function(){
+        const enrollmentId = $('#editEnrollmentModal').data('enrollment-id');
+        const studentName = $('#ee-student-name').text();
+        
+        // Đóng modal chỉnh sửa trước
+        $('#editEnrollmentModal').modal('hide');
+        
+        // Mở modal xác nhận hủy
+        openCancelEnrollmentModal(enrollmentId, studentName);
+    });
+}
+
+// ========== Modal hủy đăng ký ==========
+function openCancelEnrollmentModal(enrollmentId, studentName) {
+    // Tạo modal hủy đăng ký nếu chưa có
+    if($('#cancelEnrollmentModal').length === 0){
+        $('body').append(`
+        <div class="modal fade" id="cancelEnrollmentModal" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title">Hủy đăng ký học viên</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <div class="modal-body">
+                <p>Bạn đang hủy đăng ký của học viên <strong id="cancel-student-name"></strong>.</p>
+                <div class="mb-3">
+                  <label for="cancel-reason" class="form-label">Lý do hủy đăng ký <span class="text-danger">*</span></label>
+                  <textarea class="form-control" id="cancel-reason" rows="3" required 
+                            placeholder="Nhập lý do hủy đăng ký..."></textarea>
+                  <div class="form-text">Lý do sẽ được ghi vào hồ sơ của học viên.</div>
+                </div>
+                <div class="alert alert-danger">
+                  <i class="fas fa-exclamation-triangle me-2"></i>
+                  <strong>Cảnh báo:</strong> Sau khi hủy đăng ký, học viên sẽ không thể tham gia bất kỳ hoạt động nào của khóa học. 
+                  Hành động này có thể được hoàn tác bằng cách chỉnh sửa trạng thái đăng ký sau này.
+                </div>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-danger" id="btnConfirmCancelEnrollment">
+                  <i class="fas fa-times me-1"></i> Hủy đăng ký
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>`);
+    }
+
+    // Hiển thị modal và thiết lập dữ liệu
+    $('#cancelEnrollmentModal').modal('show');
+    $('#cancel-student-name').text(studentName);
+    $('#cancel-reason').val('').focus();
+    
+    // Lưu enrollment ID để sử dụng khi submit
+    $('#cancelEnrollmentModal').data('enrollment-id', enrollmentId);
+
+    // Xử lý nút xác nhận hủy
+    $('#btnConfirmCancelEnrollment').off('click').on('click', function(){
+        const reason = $('#cancel-reason').val().trim();
+        
+        if (!reason) {
+            showToast('Vui lòng nhập lý do hủy đăng ký', 'warning');
+            $('#cancel-reason').focus();
+            return;
+        }
+
+        // Disable nút để tránh click nhiều lần
+        $(this).prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Đang hủy...');
+
+        $.ajax({
+            url: `/api/enrollments/${enrollmentId}/cancel`,
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]') ? document.querySelector('meta[name="csrf-token"]').getAttribute('content') : ''
+            },
+            data: {
+                reason: reason
+            },
+            success: function(res){
+                if(res && res.success){
+                    // Đóng modal hủy
+                    $('#cancelEnrollmentModal').modal('hide');
+                    
+                    // Refresh danh sách học viên nếu đang mở
+                    const cid = $('#studentsModal').data('course-id');
+                    if($('#studentsModal').hasClass('show') && cid){
+                        // Reload nội dung danh sách
+                        openStudentsModal(cid);
+                    }
+                    
+                    // Thông báo thành công
+                    if(window.toastr && toastr.success){
+                        toastr.success(res.message || 'Đã hủy đăng ký thành công');
+                    } else {
+                        showToast(res.message || 'Đã hủy đăng ký thành công', 'success');
+                    }
+                } else {
+                    const msg = (res && res.message) ? res.message : 'Không thể hủy đăng ký';
+                    showToast(msg, 'error');
+                }
+            },
+            error: function(xhr){
+                console.log('Cancel enrollment error:', xhr.responseJSON);
+                let msg = 'Có lỗi xảy ra khi hủy đăng ký';
+                if(xhr.responseJSON && xhr.responseJSON.message){
+                    msg = xhr.responseJSON.message;
+                }
+                showToast(msg, 'error');
+            },
+            complete: function() {
+                // Reset nút
+                $('#btnConfirmCancelEnrollment').prop('disabled', false).html('<i class="fas fa-times me-1"></i> Hủy đăng ký');
             }
         });
     });

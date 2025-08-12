@@ -84,6 +84,12 @@ window.showStudentDetails = function(studentId) {
                 <td>${educationText}</td>
             </tr>`;
 
+            // Hiển thị trường Chuyên môn đào tạo
+            customFieldsHtml += `<tr>
+                <th width="40%">Chuyên môn đào tạo:</th>
+                <td>${student.training_specialization || '-'}</td>
+            </tr>`;
+
          
             customFieldsHtml += '</table>';
 

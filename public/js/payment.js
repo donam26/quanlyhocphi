@@ -343,7 +343,17 @@ function editPayment(paymentId) {
 
 // Lưu thông tin thanh toán đã chỉnh sửa
 function savePayment(paymentId) {
-    const formData = new FormData(document.getElementById('editPaymentForm'));
+    const form = document.getElementById('editPaymentForm');
+    const formData = new FormData(form);
+    
+    // Convert date từ YYYY-MM-DD sang dd/mm/yyyy
+    const paymentDateInput = form.querySelector('[name="payment_date"]');
+    if (paymentDateInput && paymentDateInput.value) {
+        const dateValue = paymentDateInput.value; // YYYY-MM-DD
+        const [year, month, day] = dateValue.split('-');
+        const ddmmyyyy = `${day}/${month}/${year}`;
+        formData.set('payment_date', ddmmyyyy);
+    }
     
     // Hiển thị trạng thái đang lưu
     $('#savePaymentBtn').html('<i class="fas fa-spinner fa-spin"></i> Đang lưu...').prop('disabled', true);
@@ -423,7 +433,17 @@ function printPayment(paymentId) {
 
 // Lưu thanh toán mới
 function saveNewPayment() {
-    const formData = new FormData(document.getElementById('createPaymentForm'));
+    const form = document.getElementById('createPaymentForm');
+    const formData = new FormData(form);
+    
+    // Convert date từ YYYY-MM-DD sang dd/mm/yyyy
+    const paymentDateInput = document.getElementById('payment_date');
+    if (paymentDateInput && paymentDateInput.value) {
+        const dateValue = paymentDateInput.value; // YYYY-MM-DD
+        const [year, month, day] = dateValue.split('-');
+        const ddmmyyyy = `${day}/${month}/${year}`;
+        formData.set('payment_date', ddmmyyyy);
+    }
     
     // Hiển thị trạng thái đang lưu
     $('#saveNewPaymentBtn').html('<i class="fas fa-spinner fa-spin"></i> Đang lưu...').prop('disabled', true);

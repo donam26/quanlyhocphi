@@ -203,7 +203,6 @@
                 <!-- Date selector -->
                 <div class="search-container">
                     <input type="date" id="attendance-date" class="form-control" value="{{ now()->format('Y-m-d') }}">
-                    <span class="search-clear"><i class="fas fa-calendar-alt"></i></span>
                 </div>
             </div>
             
@@ -277,6 +276,9 @@
                                             Điểm danh: <span id="selected-course-name-{{ $rootItem->id }}">Chọn khóa học</span>
                                         </h6>
                                         <div class="btn-group btn-group-sm">
+                                            <button type="button" class="btn btn-info export-attendance" data-root-id="{{ $rootItem->id }}" style="display: none;">
+                                                <i class="fas fa-file-excel"></i> Export Excel
+                                            </button>
                                             <button type="button" class="btn btn-outline-primary refresh-attendance-list" data-root-id="{{ $rootItem->id }}">
                                                 <i class="fas fa-sync-alt"></i> Làm mới
                                             </button>
@@ -528,6 +530,7 @@ $(document).ready(function() {
     function displayAttendanceForm(data, rootId) {
         const course = data.course;
         const students = data.students;
+        const canTakeAttendance = data.can_take_attendance;
         
         if (students.length === 0) {
             $(`#attendance-form-container-${rootId}`).html(`
@@ -551,6 +554,7 @@ $(document).ready(function() {
                         <div class="col-md-8">
                             <h6 class="mb-1">${course.name}</h6>
                             <small class="text-muted">${course.path || ''}</small>
+                            <div class="mt-1">${course.status_badge}</div>
                         </div>
                         <div class="col-md-4 text-end">
                             <span class="badge bg-primary">
@@ -562,9 +566,11 @@ $(document).ready(function() {
                             </span>
                         </div>
                     </div>
+                    ${!canTakeAttendance ? '<div class="alert alert-warning mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Khóa học đã kết thúc. Chỉ có thể xem danh sách học viên, không thể điểm danh.</div>' : ''}
                 </div>
                 
                 <!-- Quick actions -->
+                ${canTakeAttendance ? `
                 <div class="mb-3">
                     <div class="btn-group btn-group-sm" role="group">
                         <button type="button" class="btn btn-success mark-all-status" data-status="present" data-root-id="${rootId}">
@@ -578,6 +584,7 @@ $(document).ready(function() {
                         </button>
                     </div>
                 </div>
+                ` : ''}
 
                 <!-- Attendance Table -->
                 <div class="table-responsive">
@@ -604,7 +611,7 @@ $(document).ready(function() {
                     </td>
                     <td>${student.student_phone || ''}</td>
                     <td>
-                        <select name="attendances[${index}][status]" class="form-select form-select-sm status-select">
+                        <select name="attendances[${index}][status]" class="form-select form-select-sm status-select" ${!canTakeAttendance ? 'disabled' : ''}>
                             <option value="present" ${student.current_status === 'present' ? 'selected' : ''}>Có mặt</option>
                             <option value="absent" ${student.current_status === 'absent' ? 'selected' : ''}>Vắng mặt</option>
                             <option value="late" ${student.current_status === 'late' ? 'selected' : ''}>Đi muộn</option>
@@ -615,7 +622,8 @@ $(document).ready(function() {
                         <input type="text" name="attendances[${index}][notes]" 
                                class="form-control form-control-sm" 
                                placeholder="Ghi chú..."
-                               value="${student.current_notes || ''}">
+                               value="${student.current_notes || ''}"
+                               ${!canTakeAttendance ? 'readonly' : ''}>
                     </td>
                 </tr>
             `;
@@ -627,6 +635,7 @@ $(document).ready(function() {
                 </div>
 
                 <!-- Save Button -->
+                ${canTakeAttendance ? `
                 <div class="d-flex justify-content-between align-items-center mt-3">
                     <div class="text-muted">
                         ${data.attendance_exists ? 
@@ -638,10 +647,20 @@ $(document).ready(function() {
                         <i class="fas fa-save me-1"></i>Lưu điểm danh
                     </button>
                 </div>
+                ` : `
+                <div class="text-center mt-3">
+                    <div class="text-muted">
+                        <i class="fas fa-eye me-1"></i>Chế độ xem - Không thể chỉnh sửa điểm danh
+                    </div>
+                </div>
+                `}
             </form>
         `;
         
         $(`#attendance-form-container-${rootId}`).html(html);
+        
+        // Hiển thị nút Export Excel
+        $(`.export-attendance[data-root-id="${rootId}"]`).show().data('course-id', course.id);
     }
     
     // Cập nhật số lượng học viên
@@ -715,6 +734,21 @@ $(document).ready(function() {
         });
     });
     
+    // Xử lý export Excel
+    $(document).on('click', '.export-attendance', function() {
+        const rootId = $(this).data('root-id');
+        const courseId = $(this).data('course-id');
+        
+        if (!courseId || !selectedCourseId) {
+            showAlert('warning', 'Vui lòng chọn khóa học trước khi export');
+            return;
+        }
+        
+        // Mở trang export trong tab mới (export toàn bộ lịch sử điểm danh)
+        const exportUrl = `/attendance/export?course_id=${courseId}`;
+        window.open(exportUrl, '_blank');
+    });
+
     // Xử lý submit form
     $(document).on('submit', '[id^="attendance-form-"]', function(e) {
         e.preventDefault();

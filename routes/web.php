@@ -57,6 +57,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('course-items/{id}/add-student', [CourseItemController::class, 'addStudentForm'])->name('course-items.add-student');
     Route::post('course-items/{id}/add-student', [CourseItemController::class, 'addStudent'])->name('course-items.store-student');
     Route::post('course-items/{id}/import-students', [CourseItemController::class, 'importStudents'])->name('course-items.import-students');
+    Route::post('course-items/{id}/import-students-to-waiting', [CourseItemController::class, 'importStudentsToWaiting'])->name('course-items.import-students-to-waiting');
     // Thêm route trả về danh sách học viên dạng JSON để hiển thị trong modal ở trang cây khóa học
     Route::get('course-items/{id}/students-json', [CourseItemController::class, 'getStudentsJson'])->name('course-items.students-json');
     Route::resource('course-items', CourseItemController::class)->except(['show']);
@@ -106,6 +107,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('attendance/tree', [AttendanceController::class, 'tree'])->name('attendance.tree');
     Route::get('course-items/{courseItem}/attendance-students', [AttendanceController::class, 'getStudentsForAttendance'])->name('course-items.attendance-students');
     Route::post('attendance/save-from-tree', [AttendanceController::class, 'saveAttendanceFromTree'])->name('attendance.save-from-tree');
+    Route::get('attendance/export', [AttendanceController::class, 'exportAttendance'])->name('attendance.export-excel');
     Route::resource('attendance', AttendanceController::class);
     Route::get('attendance/class/show', [AttendanceController::class, 'showClass'])->name('attendance.show-class');
     Route::get('attendance/student/{student}/report', [AttendanceController::class, 'studentReport'])->name('attendance.student-report');

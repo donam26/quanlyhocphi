@@ -48,6 +48,34 @@ class StudentController extends Controller
     }
 
     /**
+     * Lấy thông tin chi tiết học viên (alias cho show)
+     */
+    public function getInfo($id)
+    {
+        return $this->show($id);
+    }
+
+    /**
+     * Lấy thông tin chi tiết học viên với enrollment
+     */
+    public function getStudentDetails($id)
+    {
+        $student = Student::with(['province', 'enrollments.courseItem', 'enrollments.payments'])->find($id);
+
+        if (!$student) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy học viên'
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $student
+        ]);
+    }
+
+    /**
      * Tạo học viên mới
      */
     public function store(Request $request)
@@ -64,6 +92,7 @@ class StudentController extends Controller
             'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
+            'training_specialization' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
@@ -107,6 +136,7 @@ class StudentController extends Controller
             'province_id' => 'nullable|exists:provinces,id',
             'current_workplace' => 'nullable|string|max:255',
             'accounting_experience_years' => 'nullable|integer|min:0',
+            'training_specialization' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',

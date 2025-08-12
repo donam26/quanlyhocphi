@@ -409,6 +409,48 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Import học viên vào danh sách chờ từ file Excel
+     */
+    public function importStudentsToWaiting(Request $request, $id)
+    {
+        $request->validate([
+            'excel_file' => 'required|file|mimes:xlsx,xls,csv',
+            'notes' => 'nullable|string|max:1000'
+        ]);
+
+        try {
+            // Import vào danh sách chờ
+            $result = $this->importService->importStudentsToWaitingList(
+                $request->file('excel_file'),
+                $id,
+                $request->notes
+            );
+
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => $result['message'],
+                    'imported_count' => $result['imported_count']
+                ]);
+            }
+
+            return redirect()->route('course-items.waiting-tree')
+                    ->with('success', $result['message']);
+        } catch (\Exception $e) {
+            Log::error('Import students to waiting list error: ' . $e->getMessage());
+            
+            if ($request->ajax() || $request->expectsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Có lỗi khi import: ' . $e->getMessage()
+                ], 500);
+            }
+            
+            return back()->withErrors(['excel_file' => 'Có lỗi khi import: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
      * Hiển thị danh sách học viên theo ngành học
      */
     public function showStudents($id)

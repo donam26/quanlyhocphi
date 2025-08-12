@@ -380,7 +380,12 @@
                         <div class="col-md-6">
                             <div class="mb-3">
                                 <label class="form-label">Ngày thanh toán <span class="text-danger">*</span></label>
-                                <input type="date" name="payment_date" class="form-control" value="{{ date('Y-m-d') }}" required>
+                                <input type="text" name="payment_date" class="form-control" 
+                                       value="{{ date('d/m/Y') }}" 
+                                       pattern="^(\d{1,2})\/(\d{1,2})\/(\d{4})$"
+                                       placeholder="dd/mm/yyyy" 
+                                       title="Vui lòng nhập ngày theo định dạng dd/mm/yyyy"
+                                       required>
                             </div>
                         </div>
                         <div class="col-md-6">

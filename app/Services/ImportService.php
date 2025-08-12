@@ -272,4 +272,147 @@ class ImportService
         
         return null;
     }
+
+    /**
+     * Import học viên vào danh sách chờ từ file Excel
+     */
+    public function importStudentsToWaitingList(UploadedFile $file, int $courseItemId, string $notes = null)
+    {
+        // Kiểm tra khóa học tồn tại
+        $courseItem = CourseItem::find($courseItemId);
+        if (!$courseItem) {
+            throw new \Exception('Khóa học không tồn tại');
+        }
+        
+        $rows = Excel::toArray([], $file)[0];
+        $header = array_shift($rows); // Lấy header
+        
+        // Map header vào các key
+        $mappedHeader = [];
+        foreach($header as $index => $column) {
+            $mappedHeader[$column] = $index;
+        }
+        
+        // Kiểm tra các cột bắt buộc
+        if (!isset($mappedHeader['ho_ten']) && (!isset($mappedHeader['Họ']) || !isset($mappedHeader['Tên']))) {
+            throw new \Exception('File Excel thiếu cột bắt buộc: ho_ten hoặc (Họ + Tên)');
+        }
+        if (!isset($mappedHeader['so_dien_thoai']) && !isset($mappedHeader['Số điện thoại'])) {
+            throw new \Exception('File Excel thiếu cột bắt buộc: so_dien_thoai hoặc Số điện thoại');
+        }
+        
+        DB::beginTransaction();
+        
+        try {
+            $importedCount = 0;
+            
+            foreach($rows as $row) {
+                // Bỏ qua dòng trống
+                if (empty(array_filter($row))) {
+                    continue;
+                }
+                
+                // Lấy tên và số điện thoại
+                if (isset($mappedHeader['ho_ten'])) {
+                    $fullName = trim($row[$mappedHeader['ho_ten']]);
+                    $nameParts = explode(' ', $fullName);
+                    $firstName = array_shift($nameParts);
+                    $lastName = implode(' ', $nameParts);
+                } else {
+                    $firstName = isset($mappedHeader['Họ']) ? trim($row[$mappedHeader['Họ']]) : '';
+                    $lastName = isset($mappedHeader['Tên']) ? trim($row[$mappedHeader['Tên']]) : '';
+                }
+                
+                $phone = isset($mappedHeader['so_dien_thoai']) ? 
+                    trim($row[$mappedHeader['so_dien_thoai']]) : 
+                    (isset($mappedHeader['Số điện thoại']) ? trim($row[$mappedHeader['Số điện thoại']]) : '');
+                
+                // Kiểm tra dữ liệu bắt buộc
+                if (empty($firstName) || empty($phone)) {
+                    continue; // Bỏ qua dòng này
+                }
+                
+                // Xử lý ngày sinh
+                $dateOfBirth = null;
+                if (isset($mappedHeader['ngay_sinh'])) {
+                    $dateOfBirth = $this->parseDate($row[$mappedHeader['ngay_sinh']]);
+                } elseif (isset($mappedHeader['Ngày sinh'])) {
+                    $dateOfBirth = $this->parseDate($row[$mappedHeader['Ngày sinh']]);
+                }
+                
+                // Xử lý province_id
+                $provinceId = null;
+                if (isset($mappedHeader['Tỉnh/Thành phố']) && !empty(trim($row[$mappedHeader['Tỉnh/Thành phố']]))) {
+                    $provinceName = trim($row[$mappedHeader['Tỉnh/Thành phố']]);
+                    $province = \App\Models\Province::where('name', 'like', '%' . $provinceName . '%')->first();
+                    $provinceId = $province ? $province->id : null;
+                }
+                
+                // Tạo dữ liệu từ row
+                $data = [
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'phone' => $phone,
+                    'email' => isset($mappedHeader['Email']) ? trim($row[$mappedHeader['Email']]) : null,
+                    'date_of_birth' => $dateOfBirth,
+                    'place_of_birth' => isset($mappedHeader['Nơi sinh']) ? trim($row[$mappedHeader['Nơi sinh']]) : null,
+                    'nation' => isset($mappedHeader['Dân tộc']) ? trim($row[$mappedHeader['Dân tộc']]) : null,
+                    'gender' => isset($mappedHeader['Giới tính']) ? 
+                        $this->mapGender($row[$mappedHeader['Giới tính']]) : null,
+                    'province_id' => $provinceId,
+                    'address' => isset($mappedHeader['Địa chỉ cụ thể']) ? trim($row[$mappedHeader['Địa chỉ cụ thể']]) : null,
+                    'current_workplace' => isset($mappedHeader['Nơi công tác']) ? trim($row[$mappedHeader['Nơi công tác']]) : null,
+                    'accounting_experience_years' => isset($mappedHeader['Kinh nghiệm kế toán (năm)']) ? 
+                        (int)$row[$mappedHeader['Kinh nghiệm kế toán (năm)']] : null,
+                    'hard_copy_documents' => isset($mappedHeader['Hồ sơ bản cứng']) ? 
+                        $this->mapHardCopyDocuments($row[$mappedHeader['Hồ sơ bản cứng']]) : null,
+                    'education_level' => isset($mappedHeader['Bằng cấp']) ? 
+                        $this->mapEducationLevel($row[$mappedHeader['Bằng cấp']]) : null,
+                    'notes' => isset($mappedHeader['Ghi chú']) ? trim($row[$mappedHeader['Ghi chú']]) : null,
+                ];
+                
+                // Tìm hoặc tạo học viên mới
+                $student = Student::firstOrCreate(
+                    ['phone' => $data['phone']],
+                    $data
+                );
+                
+                // Kiểm tra xem học viên đã có trong danh sách chờ của khóa học này chưa
+                $existingEnrollment = Enrollment::where('student_id', $student->id)
+                                              ->where('course_item_id', $courseItemId)
+                                              ->first();
+                
+                // Nếu chưa có, tạo đăng ký mới với status WAITING
+                if (!$existingEnrollment) {
+                    $enrollmentNotes = 'Thêm vào danh sách chờ qua import Excel';
+                    if ($notes) {
+                        $enrollmentNotes .= '. ' . $notes;
+                    }
+                    
+                    Enrollment::create([
+                        'student_id' => $student->id,
+                        'course_item_id' => $courseItemId,
+                        'enrollment_date' => now(),
+                        'status' => EnrollmentStatus::WAITING,
+                        'discount_percentage' => 0,
+                        'discount_amount' => 0,
+                        'final_fee' => $courseItem->fee ?? 0, // Đặt học phí gốc, sẽ điều chỉnh khi xác nhận
+                        'notes' => $enrollmentNotes
+                    ]);
+                    
+                    $importedCount++;
+                }
+            }
+            
+            DB::commit();
+            return [
+                'success' => true,
+                'message' => 'Đã import thành công ' . $importedCount . ' học viên vào danh sách chờ.',
+                'imported_count' => $importedCount
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
 } 

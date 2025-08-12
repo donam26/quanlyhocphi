@@ -12,6 +12,8 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class AttendanceController extends Controller
 {
@@ -205,6 +207,9 @@ class AttendanceController extends Controller
     {
         $date = $request->get('date', now()->format('Y-m-d'));
         
+        // Kiểm tra xem khóa học có đang active không
+        $isActive = $courseItem->isActive();
+        
         // Lấy danh sách học viên đã ghi danh vào khóa học
         $enrollments = Enrollment::where('course_item_id', $courseItem->id)
             ->where('status', EnrollmentStatus::ACTIVE->value)
@@ -239,14 +244,19 @@ class AttendanceController extends Controller
                 'id' => $courseItem->id,
                 'name' => $courseItem->name,
                 'path' => $courseItem->path,
-                'is_leaf' => $courseItem->is_leaf
+                'is_leaf' => $courseItem->is_leaf,
+                'is_active' => $isActive,
+                'status' => $courseItem->getStatusEnum()->value,
+                'status_label' => $courseItem->getStatusEnum()->label(),
+                'status_badge' => $courseItem->status_badge
             ],
             'date' => $date,
             'formatted_date' => \Carbon\Carbon::parse($date)->format('d/m/Y'),
             'day_name' => \Carbon\Carbon::parse($date)->locale('vi')->dayName,
             'students' => $students,
             'attendance_exists' => $existingAttendances->count() > 0,
-            'total_students' => $students->count()
+            'total_students' => $students->count(),
+            'can_take_attendance' => $isActive // Chỉ cho phép điểm danh nếu khóa học đang active
         ]);
     }
 
@@ -268,6 +278,15 @@ class AttendanceController extends Controller
             DB::beginTransaction();
 
             $courseItem = CourseItem::findOrFail($validated['course_item_id']);
+            
+            // Kiểm tra xem khóa học có đang active không
+            if (!$courseItem->isActive()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể điểm danh cho khóa học đã kết thúc. Chỉ có thể xem danh sách học viên.'
+                ], 403);
+            }
+            
             $date = $validated['date'];
 
             // Xóa điểm danh cũ (nếu có) - xóa theo enrollment_id và date để tránh duplicate
@@ -311,6 +330,144 @@ class AttendanceController extends Controller
                 'success' => false,
                 'message' => 'Có lỗi xảy ra khi lưu điểm danh: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Export toàn bộ điểm danh của khóa học ra file Excel (ma trận)
+     */
+    public function exportAttendance(Request $request)
+    {
+        $validated = $request->validate([
+            'course_id' => 'required|exists:course_items,id'
+        ]);
+
+        $courseItem = CourseItem::findOrFail($validated['course_id']);
+        
+        try {
+            // Lấy danh sách học viên đã ghi danh
+            $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+                ->where('status', EnrollmentStatus::ACTIVE->value)
+                ->with(['student'])
+                ->orderBy('id')
+                ->get();
+
+            // Lấy tất cả điểm danh của khóa học này
+            $allAttendances = Attendance::where('course_item_id', $courseItem->id)
+                ->orderBy('attendance_date')
+                ->get();
+
+            // Lấy tất cả ngày đã điểm danh (unique) - convert sang string format
+            $attendanceDates = $allAttendances->map(function($attendance) {
+                    return $attendance->attendance_date instanceof \Carbon\Carbon 
+                        ? $attendance->attendance_date->format('Y-m-d')
+                        : $attendance->attendance_date;
+                })
+                ->unique()
+                ->sort()
+                ->values();
+
+            if ($attendanceDates->isEmpty()) {
+                return back()->withErrors(['export' => 'Chưa có dữ liệu điểm danh nào cho khóa học này']);
+            }
+
+            // Tạo map điểm danh: [enrollment_id][date] = status
+            $attendanceMap = [];
+            foreach ($allAttendances as $attendance) {
+                $dateKey = $attendance->attendance_date instanceof \Carbon\Carbon 
+                    ? $attendance->attendance_date->format('Y-m-d')
+                    : $attendance->attendance_date;
+                $attendanceMap[$attendance->enrollment_id][$dateKey] = $attendance->status;
+            }
+
+            // Chuẩn bị dữ liệu export dạng ma trận
+            $exportData = [];
+            
+            // Header row 1: Tên khóa học
+            $headerRow1 = ['ĐIỂM DANH KHÓA HỌC: ' . strtoupper($courseItem->name)];
+            for ($i = 0; $i < $attendanceDates->count(); $i++) {
+                $headerRow1[] = '';
+            }
+            $exportData[] = $headerRow1;
+
+            // Header row 2: Trống
+            $exportData[] = array_fill(0, $attendanceDates->count() + 1, '');
+
+            // Header row 3: "Ngày" + các ngày
+            $headerRow3 = ['Ngày'];
+            foreach ($attendanceDates as $date) {
+                $headerRow3[] = \Carbon\Carbon::parse($date)->format('d/m');
+            }
+            $exportData[] = $headerRow3;
+
+            // Data rows: Mỗi học viên một hàng
+            foreach ($enrollments as $enrollment) {
+                $studentRow = [$enrollment->student->full_name];
+                
+                foreach ($attendanceDates as $date) {
+                    $status = $attendanceMap[$enrollment->id][$date] ?? null;
+                    
+                    // Đánh dấu theo status
+                    $mark = match($status) {
+                        'present' => 'x',
+                        'late' => 'x', // Đi muộn vẫn coi là có mặt
+                        'excused' => 'p', // Có phép
+                        'absent' => '', // Vắng để trống
+                        null => '', // Chưa điểm danh
+                        default => ''
+                    };
+                    
+                    $studentRow[] = $mark;
+                }
+                
+                $exportData[] = $studentRow;
+            }
+
+            // Tạo file Excel
+            $fileName = 'diem_danh_' . Str::slug($courseItem->name) . '_full.xlsx';
+            
+            return Excel::download(new class($exportData, $courseItem->name, $attendanceDates) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithTitle, \Maatwebsite\Excel\Concerns\WithStyles {
+                
+                private $data;
+                private $courseName;
+                private $attendanceDates;
+                
+                public function __construct($data, $courseName, $attendanceDates) {
+                    $this->data = $data;
+                    $this->courseName = $courseName;
+                    $this->attendanceDates = $attendanceDates;
+                }
+                
+                public function array(): array {
+                    return $this->data;
+                }
+                
+                public function title(): string {
+                    return 'Điểm danh';
+                }
+
+                public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet) {
+                    // Style cho header
+                    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+                    $sheet->getStyle('A3:' . $sheet->getHighestColumn() . '3')->getFont()->setBold(true);
+                    
+                    // Căn giữa cho tất cả cells
+                    $sheet->getStyle('A1:' . $sheet->getHighestColumn() . $sheet->getHighestRow())
+                          ->getAlignment()->setHorizontal('center');
+                          
+                    // Auto width cho các cột
+                    foreach (range('A', $sheet->getHighestColumn()) as $column) {
+                        $sheet->getColumnDimension($column)->setAutoSize(true);
+                    }
+                    
+                    return [];
+                }
+                
+            }, $fileName);
+
+        } catch (\Exception $e) {
+            Log::error('Export attendance error: ' . $e->getMessage());
+            return back()->withErrors(['export' => 'Có lỗi xảy ra khi export: ' . $e->getMessage()]);
         }
     }
 }
