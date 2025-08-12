@@ -281,14 +281,15 @@
         // Khởi tạo Select2 cho tìm kiếm khóa học
         $('#course_search').select2({
             placeholder: 'Nhập tên khóa học...',
-            minimumInputLength: 2,
+            minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
             ajax: {
                 url: '{{ route("api.course-items.search") }}',
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
                     return {
-                        q: params.term
+                        q: params.term || '',
+                        limit: 20
                     };
                 },
                 processResults: function (data) {

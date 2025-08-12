@@ -159,6 +159,11 @@ window.showCourseDetails = function(courseId) {
             // Hiển thị số lượng học viên và doanh thu
             $('#enrollment-count').text(data.enrollment_count || 0);
             $('#total-revenue').text(formatCurrency(data.total_revenue || 0) + ' đ');
+
+            // Hiển thị số lượng lộ trình dạng "đã hoàn thành/tổng số"
+            const completedPaths = data.learning_paths_completed || 0;
+            const totalPaths = data.learning_paths_count || 0;
+            $('#learning-paths-count').text(totalPaths > 0 ? `${completedPaths}/${totalPaths}` : '0');
             
             // Xử lý các trường thông tin tùy chỉnh
             if (data.is_special && data.custom_fields && Object.keys(data.custom_fields).length > 0) {
@@ -177,22 +182,8 @@ window.showCourseDetails = function(courseId) {
                 $('#course-custom-fields-card').hide();
             }
             
-            // Hiển thị lộ trình học tập nếu có
-            if (data.learning_paths && data.learning_paths.length > 0) {
-                let pathsHtml = '';
-                data.learning_paths.forEach((path, index) => {
-                    pathsHtml += `<li class="list-group-item d-flex justify-content-between align-items-center">
-                        <span><strong>${index + 1}. ${path.title}</strong>
-                            ${path.description ? '<br><small class="text-muted">' + path.description + '</small>' : ''}
-                        </span>
-                    </li>`;
-                });
-                
-                $('#learning-paths-list').html(pathsHtml);
-                $('#learning-paths-section').show();
-            } else {
-                $('#learning-paths-section').hide();
-            }
+            // Ẩn phần hiển thị chi tiết lộ trình vì chỉ cần hiển thị số lượng
+            $('#learning-paths-section').hide();
             
             // Load learning paths để kiểm tra có lộ trình hay không
             loadCourseLearningPathsStatus(courseId);
@@ -563,7 +554,7 @@ $(document).ready(function() {
     // Khởi tạo Select2 cho tìm kiếm khóa học
     $('#course-search-select').select2({
         placeholder: 'Nhập tên khóa học để tìm kiếm...',
-        minimumInputLength: 2,
+        minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
         allowClear: true,
         theme: 'bootstrap-5',
         ajax: {
@@ -574,10 +565,11 @@ $(document).ready(function() {
                 // Lấy root_id từ tab đang active
                 const activeTabPane = $('.tab-pane.active');
                 const rootId = activeTabPane.data('root-id');
-                
+
                 return {
-                    q: params.term,
-                    root_id: rootId
+                    q: params.term || '',
+                    root_id: rootId,
+                    limit: 20
                 };
             },
             processResults: function (data) {
@@ -666,7 +658,7 @@ function openStudentsModal(courseId){
         const customFields = (res.course && res.course.custom_fields) ? Object.keys(res.course.custom_fields) : [];
 
         let thead = `<tr>
-            <th>Họ tên</th><th>SĐT</th><th>Email</th><th>Khoá</th><th>Học phí</th>`;
+            <th>Họ tên</th><th>SĐT</th><th>Email</th><th>Khoá</th><th>Học phí</th><th>Trạng thái thanh toán</th>`;
         if(isSpecial && customFields.length){
             customFields.forEach(k=>{ thead += `<th>${k}</th>`; });
         }
@@ -675,6 +667,20 @@ function openStudentsModal(courseId){
         let tbody = '';
         res.students.forEach(function(s){
             let notesBtn = s.has_notes ? `<button type="button" class="btn btn-sm btn-info" data-notes='${JSON.stringify(s.payment_notes)}' data-student='${s.student.full_name}' onclick="showPaymentNotes(this)"><i class="fas fa-sticky-note"></i> Xem</button>` : '<span class="text-muted">Không có</span>';
+
+            // Tạo badge trạng thái thanh toán
+            let paymentStatusBadge = '';
+            if (s.payment_status === 'Đã đóng đủ') {
+                paymentStatusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Đã đóng đủ</span>';
+            } else {
+                const remainingAmount = s.remaining_amount || 0;
+                if (remainingAmount > 0) {
+                    paymentStatusBadge = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Còn thiếu ${formatCurrency(remainingAmount)} VND</span>`;
+                } else {
+                    paymentStatusBadge = '<span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Chưa đóng</span>';
+                }
+            }
+
             let customCols = '';
             if(isSpecial && customFields.length){
                 customFields.forEach(k=>{
@@ -688,6 +694,7 @@ function openStudentsModal(courseId){
                 <td>${s.student.email || ''}</td>
                 <td>${s.course_item}</td>
                 <td>${formatCurrency(s.final_fee||0)} VND</td>
+                <td>${paymentStatusBadge}</td>
                 ${customCols}
                 <td>${notesBtn}</td>
                 <td>
@@ -843,7 +850,29 @@ function initAddStudentSelect2() {
         allowClear: true,
         dropdownParent: $('#addStudentModal'),
         width: '100%',
-        minimumInputLength: 0
+        minimumInputLength: 0,
+        ajax: {
+            url: '/api/search/autocomplete',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || '',
+                    preload: params.term ? 'false' : 'true'
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data.map(function(item) {
+                        return {
+                            id: item.id,
+                            text: item.text
+                        };
+                    })
+                };
+            },
+            cache: true
+        }
     });
 }
 
@@ -1040,7 +1069,7 @@ function updateStudentsModalContent(res) {
     const customFields = (res.course && res.course.custom_fields) ? Object.keys(res.course.custom_fields) : [];
 
     let thead = `<tr>
-        <th>Họ tên</th><th>SĐT</th><th>Email</th><th>Khoá</th><th>Học phí</th>`;
+        <th>Họ tên</th><th>SĐT</th><th>Email</th><th>Khoá</th><th>Học phí</th><th>Trạng thái thanh toán</th>`;
     if (isSpecial && customFields.length) {
         customFields.forEach(k => { thead += `<th>${k}</th>`; });
     }
@@ -1058,19 +1087,33 @@ function updateStudentsModalContent(res) {
         else if (s.status === 'completed') statusBadge = '<span class="badge bg-info">Hoàn thành</span>';
         else if (s.status === 'cancelled') statusBadge = '<span class="badge bg-danger">Đã hủy</span>';
 
+        // Tạo badge trạng thái thanh toán
+        let paymentStatusBadge = '';
+        if (s.payment_status === 'Đã đóng đủ') {
+            paymentStatusBadge = '<span class="badge bg-success"><i class="fas fa-check-circle me-1"></i>Đã đóng đủ</span>';
+        } else {
+            const remainingAmount = s.remaining_amount || 0;
+            if (remainingAmount > 0) {
+                paymentStatusBadge = `<span class="badge bg-warning text-dark"><i class="fas fa-exclamation-triangle me-1"></i>Còn thiếu ${formatCurrency(remainingAmount)} VND</span>`;
+            } else {
+                paymentStatusBadge = '<span class="badge bg-danger"><i class="fas fa-times-circle me-1"></i>Chưa đóng</span>';
+            }
+        }
+
         tbody += `<tr>
             <td>${s.student.full_name}</td>
             <td>${s.student.phone}</td>
             <td>${s.student.email || '-'}</td>
             <td>${statusBadge}</td>
-            <td>${s.final_fee ? (parseInt(s.final_fee).toLocaleString() + ' VND') : '-'}</td>`;
-        
+            <td>${s.final_fee ? (formatCurrency(s.final_fee) + ' VND') : '-'}</td>
+            <td>${paymentStatusBadge}</td>`;
+
         if (isSpecial && customFields.length) {
             customFields.forEach(k => {
                 tbody += `<td>${s.custom_fields && s.custom_fields[k] ? s.custom_fields[k] : '-'}</td>`;
             });
         }
-        
+
         tbody += `<td>${notesBtn}</td>
             <td><button type="button" class="btn btn-sm btn-outline-primary" onclick="openEditEnrollmentModal(${s.enrollment_id})" title="Chỉnh sửa"><i class="fas fa-edit"></i></button></td>
         </tr>`;
@@ -2178,6 +2221,12 @@ function openEditStudentModal(studentId) {
                                     </div>
 
                                     <div class="col-md-6 mb-3">
+                                        <label class="form-label">Chuyên môn công tác</label>
+                                        <input type="text" name="training_specialization" id="edit-training-specialization" class="form-control" placeholder="Nhập chuyên môn công tác">
+                                        <div class="invalid-feedback" id="edit-training-specialization-error"></div>
+                                    </div>
+
+                                    <div class="col-md-6 mb-3">
                                         <label class="form-label">Hồ sơ bản cứng</label>
                                         <select name="hard_copy_documents" id="edit-hard-copy-documents" class="form-select">
                                             <option value="">-- Chọn trạng thái --</option>
@@ -2254,6 +2303,7 @@ function openEditStudentModal(studentId) {
                 $('#edit-address').val(student.address || '');
                 $('#edit-current-workplace').val(student.current_workplace || '');
                 $('#edit-experience').val(student.accounting_experience_years || '');
+                $('#edit-training-specialization').val(student.training_specialization || '');
                 $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
                 $('#edit-education-level').val(student.education_level || '');
                 $('#edit-notes').val(student.notes || '');

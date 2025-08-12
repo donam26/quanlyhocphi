@@ -212,6 +212,7 @@ window.editStudent = function(studentId) {
             $('#edit-education-level').val(student.education_level || '');
             $('#edit-workplace').val(student.workplace || '');
             $('#edit-experience-years').val(student.experience_years || '');
+            $('#edit-training-specialization').val(student.training_specialization || '');
 
             // Dân tộc
             $('#edit-nation').val(student.nation || '');
@@ -481,13 +482,17 @@ window.enrollStudent = function(studentId) {
 };
 
 // Helper function format tiền tệ (global)
-function formatCurrency(number) {
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+if (typeof window.formatCurrency !== 'function') {
+    window.formatCurrency = function(number) {
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
+    };
 }
 
 // Tính toán học phí cuối cùng (global function)
 function calculateFinalFee() {
-    const selectedCourse = $('#course_item_id').find(':selected');
+    const courseSelect = $('#course_item_id');
+    const selectedCourse = courseSelect.find(':selected');
+
     // Nếu chưa chọn khóa học, xóa thông tin học phí
     if (!selectedCourse.val()) {
         $('#final_fee_display').val('');
@@ -495,7 +500,12 @@ function calculateFinalFee() {
         return;
     }
 
-    const baseFee = parseFloat(selectedCourse.data('fee')) || 0;
+    // Thử lấy fee từ nhiều nguồn
+    let baseFee = parseFloat(selectedCourse.data('fee')) ||
+                  parseFloat(courseSelect.data('selected-fee')) ||
+                  parseFloat(selectedCourse.attr('data-fee')) || 0;
+
+
     
     // Kiểm tra học phí > 0 trước khi cho phép đăng ký
     if (baseFee <= 0) {
@@ -539,28 +549,28 @@ function setupFeeCalculation() {
     // Clear previous warnings khi setup
     $('#fee-warning-enroll').remove();
 
-    // Ngăn chặn form submit trực tiếp
-    $('#enrollmentForm').on('submit', function(e) {
+    // Ngăn chặn form submit trực tiếp - chỉ bind một lần
+    $('#enrollmentForm').off('submit.feeCalculation').on('submit.feeCalculation', function(e) {
         e.preventDefault();
         return false;
     });
 
-    // Gán sự kiện
-    $('#course_item_id').on('change', function(e) {
+    // Gán sự kiện - sử dụng namespace để tránh duplicate
+    $('#course_item_id').off('change.feeCalculation').on('change.feeCalculation', function(e) {
         if (e && e.preventDefault) e.preventDefault(); // Ngăn chặn việc submit form
         if (e && e.stopPropagation) e.stopPropagation(); // Ngăn chặn sự kiện lan truyền
         calculateFinalFee();
         return false;
     });
 
-    $('#discount_percentage').on('input', function(e) {
+    $('#discount_percentage').off('input.feeCalculation').on('input.feeCalculation', function(e) {
         if (e && e.preventDefault) e.preventDefault(); // Ngăn chặn việc submit form
         $('#discount_amount').val(''); // Xóa trường chiết khấu còn lại
         calculateFinalFee();
         return false;
     });
 
-    $('#discount_amount').on('input', function(e) {
+    $('#discount_amount').off('input.feeCalculation').on('input.feeCalculation', function(e) {
         if (e && e.preventDefault) e.preventDefault(); // Ngăn chặn việc submit form
         $('#discount_percentage').val(''); // Xóa trường chiết khấu còn lại
         calculateFinalFee();
@@ -912,7 +922,8 @@ function initCourseSelect2() {
             delay: 250,
             data: function (params) {
                 return {
-                    q: params.term || ''
+                    q: params.term || '',
+                    preload: params.term ? 'false' : 'true' // Thêm flag để load dữ liệu mặc định
                 };
             },
             processResults: function (response) {
@@ -939,9 +950,13 @@ function initCourseSelect2() {
     // Handle change event để tính học phí
     $('#course_item_id').on('select2:select', function (e) {
         const data = e.params.data;
-        if (data && data.fee) {
+        console.log('Course selected:', data); // Debug log
+        if (data && data.fee !== undefined) {
             // Set fee data attribute cho calculateFinalFee function
             $(this).find(':selected').attr('data-fee', data.fee);
+            // Cũng set vào data của element để đảm bảo
+            $(this).data('selected-fee', data.fee);
+            console.log('Fee set:', data.fee); // Debug log
         }
         calculateFinalFee();
     });

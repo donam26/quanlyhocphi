@@ -202,7 +202,9 @@
                 
                 <!-- Search box -->
                 <div class="search-container">
-                    <input type="text" id="student-search" class="form-control" placeholder="Tìm kiếm học viên..." autocomplete="off">
+                    <select id="student-search" class="form-control select2-ajax" style="width: 100%;">
+                        <option value="">Tìm kiếm học viên...</option>
+                    </select>
                     <span class="search-clear"><i class="fas fa-times-circle"></i></span>
                 </div>
             </div>
@@ -567,9 +569,10 @@ $(document).ready(function() {
     let selectedCourseId = null;
     let selectedCourseName = '';
     let currentRootId = null;
-    
+
     // Khởi tạo Select2 khi DOM sẵn sàng
     initWaitingCourseSelect2();
+    initStudentSearchSelect2();
     
     // Xử lý expand/collapse all
     $('#expand-all').on('click', function() {
@@ -1401,6 +1404,53 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Khởi tạo Select2 cho tìm kiếm học viên ở header
+    function initStudentSearchSelect2() {
+        $('#student-search').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Tìm kiếm học viên...',
+            allowClear: true,
+            width: '100%',
+            minimumInputLength: 0,
+            ajax: {
+                url: '/api/search/autocomplete',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term || '',
+                        type: 'student',
+                        preload: params.term ? 'false' : 'true'
+                    };
+                },
+                processResults: function(data) {
+                    return {
+                        results: data.map(function(item) {
+                            return {
+                                id: item.id,
+                                text: item.text,
+                                full_name: item.full_name,
+                                phone: item.phone,
+                                email: item.email
+                            };
+                        })
+                    };
+                },
+                cache: true
+            }
+        });
+
+        // Xử lý khi chọn học viên từ search
+        $('#student-search').on('select2:select', function(e) {
+            const studentData = e.params.data;
+            // Có thể thêm logic để highlight học viên trong danh sách
+            console.log('Selected student:', studentData);
+
+            // Clear selection sau khi chọn
+            $(this).val(null).trigger('change');
+        });
+    }
 
     // Show toast notification
     function showToast(message, type = 'info') {

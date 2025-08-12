@@ -10,7 +10,7 @@ function initStudentSearch() {
             width: '100%',
             placeholder: 'Tìm học viên theo tên, số điện thoại...',
             allowClear: true,
-            minimumInputLength: 2,
+            minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
             ajax: {
                 url: '/api/search/autocomplete',
                 dataType: 'json',
@@ -18,7 +18,8 @@ function initStudentSearch() {
                 data: function (params) {
                     console.log('Search params:', params);
                     return {
-                        q: params.term
+                        q: params.term || '',
+                        preload: params.term ? 'false' : 'true' // Preload nếu không có search term
                     };
                 },
                 processResults: function (data) {
@@ -216,7 +217,7 @@ window.editEnrollment = function(enrollmentId) {
             $('#edit-notes').val(enrollment.notes);
 
             // Thiết lập tính toán học phí
-            setupFeeCalculation();
+            setupEditFeeCalculation();
 
             // Ẩn loading và hiện form
             $('#edit-enrollment-loading').hide();
@@ -236,7 +237,7 @@ window.createEnrollment = function() {
 };
 
 // Lưu thay đổi ghi danh
-$(document).on('click', '#save-enrollment-btn', function() {
+$(document).on('click', '#save-edit-enrollment-btn', function() {
     // Disable nút để tránh click nhiều lần
     resetSaveButton(true);
 
@@ -347,8 +348,8 @@ $(document).on('click', '#save-new-enrollment-btn', function() {
     });
 });
 
-// Thiết lập tính toán học phí
-function setupFeeCalculation() {
+// Thiết lập tính toán học phí cho edit enrollment modal
+function setupEditFeeCalculation() {
     // Lấy giá gốc từ trường ẩn
     const baseFee = parseFloat($('#edit-course-fee').val()) || 0;
 
@@ -390,11 +391,11 @@ function setupFeeCalculation() {
 // Reset nút Save
 function resetSaveButton(isLoading = false) {
     if (isLoading) {
-        $('#save-enrollment-btn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...');
-        $('#save-enrollment-btn').prop('disabled', true);
+        $('#save-edit-enrollment-btn').html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Đang lưu...');
+        $('#save-edit-enrollment-btn').prop('disabled', true);
     } else {
-        $('#save-enrollment-btn').html('<i class="fas fa-save me-1"></i> Lưu thay đổi');
-        $('#save-enrollment-btn').prop('disabled', false);
+        $('#save-edit-enrollment-btn').html('<i class="fas fa-save me-1"></i> Lưu thay đổi');
+        $('#save-edit-enrollment-btn').prop('disabled', false);
     }
 }
 
@@ -427,9 +428,11 @@ function getEnrollmentStatusBadge(status) {
     }
 }
 
-// Format tiền tệ
-function formatCurrency(amount) {
-    return new Intl.NumberFormat('vi-VN').format(amount);
+// Sử dụng formatCurrency global function nếu có, nếu không thì định nghĩa
+if (typeof window.formatCurrency !== 'function') {
+    window.formatCurrency = function(amount) {
+        return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount);
+    };
 }
 
 // Sử dụng showToast global function nếu có, nếu không thì định nghĩa

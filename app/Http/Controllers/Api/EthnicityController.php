@@ -14,15 +14,32 @@ class EthnicityController extends Controller
     public function index(Request $request)
     {
         $keyword = $request->get('keyword', '');
-        
+        $q = $request->get('q', ''); // Hỗ trợ Select2 AJAX
+
         $query = Ethnicity::query();
-        
+
         if ($keyword) {
             $query->search($keyword);
         }
-        
+
+        // Hỗ trợ tìm kiếm cho Select2 AJAX
+        if ($q) {
+            $query->where('name', 'like', "%{$q}%");
+        }
+
         $ethnicities = $query->orderBy('name')->get();
-        
+
+        // Format cho Select2 nếu có tham số 'q' (AJAX request)
+        if ($request->has('q')) {
+            $results = $ethnicities->map(function($ethnicity) {
+                return [
+                    'id' => $ethnicity->id,
+                    'text' => $ethnicity->name
+                ];
+            });
+            return response()->json($results);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $ethnicities

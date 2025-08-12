@@ -14,16 +14,34 @@ class ProvinceController extends Controller
     public function index(Request $request)
     {
         $query = Province::query();
-        
+
         // Tìm kiếm theo từ khóa
         if ($request->has('keyword') && !empty($request->keyword)) {
             $keyword = $request->keyword;
             $query->where('name', 'like', "%{$keyword}%")
                   ->orWhere('code', 'like', "%{$keyword}%");
         }
-        
+
+        // Hỗ trợ tìm kiếm cho Select2 AJAX
+        if ($request->has('q') && !empty($request->q)) {
+            $q = $request->q;
+            $query->where('name', 'like', "%{$q}%")
+                  ->orWhere('code', 'like', "%{$q}%");
+        }
+
         $provinces = $query->orderBy('name')->get();
-        
+
+        // Format cho Select2 nếu có tham số 'q' (AJAX request)
+        if ($request->has('q')) {
+            $results = $provinces->map(function($province) {
+                return [
+                    'id' => $province->id,
+                    'text' => $province->name
+                ];
+            });
+            return response()->json($results);
+        }
+
         return response()->json([
             'success' => true,
             'data' => $provinces

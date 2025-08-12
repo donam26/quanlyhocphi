@@ -1070,6 +1070,29 @@ $(document).on('shown.bs.modal', '#editStudentModal', function() {
     }, 100);
 });
 
+// Khởi tạo select2 cho khóa học khi mở modal enrollment
+$(document).on('shown.bs.modal', '#enrollStudentModal', function() {
+    setTimeout(function() {
+        initCourseSelect2();
+        // Gọi setupFeeCalculation để thiết lập event handlers cho chiết khấu
+        if (typeof setupFeeCalculation === 'function') {
+            setupFeeCalculation();
+        }
+    }, 100);
+});
+
+// Reset form khi đóng modal
+$(document).on('hidden.bs.modal', '#enrollStudentModal', function() {
+    // Reset các trường học phí
+    $('#final_fee_display').val('');
+    $('#final_fee').val('');
+    $('#discount_percentage').val('');
+    $('#discount_amount').val('');
+
+    // Clear warnings
+    $('#fee-warning-enroll').remove();
+});
+
 // Chắc chắn rằng select2 được áp dụng khi trang load
 $(document).ready(function() {
     // Đợi modal mở để khởi tạo select2
@@ -1112,6 +1135,7 @@ function initProvinceSelect2() {
                 delay: 250,
                 data: function(params) {
                     return {
+                        q: params.term || '', // Sử dụng 'q' để tương thích với API đã sửa
                         keyword: params.term || ''
                     };
                 },
@@ -1127,6 +1151,16 @@ function initProvinceSelect2() {
                                 };
                             })
                         };
+                    } else if (Array.isArray(response)) {
+                        // Trường hợp API trả về array trực tiếp (cho Select2 AJAX)
+                        return {
+                            results: response.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.text || item.name
+                                };
+                            })
+                        };
                     } else {
                         console.log("Invalid response format or empty data");
                         return { results: [] };
@@ -1134,7 +1168,7 @@ function initProvinceSelect2() {
                 },
                 cache: false
             },
-            minimumInputLength: 1
+            minimumInputLength: 0 // Cho phép hiển thị data ngay khi mở dropdown
         });
     });
 }
@@ -1164,7 +1198,10 @@ function initLocationSelect2(){
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    return { keyword: params.term || '' };
+                    return {
+                        q: params.term || '', // Sử dụng 'q' để tương thích với API đã sửa
+                        keyword: params.term || ''
+                    };
                 },
                 processResults: function(response){
                     if (response && response.success && Array.isArray(response.data)){
@@ -1173,10 +1210,22 @@ function initLocationSelect2(){
                                 return { id: item.id, text: item.name + ' (' + getRegionName(item.region) + ')' };
                             })
                         };
+                    } else if (Array.isArray(response)) {
+                        // Trường hợp API trả về array trực tiếp (cho Select2 AJAX)
+                        return {
+                            results: response.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.text || item.name
+                                };
+                            })
+                        };
                     }
                     return { results: [] };
-                }
-            }
+                },
+                cache: true
+            },
+            minimumInputLength: 0 // Cho phép hiển thị data ngay khi mở dropdown
         });
 
         // Đồng bộ về hidden input khi chọn/clear
@@ -1214,7 +1263,10 @@ function initEthnicitySelect2(){
                 dataType: 'json',
                 delay: 250,
                 data: function (params) {
-                    return { keyword: params.term || '' };
+                    return {
+                        q: params.term || '', // Sử dụng 'q' để tương thích với API đã sửa
+                        keyword: params.term || ''
+                    };
                 },
                 processResults: function(response){
                     if (response && response.success && Array.isArray(response.data)){
@@ -1223,10 +1275,22 @@ function initEthnicitySelect2(){
                                 return { id: item.id, text: item.name };
                             })
                         };
+                    } else if (Array.isArray(response)) {
+                        // Trường hợp API trả về array trực tiếp (cho Select2 AJAX)
+                        return {
+                            results: response.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.text || item.name
+                                };
+                            })
+                        };
                     }
                     return { results: [] };
-                }
-            }
+                },
+                cache: true
+            },
+            minimumInputLength: 0 // Cho phép hiển thị data ngay khi mở dropdown
         });
 
         // Đồng bộ về hidden input khi chọn/clear
@@ -1238,6 +1302,8 @@ function initEthnicitySelect2(){
         });
     });
 }
+
+// Hàm initCourseSelect2 đã được định nghĩa trong student-list.js
 
 // Lấy tên miền theo mã
 function getRegionName(region) {
@@ -1440,7 +1506,7 @@ function deleteStudent(studentId, studentName) {
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" id="save-enrollment-btn">
+                <button type="button" class="btn btn-primary" id="save-edit-enrollment-btn">
                     <i class="fas fa-save me-1"></i> Lưu thay đổi
                 </button>
             </div>

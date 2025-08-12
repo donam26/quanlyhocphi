@@ -105,9 +105,14 @@ class CourseItemController extends Controller
      */
     public function show($id)
     {
-        $courseItem = CourseItem::with(['children' => function($query) {
-                            $query->orderBy('order_index');
-                        }])->findOrFail($id);
+        $courseItem = CourseItem::with([
+            'children' => function($query) {
+                $query->orderBy('order_index');
+            },
+            'learningPaths' => function($query) {
+                $query->orderBy('order');
+            }
+        ])->findOrFail($id);
         
         // Đảm bảo custom_fields được trả về
         if (!$courseItem->is_special || empty($courseItem->custom_fields)) {
@@ -144,6 +149,21 @@ class CourseItemController extends Controller
             $path = implode(' / ', $ancestors);
         }
         
+        // Chuẩn bị dữ liệu learning paths
+        $learningPaths = $courseItem->learningPaths->map(function($path) {
+            return [
+                'id' => $path->id,
+                'title' => $path->title,
+                'description' => $path->description,
+                'order' => $path->order,
+                'is_completed' => $path->is_completed ?? false
+            ];
+        });
+
+        // Tính số lộ trình đã hoàn thành
+        $completedPathsCount = $learningPaths->where('is_completed', true)->count();
+        $totalPathsCount = $learningPaths->count();
+
         return response()->json([
             'id' => $courseItem->id,
             'name' => $courseItem->name,
@@ -161,6 +181,9 @@ class CourseItemController extends Controller
             'total_revenue' => $totalRevenue,
             'path' => $path,
             'children' => $courseItem->children,
+            'learning_paths' => $learningPaths,
+            'learning_paths_count' => $totalPathsCount,
+            'learning_paths_completed' => $completedPathsCount,
         ]);
     }
 
@@ -344,14 +367,21 @@ class CourseItemController extends Controller
     {
         $query = $request->get('q', '');
         $rootId = $request->get('root_id');
-        
-        if (strlen($query) < 2) {
+        $limit = $request->get('limit', 10);
+
+        $searchQuery = CourseItem::where('active', true);
+
+        // Nếu có query, tìm kiếm theo tên
+        if (!empty($query) && strlen($query) >= 2) {
+            $searchQuery->where('name', 'like', "%{$query}%");
+        } else if (empty($query)) {
+            // Nếu không có query, lấy các khóa học lá (có thể đăng ký) mặc định
+            $searchQuery->where('is_leaf', true);
+        } else {
+            // Query quá ngắn, trả về rỗng
             return response()->json([]);
         }
-        
-        $searchQuery = CourseItem::where('active', true)
-                                ->where('name', 'like', "%{$query}%");
-        
+
         // Nếu có root_id, chỉ tìm trong phạm vi đó
         if ($rootId) {
             // Lấy tất cả descendants của root_id
@@ -359,13 +389,13 @@ class CourseItemController extends Controller
             if ($rootItem) {
                 $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
                 $descendantIds[] = $rootId; // Bao gồm cả root item
-                
+
                 $searchQuery->whereIn('id', $descendantIds);
             }
         }
-        
+
         $results = $searchQuery->orderBy('name')
-                              ->limit(10)
+                              ->limit($limit)
                               ->get()
                               ->map(function($item) {
                                   return [
@@ -377,7 +407,7 @@ class CourseItemController extends Controller
                                       'fee' => $item->fee
                                   ];
                               });
-        
+
         return response()->json($results);
     }
 
@@ -388,16 +418,22 @@ class CourseItemController extends Controller
     {
         $query = $request->get('q', '');
         $rootId = $request->get('root_id');
-        
-        if (strlen($query) < 2) {
+        $preload = $request->get('preload', 'false');
+
+        // Nếu là preload (chưa search), trả về một số khóa học mặc định
+        if ($preload === 'true' || (empty($query) && $preload !== 'false')) {
+            $searchQuery = CourseItem::where('active', true)
+                                    ->where('status', CourseStatus::ACTIVE->value)
+                                    ->where('is_leaf', true);
+        } else if (strlen($query) < 2) {
             return response()->json([]);
+        } else {
+            $searchQuery = CourseItem::where('active', true)
+                                    ->where('status', CourseStatus::ACTIVE->value)
+                                    ->where('is_leaf', true)
+                                    ->where('name', 'like', "%{$query}%");
         }
-        
-        $searchQuery = CourseItem::where('active', true) // Khóa học còn hoạt động
-                                ->where('status', CourseStatus::ACTIVE->value) // Chỉ lấy khóa đang học
-                                ->where('is_leaf', true) // Chỉ lấy khóa học lá (có thể đăng ký)
-                                ->where('name', 'like', "%{$query}%");
-        
+
         // Nếu có root_id, chỉ tìm trong phạm vi đó
         if ($rootId) {
             // Lấy tất cả descendants của root_id
@@ -405,13 +441,16 @@ class CourseItemController extends Controller
             if ($rootItem) {
                 $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
                 $descendantIds[] = $rootId; // Bao gồm cả root item
-                
+
                 $searchQuery->whereIn('id', $descendantIds);
             }
         }
-        
+
+        // Giới hạn số lượng kết quả: preload ít hơn, search nhiều hơn
+        $limit = ($preload === 'true' || empty($query)) ? 10 : 20;
+
         $results = $searchQuery->orderBy('name')
-                              ->limit(20)
+                              ->limit($limit)
                               ->get()
                               ->map(function($item) {
                                   return [
@@ -426,7 +465,7 @@ class CourseItemController extends Controller
                                       'status_badge' => $item->status_badge
                                   ];
                               });
-        
+
         return response()->json($results);
     }
 

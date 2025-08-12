@@ -7,7 +7,6 @@ use App\Models\Student;
 use App\Models\Province;
 use App\Rules\DateDDMMYYYY;
 use App\Models\User;
-use App\Enums\EnrollmentStatus;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
@@ -231,16 +230,14 @@ class StudentController extends Controller
         ]);
     }
 
+
+
     /**
-     * Lấy thông tin cơ bản của học viên
+     * Lấy chi tiết học viên cho modal (tương thích với getStudentDetails)
      */
-    public function getInfo($id)
+    public function getStudentDetailsForModal($studentId)
     {
-        $student = Student::with([
-            'province',
-            'enrollments.courseItem',
-            'enrollments.payments'
-        ])->find($id);
+        $student = Student::with(['province', 'enrollments.courseItem', 'enrollments.payments'])->find($studentId);
 
         if (!$student) {
             return response()->json([
@@ -249,124 +246,10 @@ class StudentController extends Controller
             ], 404);
         }
 
-                    // Thêm thông tin bổ sung cho mỗi ghi danh
-            foreach ($student->enrollments as $enrollment) {
-                $enrollment->formatted_enrollment_date = $enrollment->formatted_enrollment_date;
-            $enrollment->is_fully_paid = $enrollment->getRemainingAmount() <= 0;
-            $enrollment->total_paid = $enrollment->getTotalPaidAmount();
-            $enrollment->remaining_amount = $enrollment->getRemainingAmount();
-            
-            // Thêm thông tin chi tiết để hiển thị trong popup
-            $enrollment->discount_percentage = $enrollment->discount_percentage ?? 0;
-            $enrollment->discount_amount = $enrollment->discount_amount ?? 0;
-            $enrollment->notes = $enrollment->notes ?? '';
-            $enrollment->status_label = $enrollment->getStatusEnum() ? $enrollment->getStatusEnum()->label() : $enrollment->status;
-            
-            // Thêm thông tin về course item để hiển thị đầy đủ
-            if ($enrollment->courseItem) {
-                $enrollment->course_item_name = $enrollment->courseItem->name;
-                $enrollment->course_item_fee = $enrollment->courseItem->fee;
-            }
-        }
-
         return response()->json([
             'success' => true,
             'data' => $student
         ]);
-    }
-
-    /**
-     * Lấy chi tiết học viên cho modal
-     */
-    public function getStudentDetails($studentId)
-    {
-        try {
-            $student = Student::with([
-                'enrollments.courseItem',
-                'enrollments.payments'
-            ])->find($studentId);
-
-            if (!$student) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Không tìm thấy học viên'
-                ], 404);
-            }
-
-            // Tính toán thống kê
-            $enrollments = $student->enrollments;
-            $totalPaid = 0;
-            $totalUnpaid = 0;
-            $enrolledCount = 0;
-            $waitingCount = 0;
-            $completedCount = 0;
-
-            $enrollmentHistory = [];
-
-            foreach ($enrollments as $enrollment) {
-                $paidAmount = $enrollment->payments->sum('amount');
-                $totalPaid += $paidAmount;
-                $totalUnpaid += max(0, $enrollment->final_fee - $paidAmount);
-
-                switch ($enrollment->status) {
-                    case EnrollmentStatus::ACTIVE:
-                        $enrolledCount++;
-                        break;
-                    case EnrollmentStatus::WAITING:
-                        $waitingCount++;
-                        break;
-                    case EnrollmentStatus::COMPLETED:
-                        $completedCount++;
-                        break;
-                }
-
-                $enrollmentHistory[] = [
-                    'course_name' => $enrollment->courseItem->name,
-                    'status' => $enrollment->status,
-                    'enrollment_date' => $enrollment->formatted_enrollment_date ?: 'N/A',
-                    'final_fee' => number_format($enrollment->final_fee) . ' VNĐ'
-                ];
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'id' => $student->id,
-                    'first_name' => $student->first_name,
-                    'last_name' => $student->last_name,
-                    'full_name' => $student->full_name,
-                    'phone' => $student->phone,
-                    'email' => $student->email,
-                    'date_of_birth' => $student->date_of_birth ? $student->date_of_birth->format('Y-m-d') : null,
-                    'place_of_birth' => $student->place_of_birth,
-                    'nation' => $student->nation,
-                    'gender' => $student->gender,
-                    'province_id' => $student->province_id,
-                    'address' => $student->address,
-                    'current_workplace' => $student->current_workplace,
-                    'accounting_experience_years' => $student->accounting_experience_years,
-                    'hard_copy_documents' => $student->hard_copy_documents,
-                    'education_level' => $student->education_level,
-                    'notes' => $student->notes,
-                    'created_at' => $student->created_at->format('d/m/Y H:i')
-                ],
-                'stats' => [
-                    'total_enrollments' => $enrollments->count(),
-                    'active_count' => $enrolledCount,
-                    'waiting_count' => $waitingCount,
-                    'completed_count' => $completedCount,
-                    'total_paid' => number_format($totalPaid) . ' VNĐ',
-                    'total_unpaid' => number_format($totalUnpaid) . ' VNĐ'
-                ],
-                'enrollments' => $enrollmentHistory
-            ]);
-
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
-            ], 500);
-        }
     }
 
     /**

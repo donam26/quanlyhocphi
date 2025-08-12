@@ -22,19 +22,43 @@ class SearchController extends Controller
     public function autocomplete(Request $request)
     {
         $q = $request->get('q');
-        
-        if (empty($q) || strlen($q) < 2) {
+        $type = $request->get('type', 'student'); // Mặc định tìm học viên
+        $limit = $request->get('limit', 10);
+
+        // Nếu không có query và yêu cầu preload, trả về một số kết quả mặc định
+        if (empty($q)) {
+            if ($request->get('preload') === 'true') {
+                return $this->getPreloadData($type, $limit);
+            }
             return response()->json([]);
         }
-        
+
+        if (strlen($q) < 2) {
+            return response()->json([]);
+        }
+
+        switch ($type) {
+            case 'course':
+                return $this->searchCourses($q, $limit);
+            case 'student':
+            default:
+                return $this->searchStudents($q, $limit);
+        }
+    }
+
+    /**
+     * Tìm kiếm học viên
+     */
+    private function searchStudents($q, $limit = 10)
+    {
         $students = Student::where('first_name', 'like', "%{$q}%")
             ->orWhere('last_name', 'like', "%{$q}%")
             ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$q}%"])
             ->orWhere('phone', 'like', "%{$q}%")
             ->orWhere('email', 'like', "%{$q}%")
-            ->limit(10)
+            ->limit($limit)
             ->get();
-        
+
         $results = $students->map(function ($student) {
             return [
                 'id' => $student->id,
@@ -44,7 +68,73 @@ class SearchController extends Controller
                 'email' => $student->email
             ];
         });
-        
+
+        return response()->json($results);
+    }
+
+    /**
+     * Tìm kiếm khóa học
+     */
+    private function searchCourses($q, $limit = 10)
+    {
+        $courses = \App\Models\CourseItem::where('active', true)
+            ->where('name', 'like', "%{$q}%")
+            ->limit($limit)
+            ->get();
+
+        $results = $courses->map(function ($course) {
+            return [
+                'id' => $course->id,
+                'text' => $course->name,
+                'name' => $course->name,
+                'fee' => $course->fee
+            ];
+        });
+
+        return response()->json($results);
+    }
+
+    /**
+     * Lấy dữ liệu preload cho Select2
+     */
+    private function getPreloadData($type, $limit = 10)
+    {
+        switch ($type) {
+            case 'course':
+                $courses = \App\Models\CourseItem::where('active', true)
+                    ->where('is_leaf', true)
+                    ->orderBy('name')
+                    ->limit($limit)
+                    ->get();
+
+                $results = $courses->map(function ($course) {
+                    return [
+                        'id' => $course->id,
+                        'text' => $course->name,
+                        'name' => $course->name,
+                        'fee' => $course->fee
+                    ];
+                });
+                break;
+
+            case 'student':
+            default:
+                $students = Student::orderBy('created_at', 'desc')
+                    ->limit($limit)
+                    ->get();
+
+                $results = $students->map(function ($student) {
+                    return [
+                        'id' => $student->id,
+                        'text' => $student->full_name . ' - ' . $student->phone,
+                        'full_name' => $student->full_name,
+                        'phone' => $student->phone,
+                        'email' => $student->email
+                    ];
+                });
+                break;
+        }
+
         return response()->json($results);
     }
     

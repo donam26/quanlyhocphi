@@ -47,7 +47,7 @@ Route::prefix('course-items')->group(function () {
 Route::prefix('students')->group(function () {
     Route::get('/', [StudentController::class, 'index']);
     Route::get('/{id}/info', [StudentController::class, 'getInfo']);
-    Route::get('/{id}/details', [StudentController::class, 'getStudentDetails']);
+    Route::get('/{id}/details', [StudentController::class, 'getStudentDetailsForModal']);
     Route::post('/{id}/update', [StudentController::class, 'update']);
     Route::post('/create', [StudentController::class, 'store']);
     Route::delete('/{id}/delete', [StudentController::class, 'destroy']);
@@ -99,6 +99,7 @@ Route::prefix('ethnicities')->group(function () {
     Route::get('/', [EthnicityController::class, 'index']);
     Route::get('/{id}', [EthnicityController::class, 'show']);
 });
+Route::get('/ethnicities', [EthnicityController::class, 'index']); // Route trực tiếp cho ethnicities
 
 // API cho Tiến độ học tập
 Route::prefix('learning-progress')->group(function () {

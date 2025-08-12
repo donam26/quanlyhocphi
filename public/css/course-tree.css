@@ -551,4 +551,57 @@
     100% {
         box-shadow: 0 0 0 0 rgba(255, 193, 7, 0);
     }
-} 
+}
+
+/* Payment Status Badges in Students Modal */
+.payment-status-badge {
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.payment-status-badge .fas {
+    font-size: 0.7rem;
+}
+
+/* Students Modal Table Styling */
+#studentsModal .table th {
+    background-color: #f8f9fa;
+    border-top: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+#studentsModal .table td {
+    vertical-align: middle;
+    font-size: 0.9rem;
+}
+
+#studentsModal .table .badge {
+    font-size: 0.75rem;
+}
+
+/* Specific column widths for better layout */
+#studentsModal .table th:nth-child(1) { width: 15%; } /* Họ tên */
+#studentsModal .table th:nth-child(2) { width: 12%; } /* SĐT */
+#studentsModal .table th:nth-child(3) { width: 15%; } /* Email */
+#studentsModal .table th:nth-child(4) { width: 10%; } /* Khóa */
+#studentsModal .table th:nth-child(5) { width: 12%; } /* Học phí */
+#studentsModal .table th:nth-child(6) { width: 18%; } /* Trạng thái thanh toán */
+#studentsModal .table th:nth-child(7) { width: 8%; }  /* Ghi chú */
+#studentsModal .table th:nth-child(8) { width: 10%; } /* Thao tác */
+
+/* Payment status specific styling */
+.badge.bg-success {
+    background-color: #198754 !important;
+}
+
+.badge.bg-warning {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+}
+
+.badge.bg-danger {
+    background-color: #dc3545 !important;
+}

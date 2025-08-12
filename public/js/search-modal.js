@@ -24,13 +24,16 @@ class SearchModalSystem {
             theme: 'bootstrap-5',
             placeholder: 'Nhập tên hoặc số điện thoại học viên...',
             allowClear: true,
-            minimumInputLength: 2,
+            minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
             ajax: {
                 url: this.apiRoutes.autocomplete,
                 dataType: 'json',
                 delay: 300,
                 data: function(params) {
-                    return { q: params.term };
+                    return {
+                        q: params.term || '',
+                        preload: params.term ? 'false' : 'true'
+                    };
                 },
                 processResults: function(data) {
                     return { results: data };

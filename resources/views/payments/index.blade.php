@@ -374,15 +374,16 @@ $(document).ready(function() {
         theme: 'bootstrap-5',
         placeholder: 'Tìm theo tên khóa học...',
         allowClear: true,
-        minimumInputLength: 2,
+        minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
         ajax: {
             url: '{{ route("api.search.autocomplete") }}',
             dataType: 'json',
             delay: 250,
             data: function(params) {
                 return {
-                    q: params.term,
-                    type: 'course' // Tìm kiếm khóa học
+                    q: params.term || '',
+                    type: 'course', // Tìm kiếm khóa học
+                    preload: params.term ? 'false' : 'true'
                 };
             },
             processResults: function(data) {

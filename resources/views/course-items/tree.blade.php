@@ -383,6 +383,10 @@
                                             <th>Tổng thu:</th>
                                             <td id="total-revenue"></td>
                                         </tr>
+                                        <tr>
+                                            <th>Số lộ trình:</th>
+                                            <td id="learning-paths-count"></td>
+                                        </tr>
                                     </table>
                                 </div>
                             </div>

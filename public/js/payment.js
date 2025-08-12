@@ -35,7 +35,7 @@ function initStudentSearch() {
     if ($('#student_search').length > 0) {
         $('#student_search').select2({
             placeholder: 'Nhập tên hoặc SĐT học viên...',
-            minimumInputLength: 2,
+            minimumInputLength: 0, // Cho phép hiển thị data ngay khi mở dropdown
             dropdownParent: $('#createPaymentModal'),
             ajax: {
                 url: '/api/search/autocomplete',
@@ -43,7 +43,8 @@ function initStudentSearch() {
                 delay: 250,
                 data: function (params) {
                     return {
-                        q: params.term
+                        q: params.term || '',
+                        preload: params.term ? 'false' : 'true' // Preload nếu không có search term
                     };
                 },
                 processResults: function (data) {
