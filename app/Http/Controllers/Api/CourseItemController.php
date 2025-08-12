@@ -4,8 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\CourseItem;
-use App\Models\Classes;
-use App\Models\LearningPath;
 use App\Enums\EnrollmentStatus;
 use App\Enums\CourseStatus;
 use App\Services\LearningPathService;
@@ -256,11 +254,6 @@ class CourseItemController extends Controller
         // Kiểm tra xem có item con không
         if ($courseItem->children()->count() > 0) {
             return response()->json(['error' => 'Không thể xóa vì còn chứa khóa con'], 422);
-        }
-        
-        // Kiểm tra xem có lớp học liên quan không
-        if ($courseItem->is_leaf && $courseItem->classes()->count() > 0) {
-            return response()->json(['error' => 'Không thể xóa vì có lớp học liên quan'], 422);
         }
         
         $courseItem->delete();
