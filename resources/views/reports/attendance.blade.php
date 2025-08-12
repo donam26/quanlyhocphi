@@ -5,6 +5,8 @@
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('reports.index') }}">Báo cáo</a></li>
 <li class="breadcrumb-item active">Điểm danh</li>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('content')
@@ -211,6 +213,8 @@
         <i class="fas fa-info-circle me-2"></i>Vui lòng chọn khóa học để xem báo cáo điểm danh.
     </div>
 @endif
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @push('scripts')

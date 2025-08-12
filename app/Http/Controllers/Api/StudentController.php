@@ -3,11 +3,13 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Contracts\StudentRepositoryInterface;
 use App\Models\Student;
 use App\Models\Province;
 use App\Rules\DateDDMMYYYY;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 
@@ -287,10 +289,81 @@ class StudentController extends Controller
             ]);
         } catch (\Exception $e) {
             Log::error('Delete student error: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra khi xóa học viên: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy chi tiết học viên với relationships cho Unified Modal System
+     */
+    public function details(int $id): JsonResponse
+    {
+        try {
+            $student = Student::with([
+                'province',
+                'enrollments.courseItem',
+                'enrollments.payments'
+            ])->find($id);
+
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không tìm thấy học viên'
+                ], 404);
+            }
+
+            // Calculate total paid for each enrollment
+            $student->enrollments->each(function ($enrollment) {
+                $enrollment->total_paid = $enrollment->payments
+                    ->where('status', 'confirmed')
+                    ->sum('amount');
+            });
+
+            // Get all payments with enrollment info
+            $payments = $student->enrollments->flatMap(function ($enrollment) {
+                return $enrollment->payments->map(function ($payment) use ($enrollment) {
+                    $payment->enrollment = $enrollment;
+                    return $payment;
+                });
+            })->sortByDesc('payment_date');
+
+            return response()->json([
+                'success' => true,
+                'student' => [
+                    'id' => $student->id,
+                    'first_name' => $student->first_name,
+                    'last_name' => $student->last_name,
+                    'full_name' => $student->full_name,
+                    'date_of_birth' => $student->date_of_birth,
+                    'gender' => $student->gender,
+                    'email' => $student->email,
+                    'phone' => $student->phone,
+                    'address' => $student->address,
+                    'province_id' => $student->province_id,
+                    'province' => $student->province,
+                    'place_of_birth' => $student->place_of_birth,
+                    'nation' => $student->nation,
+                    'current_workplace' => $student->current_workplace,
+                    'accounting_experience_years' => $student->accounting_experience_years,
+                    'education_level' => $student->education_level,
+                    'training_specialization' => $student->training_specialization,
+                    'status' => $student->status,
+                    'notes' => $student->notes,
+                    'enrollments' => $student->enrollments,
+                    'payments' => $payments->values()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Get student details error: ' . $e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tải thông tin học viên'
             ], 500);
         }
     }

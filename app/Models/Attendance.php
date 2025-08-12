@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Carbon\Carbon;
 use App\Traits\Date;
+use App\Enums\AttendanceStatus;
 
 class Attendance extends Model
 {
@@ -25,7 +26,8 @@ class Attendance extends Model
     protected $casts = [
         'attendance_date' => 'date',
         'start_time' => 'datetime:H:i',
-        'end_time' => 'datetime:H:i'
+        'end_time' => 'datetime:H:i',
+        'status' => AttendanceStatus::class
     ];
 
     /**
@@ -114,13 +116,24 @@ class Attendance extends Model
      */
     public function getStatusNameAttribute()
     {
-        $statuses = [
-            'present' => 'Có mặt',
-            'absent' => 'Vắng mặt',
-            'late' => 'Đi muộn',
-            'excused' => 'Có phép'
-        ];
+        $status = $this->getStatusEnum();
+        return $status ? $status->label() : 'Không xác định';
+    }
 
-        return $statuses[$this->status] ?? 'Không xác định';
+    /**
+     * Lấy trạng thái dưới dạng enum
+     */
+    public function getStatusEnum(): ?AttendanceStatus
+    {
+        return $this->status instanceof AttendanceStatus ? $this->status : AttendanceStatus::fromString($this->status);
+    }
+
+    /**
+     * Lấy badge HTML cho trạng thái
+     */
+    public function getStatusBadgeAttribute(): string
+    {
+        $status = $this->getStatusEnum();
+        return $status ? $status->badge() : '<span class="badge bg-secondary">' . $this->status . '</span>';
     }
 }

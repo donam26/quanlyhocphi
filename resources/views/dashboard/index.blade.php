@@ -379,6 +379,8 @@
         </div>
     </div>
 </div>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @push('styles')
@@ -1103,6 +1105,13 @@ document.addEventListener('DOMContentLoaded', function() {
         renderWaitingListChart();
     }
 });
+
+// Dashboard Page với Unified Modal System
+document.addEventListener('app:ready', function() {
+    console.log('Dashboard page ready with Unified Modal System');
+});
 </script>
 @endpush
+
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
 

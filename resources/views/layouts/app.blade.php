@@ -662,14 +662,6 @@
                     <div class="nav-tooltip">Điểm danh</div>
                 </a>
                 
-                <a href="{{ route('schedules.index') }}" class="nav-link {{ request()->routeIs('schedules.*') || request()->routeIs('*.schedules') ? 'active' : '' }}">
-                    <div class="nav-link-icon">
-                        <i class="fas fa-calendar-alt"></i>
-                    </div>
-                    <span class="nav-link-text">Lịch học</span>
-                    <div class="nav-tooltip">Lịch học</div>
-                </a>
-                
                 <a href="{{ route('learning-progress.index') }}" class="nav-link {{ request()->routeIs('learning-progress.*') ? 'active' : '' }}">
                     <div class="nav-link-icon">
                         <i class="fas fa-tasks"></i>
@@ -813,8 +805,7 @@
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <!-- Select2 Helper -->
-    <script src="{{ asset('js/select2-init.js') }}"></script>
+    <!-- Select2 Helper - Integrated into main layout -->
     <!-- Bootstrap Bundle JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <!-- jQuery UI -->
@@ -921,15 +912,15 @@
     <!-- SweetAlert2 CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.min.css">
 
-    <!-- Các scripts cần thiết -->
-    <script src="{{ asset('js/app.js') }}"></script>
-    <!-- Toast utilities -->
-    <script src="{{ asset('js/toast-utils.js') }}"></script>
-    <!-- Date utilities cho format dd/mm/yyyy -->
-    <script src="{{ asset('js/date-utils.js') }}"></script>
+    <!-- Refactored Application JS -->
+    <script src="{{ asset('js/app-refactored.js') }}"></script>
+
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11.7.32/dist/sweetalert2.all.min.js"></script>
 
+    <!-- Include Unified Modal System -->
+    @include('components.unified-modals')
+
     @stack('scripts')
 </body>
-</html> 
+</html>

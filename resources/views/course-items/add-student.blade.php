@@ -6,6 +6,8 @@
 <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
 <li class="breadcrumb-item"><a href="{{ route('course-items.students', $courseItem->id) }}">{{ $courseItem->name }}</a></li>
 <li class="breadcrumb-item active">Thêm học viên</li>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('content')
@@ -172,6 +174,8 @@
         </div>
     </div>
 </div>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @push('scripts')

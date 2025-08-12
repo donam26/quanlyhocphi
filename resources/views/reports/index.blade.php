@@ -92,4 +92,16 @@
     </div>
     
 </div>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
+
+@push('scripts')
+<script>
+// Page ready với Unified Modal System
+document.addEventListener('app:ready', function() {
+    console.log('Page ready with Unified Modal System');
+});
+</script>
+@endpush
+
 @endsection

@@ -5,91 +5,29 @@
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
 <li class="breadcrumb-item active">Thanh toán</li>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('page-actions')
 <a href="{{ route('course-items.tree') }}" class="btn btn-secondary">
     <i class="fas fa-arrow-left"></i> Quay lại
 </a>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('content')
 <!-- Nội dung hiện tại -->
 
 <!-- Thêm các modal -->
-<!-- Modal chi tiết thanh toán -->
-<div class="modal fade" id="paymentDetailsModal" tabindex="-1" aria-labelledby="paymentDetailsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="paymentDetailsModalLabel">
-                    <i class="fas fa-receipt me-2"></i>Chi tiết phiếu thu
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="paymentDetailsContent">
-                <!-- Nội dung sẽ được thêm bằng JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-success" id="confirmPaymentBtn" style="display: none;">
-                    <i class="fas fa-check-circle me-2"></i>Xác nhận thanh toán
-                </button>
-                <button type="button" class="btn btn-warning" id="editPaymentBtn">
-                    <i class="fas fa-edit me-2"></i>Chỉnh sửa
-                </button>
-                <button type="button" class="btn btn-primary" id="printPaymentBtn">
-                    <i class="fas fa-print me-2"></i>In phiếu
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
+
 </div>
 
-<!-- Modal chỉnh sửa thanh toán -->
-<div class="modal fade" id="editPaymentModal" tabindex="-1" aria-labelledby="editPaymentModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editPaymentModalLabel">
-                    <i class="fas fa-edit me-2"></i>Chỉnh sửa phiếu thu
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="editPaymentContent">
-                <!-- Nội dung sẽ được thêm bằng JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-2"></i>Hủy
-                </button>
-                <button type="button" class="btn btn-primary" id="savePaymentBtn">
-                    <i class="fas fa-save me-2"></i>Lưu thay đổi
-                </button>
-            </div>
-        </div>
-    </div>
+
 </div>
 
-<!-- Modal tạo thanh toán mới -->
-<div class="modal fade" id="createPaymentModal" tabindex="-1" aria-labelledby="createPaymentModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="createPaymentModalLabel">
-                    <i class="fas fa-plus-circle me-2"></i>Tạo phiếu thu
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="student_search">Tìm học viên</label>
-                            <select class="form-control select2" id="student_search"></select>
-                            <div class="form-text text-muted">Nhập tên hoặc số điện thoại để tìm học viên</div>
-                        </div>
-                    </div>
+
                 </div>
 
                 <!-- Hiển thị thông tin ghi danh -->
@@ -425,75 +363,10 @@
     </div>
 </div>
 
-<!-- Modal lịch sử thanh toán -->
-<div class="modal fade" id="paymentHistoryModal" tabindex="-1" aria-labelledby="paymentHistoryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="paymentHistoryModalLabel">
-                    <i class="fas fa-history me-2"></i>Lịch sử thanh toán
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body" id="paymentHistoryContent">
-                <!-- Nội dung sẽ được thêm bằng JavaScript -->
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
+
 </div>
 
-<!-- Modal chỉnh sửa học phí -->
-<div class="modal fade" id="editFeeModal" tabindex="-1" aria-labelledby="editFeeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editFeeModalLabel">Chỉnh sửa học phí</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <form id="editFeeForm" action="{{ route('enrollments.update-fee') }}" method="POST">
-                    @csrf
-                    <input type="hidden" name="enrollment_id" id="enrollment_id">
-                    
-                    <div class="mb-3">
-                        <label for="discount_type" class="form-label">Loại chiết khấu</label>
-                        <select class="form-select" id="discount_type" name="discount_type">
-                            <option value="percentage">Phần trăm (%)</option>
-                            <option value="fixed">Số tiền cố định</option>
-                            <option value="custom" selected>Tùy chỉnh học phí</option>
-                        </select>
-                    </div>
-                    
-                    <div class="mb-3 d-none" id="discount_percentage_group">
-                        <label for="discount_percentage" class="form-label">Phần trăm chiết khấu (%)</label>
-                        <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" min="0" max="100" step="0.1">
-                    </div>
-                    
-                    <div class="mb-3 d-none" id="discount_amount_group">
-                        <label for="discount_amount" class="form-label">Số tiền chiết khấu</label>
-                        <input type="number" class="form-control" id="discount_amount" name="discount_amount" min="0">
-                    </div>
-                    
-                    <div class="mb-3" id="final_fee_group">
-                        <label for="final_fee" class="form-label">Học phí cuối cùng</label>
-                        <input type="number" class="form-control" id="final_fee" name="final_fee" min="0" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="fee_notes" class="form-label">Ghi chú</label>
-                        <textarea class="form-control" id="fee_notes" name="fee_notes" rows="2"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" onclick="document.getElementById('editFeeForm').submit()">Lưu thay đổi</button>
-            </div>
-        </div>
-    </div>
+
 </div>
 
 <style>
@@ -517,4 +390,6 @@ $(document).ready(function() {
 });
 </script>
 @endpush
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection 

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Date;
+use App\Enums\StudentStatus;
 
 class Student extends Model
 {
@@ -44,6 +45,7 @@ class Student extends Model
         'date_of_birth' => 'date',
         'hard_copy_documents' => 'string',
         'education_level' => 'string',
+        'status' => StudentStatus::class,
     ];
 
     /**
@@ -217,5 +219,22 @@ class Student extends Model
                   ->orWhere('email', 'like', "%{$term}%");
             });
         }
+    }
+
+    /**
+     * Lấy trạng thái dưới dạng enum
+     */
+    public function getStatusEnum(): ?StudentStatus
+    {
+        return $this->status instanceof StudentStatus ? $this->status : StudentStatus::fromString($this->status);
+    }
+
+    /**
+     * Lấy badge HTML cho trạng thái
+     */
+    public function getStatusBadgeAttribute(): string
+    {
+        $status = $this->getStatusEnum();
+        return $status ? $status->badge() : '<span class="badge bg-secondary">' . $this->status . '</span>';
     }
 }

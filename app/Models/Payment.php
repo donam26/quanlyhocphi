@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Date;
+use App\Enums\PaymentStatus;
+use App\Enums\PaymentMethod;
 
 class Payment extends Model
 {
@@ -22,7 +24,9 @@ class Payment extends Model
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'payment_date' => 'date'
+        'payment_date' => 'date',
+        'status' => PaymentStatus::class,
+        'payment_method' => PaymentMethod::class
     ];
 
     /**
@@ -54,7 +58,7 @@ class Payment extends Model
      */
     public function scopeConfirmed($query)
     {
-        return $query->where('status', 'confirmed');
+        return $query->where('status', PaymentStatus::CONFIRMED);
     }
 
     /**
@@ -62,7 +66,7 @@ class Payment extends Model
      */
     public function scopePending($query)
     {
-        return $query->where('status', 'pending');
+        return $query->where('status', PaymentStatus::PENDING);
     }
 
     /**
@@ -70,7 +74,15 @@ class Payment extends Model
      */
     public function scopeCancelled($query)
     {
-        return $query->where('status', 'cancelled');
+        return $query->where('status', PaymentStatus::CANCELLED);
+    }
+
+    /**
+     * Scope cho các thanh toán đã hoàn tiền
+     */
+    public function scopeRefunded($query)
+    {
+        return $query->where('status', PaymentStatus::REFUNDED);
     }
 
     /**
@@ -95,5 +107,39 @@ class Payment extends Model
     public function setPaymentDateAttribute($value)
     {
         $this->attributes['payment_date'] = static::parseDate($value);
+    }
+
+    /**
+     * Lấy trạng thái dưới dạng enum
+     */
+    public function getStatusEnum(): ?PaymentStatus
+    {
+        return $this->status instanceof PaymentStatus ? $this->status : PaymentStatus::fromString($this->status);
+    }
+
+    /**
+     * Lấy phương thức thanh toán dưới dạng enum
+     */
+    public function getPaymentMethodEnum(): ?PaymentMethod
+    {
+        return $this->payment_method instanceof PaymentMethod ? $this->payment_method : PaymentMethod::fromString($this->payment_method);
+    }
+
+    /**
+     * Lấy badge HTML cho trạng thái
+     */
+    public function getStatusBadgeAttribute(): string
+    {
+        $status = $this->getStatusEnum();
+        return $status ? $status->badge() : '<span class="badge bg-secondary">' . $this->status . '</span>';
+    }
+
+    /**
+     * Lấy badge HTML cho phương thức thanh toán
+     */
+    public function getPaymentMethodBadgeAttribute(): string
+    {
+        $method = $this->getPaymentMethodEnum();
+        return $method ? $method->badge() : '<span class="badge bg-secondary">' . $this->payment_method . '</span>';
     }
 }

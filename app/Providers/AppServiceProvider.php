@@ -13,7 +13,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Đăng ký Repository Pattern
+        $this->app->bind(
+            \App\Contracts\StudentRepositoryInterface::class,
+            \App\Repositories\StudentRepository::class
+        );
+
+        $this->app->bind(
+            \App\Contracts\PaymentRepositoryInterface::class,
+            \App\Repositories\PaymentRepository::class
+        );
     }
 
     /**

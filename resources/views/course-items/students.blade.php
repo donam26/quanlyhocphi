@@ -5,6 +5,8 @@
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('course-items.tree') }}">Khóa học</a></li>
 <li class="breadcrumb-item active">{{ $courseItem->name }}</li>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('page-actions')
@@ -14,6 +16,8 @@
 <a href="{{ route('course-items.waiting-list', $courseItem->id) }}" class="btn btn-warning">
     <i class="fas fa-user-clock"></i> Danh sách chờ
 </a>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('content')
@@ -148,80 +152,12 @@
     </div>
 </div>
 
-<!-- Modal Chuyển sang danh sách chờ -->
-<div class="modal fade" id="moveToWaitingList" tabindex="-1" aria-labelledby="moveToWaitingListLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="moveToWaitingListLabel">Chuyển học viên sang danh sách chờ</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('enrollments.move-to-waiting') }}" method="POST">
-                @csrf
-                <div class="modal-body">
-                    <input type="hidden" id="enrollment_id" name="enrollment_id">
-                    <p>Bạn đang chuyển học viên <strong id="student-name"></strong> sang danh sách chờ.</p>
 
-                    <div class="mb-3">
-                        <label for="reason" class="form-label">Lý do chuyển sang danh sách chờ <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="reason" name="reason" rows="3" required></textarea>
-                        <div class="form-text">Lý do sẽ được ghi vào hồ sơ của học viên.</div>
-                    </div>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
 
-                    <div class="alert alert-warning">
-                        <i class="fas fa-exclamation-triangle me-2"></i>
-                        Lưu ý: Sau khi chuyển sang danh sách chờ, học viên sẽ không thể tham gia các hoạt động của lớp học nữa.
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-warning">Chuyển sang danh sách chờ</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 @endsection
 
-<!-- Modal Import Excel -->
-<div class="modal fade" id="importExcelModal" tabindex="-1" aria-labelledby="importExcelModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="importExcelModalLabel">Import học viên từ Excel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('course-items.import-students', $courseItem->id) }}" method="POST" enctype="multipart/form-data">
-                @csrf
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label for="excel_file" class="form-label">File Excel <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="excel_file" name="excel_file" required accept=".xlsx,.xls,.csv">
-                        <div class="form-text">
-                            Chỉ chấp nhận file Excel (.xlsx, .xls) hoặc CSV
-                        </div>
-                    </div>
 
-                    <div class="mb-3">
-                        <label for="discount_percentage" class="form-label">Giảm giá (%)</label>
-                        <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" min="0" max="100" value="0">
-                        <div class="form-text">
-                            Áp dụng % giảm giá cho tất cả học viên import trong file này
-                        </div>
-                    </div>
-
-                    <div class="alert alert-info">
-                        <h6 class="mb-2">Định dạng file Excel:</h6>
-                        <p class="mb-1">- Dòng đầu tiên là tiêu đề cột</p>
-                        <p class="mb-1">- Các cột bắt buộc: <strong>ho_ten</strong>, <strong>so_dien_thoai</strong></p>
-                        <p class="mb-1">- Các cột tùy chọn: email, ngay_sinh (dd/mm/yyyy), gioi_tinh, dia_chi, noi_cong_tac, kinh_nghiem, ghi_chu</p>
-                        <div class="mt-2">
-                            <a href="{{ route('course-items.download-template') }}" class="btn btn-sm btn-success">
-                                <i class="fas fa-download"></i> Tải xuống template
-                            </a>
-                        </div>
-                    </div>
-                </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
                     <button type="submit" class="btn btn-primary">Import</button>
@@ -231,37 +167,7 @@
     </div>
 </div>
 
-<!-- Modal Xem Ghi Chú -->
-<div class="modal fade" id="viewNotesModal" tabindex="-1" aria-labelledby="viewNotesModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="viewNotesModalLabel">Ghi chú thanh toán - <span id="note-student-name"></span></h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
-                            <tr>
-                                <th>Ngày</th>
-                                <th>Số tiền</th>
-                                <th>Phương thức</th>
-                                <th>Trạng thái</th>
-                                <th>Ghi chú</th>
-                            </tr>
-                        </thead>
-                        <tbody id="notes-table-body">
-                            <!-- Nội dung sẽ được thêm bằng JavaScript -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
+
 </div>
 
 @push('scripts')

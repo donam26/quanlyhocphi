@@ -5,6 +5,8 @@
 @section('breadcrumb')
 <li class="breadcrumb-item"><a href="{{ route('reports.index') }}">Báo cáo</a></li>
 <li class="breadcrumb-item active">Ghi danh</li>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @section('content')
@@ -206,6 +208,8 @@
         </div>
     </div>
 </div>
+{{-- Tất cả modal đã được thay thế bằng Unified Modal System --}}
+
 @endsection
 
 @push('scripts')

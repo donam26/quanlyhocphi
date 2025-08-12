@@ -25,6 +25,39 @@ Route::get('/', function () {
 });
 
 // Các routes yêu cầu đăng nhập và quyền admin
+// API Routes
+Route::prefix('api')->group(function () {
+    // Status API
+    Route::get('/status/definitions', [App\Http\Controllers\Api\StatusController::class, 'definitions']);
+    Route::get('/status/{type}/options', [App\Http\Controllers\Api\StatusController::class, 'options']);
+    Route::get('/status/{type}/{value}/badge', [App\Http\Controllers\Api\StatusController::class, 'badge']);
+    Route::get('/status/{type}/{value}/validate', [App\Http\Controllers\Api\StatusController::class, 'validate']);
+
+    // Student API
+    Route::get('/students/search', [App\Http\Controllers\StudentController::class, 'search']);
+    Route::get('/students/{student}/details', [App\Http\Controllers\Api\StudentController::class, 'details']);
+    Route::get('/students/{student}/history', [App\Http\Controllers\Api\StudentController::class, 'history']);
+
+    // Course API
+    Route::get('/course-items/{courseItem}/details', [App\Http\Controllers\Api\CourseItemController::class, 'details']);
+
+    // Enrollment API
+    Route::get('/enrollments/{enrollment}/details', [App\Http\Controllers\Api\EnrollmentController::class, 'details']);
+
+    // Payment API
+    Route::get('/payments/{payment}/details', [App\Http\Controllers\Api\PaymentController::class, 'details']);
+    Route::get('/enrollments/{enrollment}/payment-history', [App\Http\Controllers\Api\PaymentController::class, 'history']);
+
+    // Attendance API
+    Route::get('/course-items/{courseItem}/attendance-form', [App\Http\Controllers\Api\AttendanceController::class, 'form']);
+
+    // Search API
+    Route::get('/search/autocomplete', [App\Http\Controllers\SearchController::class, 'autocomplete'])->name('api.search.autocomplete');
+
+    // Provinces API
+    Route::get('/provinces', [App\Http\Controllers\Api\ProvinceController::class, 'index']);
+});
+
 Route::middleware(['auth', 'admin'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
@@ -92,16 +125,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Trang cây danh sách chờ
     Route::get('waiting-tree', [CourseItemController::class, 'waitingTree'])->name('course-items.waiting-tree');
     Route::get('course-items/{courseItem}/waiting-count', [CourseItemController::class, 'getWaitingCount'])->name('course-items.waiting-count');
-    
-    // Quản lý lịch học
-    Route::get('schedules/calendar-events', [ScheduleController::class, 'getCalendarEvents'])->name('schedules.calendar-events');
-    Route::get('schedules/session-info', [ScheduleController::class, 'getSessionInfo'])->name('schedules.session-info');
-    Route::post('schedules/save-attendance', [ScheduleController::class, 'saveAttendance'])->name('schedules.save-attendance');
-    Route::resource('schedules', ScheduleController::class);
-    Route::get('course-items/{courseItem}/schedules', [ScheduleController::class, 'getSchedulesByCourse'])->name('course-items.schedules');
-    Route::post('schedules/{schedule}/toggle-active', [ScheduleController::class, 'toggleActive'])->name('schedules.toggle-active');
-    Route::post('schedules/{schedule}/close', [ScheduleController::class, 'closeSchedule'])->name('schedules.close');
-
 
     // Attendance
     Route::get('attendance/tree', [AttendanceController::class, 'tree'])->name('attendance.tree');
@@ -189,15 +212,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance.view');
     Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
     Route::get('/course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
-
-    // Lịch học
-    Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
-    Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
-    Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
-    Route::get('/schedules/{schedule}/edit', [ScheduleController::class, 'edit'])->name('schedules.edit');
-    Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->name('schedules.update');
-    Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
-    Route::get('/course-items/{courseItem}/schedules', [ScheduleController::class, 'showCourseSchedule'])->name('course-items.schedules');
 
     // Tiến độ học tập
     Route::get('/learning-progress', [LearningProgressController::class, 'index'])->name('learning-progress.index');

@@ -2,28 +2,45 @@
 
 namespace App\Http\Controllers;
 
+use App\Contracts\StudentRepositoryInterface;
+use App\Services\Student\StudentCreationService;
+use App\Services\Student\StudentUpdateService;
+use App\Services\StatusFactory;
 use App\Models\Student;
-use App\Services\StudentService;
 use App\Enums\EnrollmentStatus;
 use App\Rules\DateDDMMYYYY;
 use Illuminate\Http\Request;
+use Illuminate\Http\JsonResponse;
+use Illuminate\View\View;
+use Illuminate\Http\RedirectResponse;
 
+/**
+ * StudentController - Refactored theo SOLID principles
+ * Tuân thủ Single Responsibility và Dependency Injection
+ */
 class StudentController extends Controller
 {
-    protected $studentService;
+    protected StudentRepositoryInterface $studentRepository;
+    protected StudentCreationService $creationService;
+    protected StudentUpdateService $updateService;
 
-    public function __construct(StudentService $studentService)
-    {
-        $this->studentService = $studentService;
+    public function __construct(
+        StudentRepositoryInterface $studentRepository,
+        StudentCreationService $creationService,
+        StudentUpdateService $updateService
+    ) {
+        $this->studentRepository = $studentRepository;
+        $this->creationService = $creationService;
+        $this->updateService = $updateService;
     }
 
     /**
      * Hiển thị danh sách học viên
      */
-    public function index(Request $request)
+    public function index(Request $request): View
     {
-        $filters = $request->only(['search', 'student_id', 'course_item_id']);
-        $students = $this->studentService->getStudents($filters);
+        $perPage = $request->get('per_page', 15);
+        $students = $this->studentRepository->paginate($perPage);
 
         return view('students.index', compact('students'));
     }
@@ -31,10 +48,12 @@ class StudentController extends Controller
     /**
      * Hiển thị form tạo học viên mới
      */
-    public function create()
+    public function create(): View
     {
         $provinces = \App\Models\Province::orderBy('name')->get();
-        return view('students.create', compact('provinces'));
+        $statusOptions = StatusFactory::getOptions('student');
+
+        return view('students.create', compact('provinces', 'statusOptions'));
     }
 
     /**
@@ -58,7 +77,15 @@ class StudentController extends Controller
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
         ]);
 
-        $student = $this->studentService->createStudent($validated);
+        $student = $this->creationService->createStudent($validated);
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Thêm học viên thành công!',
+                'student' => $student
+            ]);
+        }
 
         return redirect()->route('students.index')
                         ->with('success', 'Thêm học viên thành công!');
@@ -71,12 +98,14 @@ class StudentController extends Controller
     /**
      * Xóa học viên
      */
-    public function destroy(Student $student)
+    public function destroy(Student $student): RedirectResponse
     {
         try {
-            $this->studentService->deleteStudent($student);
+            $this->studentRepository->delete($student);
+
             return redirect()->route('students.index')
                             ->with('success', 'Xóa học viên thành công!');
+
         } catch (\Exception $e) {
             return redirect()->route('students.index')
                             ->with('error', 'Không thể xóa học viên do có dữ liệu liên quan!');
@@ -84,19 +113,60 @@ class StudentController extends Controller
     }
 
     /**
+     * Tìm kiếm học viên (API)
+     */
+    public function search(Request $request): JsonResponse
+    {
+        $term = $request->get('term', '');
+        $limit = $request->get('limit', 10);
+
+        if (empty($term)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vui lòng nhập từ khóa tìm kiếm'
+            ]);
+        }
+
+        $students = $this->studentRepository->search($term, $limit);
+
+        return response()->json([
+            'success' => true,
+            'students' => $students->map(function ($student) {
+                return [
+                    'id' => $student->id,
+                    'name' => $student->full_name,
+                    'phone' => $student->phone,
+                    'email' => $student->email,
+                    'status' => $student->status,
+                    'status_badge' => $student->status_badge
+                ];
+            })
+        ]);
+    }
+
+    /**
      * Trang thống kê học viên
      */
-    public function statistics()
+    public function statistics(): View
     {
-        $stats = $this->studentService->getStudentStatistics();
+        $stats = [
+            'total_students' => $this->studentRepository->count(),
+            'gender_stats' => $this->studentRepository->getGenderStatistics(),
+            'age_stats' => $this->studentRepository->getAgeStatistics(),
+            'top_students' => $this->studentRepository->getTopStudentsByEnrollments(5)
+        ];
+
         return view('students.statistics', compact('stats'));
     }
 
-    public function history($studentId)
+    /**
+     * Xem lịch sử học viên
+     */
+    public function history(int $studentId): View
     {
-        $student = $this->studentService->getStudentWithRelations(
+        $student = $this->studentRepository->findWithRelations(
             $studentId,
-            ['enrollments.courseItem', 'enrollments.payments', 'waitingLists.courseItem']
+            ['enrollments.courseItem', 'enrollments.payments']
         );
 
         return view('search.student-history', compact('student'));
