@@ -20,6 +20,9 @@ return new class extends Migration
             $table->decimal('fee', 15, 2)->default(0);
             $table->integer('order_index')->default(0);
             $table->boolean('active')->default(true);
+            $table->boolean('is_special')->default(false);
+            $table->json('custom_fields')->nullable();
+            $table->enum('status', ['active', 'completed'])->default('active');
             $table->timestamps();
         });
     }

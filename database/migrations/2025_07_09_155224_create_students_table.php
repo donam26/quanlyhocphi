@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->string('full_name'); // Họ và tên
+            $table->string('first_name'); // Họ và tên
+            $table->string('last_name'); // Họ và tên
             $table->date('date_of_birth'); // Ngày tháng năm sinh
             $table->enum('gender', ['male', 'female', 'other'])->nullable(); // Giới tính
             $table->string('email')->nullable(); // Email
@@ -23,7 +24,10 @@ return new class extends Migration
             // Thông tin bổ sung cho lớp Kế toán trưởng
             $table->string('current_workplace')->nullable(); // Nơi công tác hiện tại
             $table->integer('accounting_experience_years')->nullable(); // Số năm kinh nghiệm làm kế toán
-            
+            $table->string('training_specialization')->nullable(); // Chuyên môn đào tạo
+            $table->enum('hard_copy_documents', ['submitted', 'not_submitted'])->nullable();
+            $table->enum('education_level', ['vocational', 'associate', 'bachelor', 'master', 'secondary'])->nullable();
+
             $table->text('notes')->nullable(); // Ghi chú
             $table->timestamps();
         });

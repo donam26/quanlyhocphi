@@ -303,7 +303,6 @@ class AttendanceController extends Controller
                     'enrollment_id' => $enrollment->id,
                     'student_id' => $enrollment->student_id,
                     'course_item_id' => $enrollment->course_item_id,
-                    'schedule_id' => null, // Không có schedule_id khi điểm danh từ tree
                     'attendance_date' => $date,
                     'status' => $attendanceData['status'],
                     'notes' => $attendanceData['notes'] ?? null
