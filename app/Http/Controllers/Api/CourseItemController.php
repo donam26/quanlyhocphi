@@ -394,7 +394,7 @@ class CourseItemController extends Controller
         }
         
         $searchQuery = CourseItem::where('active', true) // Khóa học còn hoạt động
-                                ->where('status', CourseStatus::ACTIVE) // Chỉ lấy khóa đang học
+                                ->where('status', CourseStatus::ACTIVE->value) // Chỉ lấy khóa đang học
                                 ->where('is_leaf', true) // Chỉ lấy khóa học lá (có thể đăng ký)
                                 ->where('name', 'like', "%{$query}%");
         
@@ -437,7 +437,7 @@ class CourseItemController extends Controller
     {
         $courses = CourseItem::where('is_leaf', true)
                             ->where('active', true)
-                            ->where('status', CourseStatus::ACTIVE) // Chỉ lấy khóa đang học
+                            ->where('status', CourseStatus::ACTIVE->value) // Chỉ lấy khóa đang học
                             ->orderBy('name')
                             ->get()
                             ->map(function($course) {
