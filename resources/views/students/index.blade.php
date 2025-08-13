@@ -93,6 +93,9 @@
             <span class="badge bg-primary ms-2">{{ $students->total() }} học viên</span>
         </h5>
         <div class="btn-group">
+            <button class="btn btn-sm btn-outline-primary" onclick="showImportModal()">
+                <i class="fas fa-file-upload me-1"></i>Import Excel
+            </button>
             <button class="btn btn-sm btn-outline-success" onclick="showExportModal()">
                 <i class="fas fa-file-excel me-1"></i>Xuất Excel
             </button>
@@ -349,6 +352,92 @@
         </div>
     </div>
 </div>
+
+<!-- Modal Import Excel -->
+<div class="modal fade" id="importStudentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-upload me-2"></i>Import danh sách học viên từ Excel
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Hướng dẫn:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Hệ thống sẽ kiểm tra theo <strong>email</strong> học viên</li>
+                        <li>Nếu email đã tồn tại: <strong>cập nhật</strong> thông tin mới</li>
+                        <li>Nếu email chưa tồn tại: <strong>tạo mới</strong> học viên</li>
+                        <li>File Excel phải có định dạng .xlsx, .xls hoặc .csv</li>
+                        <li>Kích thước file tối đa: 10MB</li>
+                    </ul>
+                </div>
+
+                <form id="importStudentForm" enctype="multipart/form-data">
+                    @csrf
+                    <div class="mb-3">
+                        <label for="import-file" class="form-label">Chọn file Excel <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" id="import-file" name="file"
+                               accept=".xlsx,.xls,.csv" required>
+                        <div class="invalid-feedback" id="import-file-error"></div>
+                        <div class="form-text">
+                            Chấp nhận file: .xlsx, .xls, .csv (tối đa 10MB)
+                        </div>
+                    </div>
+
+
+
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="downloadImportTemplate()">
+                            <i class="fas fa-download me-1"></i>Tải mẫu Excel
+                        </button>
+                        <small class="text-muted ms-2">Tải file mẫu để xem định dạng cột</small>
+                    </div>
+                </form>
+
+                <!-- Progress bar -->
+                <div id="import-progress" class="d-none">
+                    <div class="progress mb-3">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated"
+                             role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div class="text-center">
+                        <small class="text-muted">Đang xử lý file...</small>
+                    </div>
+                </div>
+
+                <!-- Import results -->
+                <div id="import-results" class="d-none">
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-check-circle me-2"></i>Kết quả import:</h6>
+                        <ul class="mb-0">
+                            <li>Tạo mới: <span id="created-count">0</span> học viên</li>
+                            <li>Cập nhật: <span id="updated-count">0</span> học viên</li>
+                            <li>Bỏ qua: <span id="skipped-count">0</span> dòng</li>
+                        </ul>
+                    </div>
+                    <div id="import-errors" class="d-none">
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Lỗi trong quá trình import:</h6>
+                            <div id="error-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" id="execute-import-btn" onclick="executeImport()">
+                    <i class="fas fa-upload me-1"></i>Bắt đầu Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@include('components.student-modals')
 @endsection
 
 @push('scripts')
@@ -413,7 +502,7 @@ $(document).ready(function() {
 
 function showExportModal() {
     $('#exportStudentModal').modal('show');
-    
+
     // Ngăn chặn auto-submit cho các select trong modal export
     setTimeout(function() {
         $('.export-select').off('change').on('change', function(e) {
@@ -421,6 +510,18 @@ function showExportModal() {
             // Không làm gì cả, chỉ ngăn chặn submit
         });
     }, 100);
+}
+
+function showImportModal() {
+    $('#importStudentModal').modal('show');
+
+    // Reset form khi mở modal
+    $('#importStudentForm')[0].reset();
+    $('#import-progress').addClass('d-none');
+    $('#import-results').addClass('d-none');
+    $('#import-errors').addClass('d-none');
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
 }
 
 function executeExport() {
@@ -765,6 +866,7 @@ function populateEditForm(student) {
         $('#edit-date-of-birth').val(student.formatted_date_of_birth || '');
     }
 
+    $('#edit-address').val(student.address || '');
     $('#edit-notes').val(student.notes || '');
     $('#edit-current-workplace').val(student.current_workplace || '');
     $('#edit-experience').val(student.accounting_experience_years || '');
@@ -773,6 +875,12 @@ function populateEditForm(student) {
     $('#edit-training-specialization').val(student.training_specialization || '');
     $('#edit-nation').val(student.nation || '');
     $('#edit-place-of-birth').val(student.place_of_birth || '');
+
+    // Populate thông tin hóa đơn
+    $('#edit-company-name').val(student.company_name || '');
+    $('#edit-tax-code').val(student.tax_code || '');
+    $('#edit-invoice-email').val(student.invoice_email || '');
+    $('#edit-company-address').val(student.company_address || '');
 
     // Xử lý tỉnh thành với Select2
     if (student.province) {
@@ -1168,3 +1276,191 @@ $(document).on('click', '#save-new-student-btn', function() {
         </div>
     </div>
 </div>
+
+<script>
+// Xử lý form chỉnh sửa học viên
+$(document).on('click', '#save-student-btn', function() {
+    const form = $('#studentEditForm');
+    const formData = new FormData(form[0]);
+    const button = $(this);
+    const studentId = $('#edit-student-id').val();
+
+    // Disable button và hiển thị loading
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...');
+
+    // Clear previous errors
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
+
+    $.ajax({
+        url: `/api/students/${studentId}/update`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                // Hiển thị thông báo thành công
+                toastr.success(response.message || 'Cập nhật học viên thành công!');
+
+                // Đóng modal
+                $('#editStudentModal').modal('hide');
+
+                // Reload trang để hiển thị thay đổi
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                toastr.error(response.message || 'Có lỗi xảy ra!');
+            }
+        },
+        error: function(xhr) {
+            if (xhr.status === 422) {
+                // Validation errors
+                const errors = xhr.responseJSON.errors;
+                for (const field in errors) {
+                    const input = $(`[name="${field}"]`);
+                    input.addClass('is-invalid');
+                    $(`#edit-${field.replace('_', '-')}-error`).text(errors[field][0]);
+                }
+                toastr.error('Vui lòng kiểm tra lại thông tin!');
+            } else {
+                toastr.error('Có lỗi xảy ra khi cập nhật học viên!');
+            }
+        },
+        complete: function() {
+            // Reset button
+            button.prop('disabled', false);
+            button.html('<i class="fas fa-save me-1"></i>Lưu thay đổi');
+        }
+    });
+});
+
+// Hàm tải mẫu Excel cho import
+function downloadImportTemplate() {
+    window.location.href = '{{ route("students.import.template") }}';
+}
+
+// Hàm thực hiện import Excel
+function executeImport() {
+    const form = $('#importStudentForm')[0];
+    const formData = new FormData(form);
+    const fileInput = $('#import-file')[0];
+    const button = $('#execute-import-btn');
+
+    // Validate file
+    if (!fileInput.files.length) {
+        $('#import-file').addClass('is-invalid');
+        $('#import-file-error').text('Vui lòng chọn file Excel');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                         'application/vnd.ms-excel', 'text/csv'];
+
+    if (!allowedTypes.includes(file.type)) {
+        $('#import-file').addClass('is-invalid');
+        $('#import-file-error').text('File phải có định dạng .xlsx, .xls hoặc .csv');
+        return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB
+        $('#import-file').addClass('is-invalid');
+        $('#import-file-error').text('File không được vượt quá 10MB');
+        return;
+    }
+
+    // Clear previous errors
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
+
+    // Show progress
+    $('#import-progress').removeClass('d-none');
+    $('#import-results').addClass('d-none');
+    $('#import-errors').addClass('d-none');
+
+    // Disable button
+    button.prop('disabled', true);
+    button.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang xử lý...');
+
+    // Simulate progress
+    let progress = 0;
+    const progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        $('.progress-bar').css('width', progress + '%');
+    }, 200);
+
+    $.ajax({
+        url: '{{ route("students.import") }}',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            clearInterval(progressInterval);
+            $('.progress-bar').css('width', '100%');
+
+            setTimeout(() => {
+                $('#import-progress').addClass('d-none');
+
+                if (response.success) {
+                    // Hiển thị kết quả
+                    $('#created-count').text(response.data.created_count || 0);
+                    $('#updated-count').text(response.data.updated_count || 0);
+                    $('#skipped-count').text(response.data.skipped_count || 0);
+                    $('#import-results').removeClass('d-none');
+
+                    // Hiển thị lỗi nếu có
+                    if (response.data.errors && response.data.errors.length > 0) {
+                        let errorHtml = '<ul class="mb-0">';
+                        response.data.errors.forEach(error => {
+                            errorHtml += `<li>${error}</li>`;
+                        });
+                        errorHtml += '</ul>';
+                        $('#error-list').html(errorHtml);
+                        $('#import-errors').removeClass('d-none');
+                    }
+
+                    toastr.success(response.message || 'Import thành công!');
+
+                    // Reload trang sau 3 giây
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                } else {
+                    toastr.error(response.message || 'Có lỗi xảy ra khi import!');
+                }
+            }, 500);
+        },
+        error: function(xhr) {
+            clearInterval(progressInterval);
+            $('#import-progress').addClass('d-none');
+
+            if (xhr.status === 422) {
+                const errors = xhr.responseJSON.errors;
+                for (const field in errors) {
+                    $(`#import-${field.replace('_', '-')}`).addClass('is-invalid');
+                    $(`#import-${field.replace('_', '-')}-error`).text(errors[field][0]);
+                }
+                toastr.error('Vui lòng kiểm tra lại thông tin!');
+            } else {
+                toastr.error('Có lỗi xảy ra khi import file!');
+            }
+        },
+        complete: function() {
+            // Re-enable button
+            button.prop('disabled', false);
+            button.html('<i class="fas fa-upload me-1"></i>Bắt đầu Import');
+        }
+    });
+}
+</script>

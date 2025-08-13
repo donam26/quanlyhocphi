@@ -34,9 +34,11 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::get('students', [StudentController::class, 'index'])->name('students.index');
     Route::get('/students/create', [StudentController::class, 'create'])->name('students.create');
     Route::post('/students', [StudentController::class, 'store'])->name('students.store');
-    // Đặt route export TRƯỚC route tham số để tránh nuốt path 'export'
+    // Đặt route export/import TRƯỚC route tham số để tránh nuốt path 'export'/'import'
     Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
     Route::post('students/export-invoice', [StudentController::class, 'exportInvoice'])->name('students.export-invoice');
+    Route::post('students/import', [StudentController::class, 'import'])->name('students.import');
+    Route::get('students/import-template', [StudentController::class, 'downloadImportTemplate'])->name('students.import.template');
     // Các route theo id, ràng buộc id là số để tránh đè lên 'export'
     Route::get('students/{student}', [StudentController::class, 'show'])->whereNumber('student')->name('students.show');
     Route::get('students/{student}/edit', [StudentController::class, 'edit'])->whereNumber('student')->name('students.edit');

@@ -148,6 +148,53 @@ class StudentController extends Controller
     }
 
     /**
+     * Import danh sách học viên từ Excel
+     */
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // Max 10MB
+        ]);
+
+        try {
+            // Mặc định sử dụng chế độ tạo mới và cập nhật
+            $result = $this->studentService->importStudents(
+                $request->file('file'),
+                'create_and_update'
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => $result['message'],
+                'data' => [
+                    'created_count' => $result['created_count'],
+                    'updated_count' => $result['updated_count'],
+                    'skipped_count' => $result['skipped_count'],
+                    'errors' => $result['errors']
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi import: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tải file mẫu Excel cho import học viên
+     */
+    public function downloadImportTemplate()
+    {
+        try {
+            return $this->studentService->downloadImportTemplate();
+        } catch (\Exception $e) {
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi tải file mẫu: ' . $e->getMessage());
+        }
+    }
+
+    /**
      * Lấy chi tiết học viên cho API
      */
     public function getStudentDetails($studentId)

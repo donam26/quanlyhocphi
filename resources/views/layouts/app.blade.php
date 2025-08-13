@@ -686,27 +686,13 @@
             <div class="nav-section">
                 <div class="nav-section-title">Quản lý</div>
                 
-                <!-- Học viên với submenu -->
-                <div class="nav-item has-submenu {{ request()->routeIs('students.*') ? 'active' : '' }}">
-                    <a href="#" class="nav-link">
-                        <div class="nav-link-icon">
-                            <i class="fas fa-user-graduate"></i>
-                        </div>
-                        <span class="nav-link-text">Học viên</span>
-                        <div class="nav-tooltip">Học viên</div>
-                        <i class="fas fa-chevron-down submenu-arrow"></i>
-                    </a>
-                    <div class="submenu">
-                        <a href="{{ route('students.index') }}" class="submenu-link {{ request()->routeIs('students.index') ? 'active' : '' }}">
-                            <i class="fas fa-list me-2"></i>
-                            Danh sách học viên
-                        </a>
-                        <a href="{{ route('students.update.form') }}" class="submenu-link {{ request()->routeIs('students.update.*') ? 'active' : '' }}">
-                            <i class="fas fa-edit me-2"></i>
-                            Cập nhật hàng loạt
-                        </a>
+                    <a href="{{ route('students.index') }}" class="nav-link {{ request()->routeIs('students.*') ? 'active' : '' }}">
+                    <div class="nav-link-icon">
+                        <i class="fas fa-user-graduate"></i>
                     </div>
-                </div>
+                    <span class="nav-link-text">Học viên</span>
+                    <div class="nav-tooltip">Học viên</div>
+                </a>
                 
                 <a href="{{ route('course-items.tree') }}" class="nav-link {{ request()->routeIs('course-items.tree') ? 'active' : '' }}">
                     <div class="nav-link-icon">
