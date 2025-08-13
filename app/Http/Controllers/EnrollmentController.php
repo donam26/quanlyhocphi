@@ -112,8 +112,42 @@ class EnrollmentController extends Controller
         uasort($courseEnrollments, function($a, $b) {
             return $b['total_remaining'] <=> $a['total_remaining'];
         });
-        
-        return view('enrollments.unpaid', compact('courseEnrollments'));
+
+        // Chuẩn bị dữ liệu JSON an toàn cho JavaScript
+        $courseEnrollmentsJson = [];
+        foreach ($courseEnrollments as $courseItemId => $courseData) {
+            $courseEnrollmentsJson[$courseItemId] = [
+                'course_item' => [
+                    'id' => $courseData['course_item']->id,
+                    'name' => $courseData['course_item']->name,
+                    'level' => $courseData['course_item']->level,
+                ],
+                'enrollments' => array_map(function($enrollmentData) {
+                    return [
+                        'enrollment' => [
+                            'id' => $enrollmentData['enrollment']->id,
+                            'final_fee' => $enrollmentData['enrollment']->final_fee,
+                        ],
+                        'student' => [
+                            'id' => $enrollmentData['student']->id,
+                            'full_name' => $enrollmentData['student']->full_name,
+                            'phone' => $enrollmentData['student']->phone,
+                            'email' => $enrollmentData['student']->email,
+                        ],
+                        'fee' => $enrollmentData['fee'],
+                        'paid' => $enrollmentData['paid'],
+                        'remaining' => $enrollmentData['remaining']
+                    ];
+                }, $courseData['enrollments']),
+                'total_students' => $courseData['total_students'],
+                'total_fee' => $courseData['total_fee'],
+                'total_paid' => $courseData['total_paid'],
+                'total_remaining' => $courseData['total_remaining'],
+                'unpaid_students' => $courseData['unpaid_students']
+            ];
+        }
+
+        return view('enrollments.unpaid', compact('courseEnrollments', 'courseEnrollmentsJson'));
     }
 
     /**

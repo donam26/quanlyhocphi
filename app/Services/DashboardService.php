@@ -690,17 +690,6 @@ class DashboardService
         return $activities;
     }
     
-    public function getUpcomingSchedules($limit = 5)
-    {
-        // Lấy các lịch học sắp tới
-        return Schedule::with(['courseItem'])
-            ->where('date', '>=', now()->format('Y-m-d'))
-            ->orderBy('date')
-            ->orderBy('start_time')
-            ->limit($limit)
-            ->get();
-    }
-    
     public function getRevenueChart($months = 6)
     {
         $data = [];

@@ -592,10 +592,11 @@ $(document).ready(function() {
                         <thead>
                             <tr>
                                 <th width="5%">#</th>
-                                <th width="25%">Họ tên</th>
+                                <th width="20%">Họ tên</th>
                                 <th width="15%">Số điện thoại</th>
-                                <th width="20%">Trạng thái</th>
-                                <th width="35%">Ghi chú</th>
+                                <th width="15%">Khóa học</th>
+                                <th width="15%">Trạng thái</th>
+                                <th width="30%">Ghi chú</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -611,6 +612,9 @@ $(document).ready(function() {
                     </td>
                     <td>${student.student_phone || ''}</td>
                     <td>
+                        <small class="text-muted">${student.course_name || ''}</small>
+                    </td>
+                    <td>
                         <select name="attendances[${index}][status]" class="form-select form-select-sm status-select" ${!canTakeAttendance ? 'disabled' : ''}>
                             <option value="present" ${student.current_status === 'present' ? 'selected' : ''}>Có mặt</option>
                             <option value="absent" ${student.current_status === 'absent' ? 'selected' : ''}>Vắng mặt</option>
@@ -619,8 +623,8 @@ $(document).ready(function() {
                         </select>
                     </td>
                     <td>
-                        <input type="text" name="attendances[${index}][notes]" 
-                               class="form-control form-control-sm" 
+                        <input type="text" name="attendances[${index}][notes]"
+                               class="form-control form-control-sm"
                                placeholder="Ghi chú..."
                                value="${student.current_notes || ''}"
                                ${!canTakeAttendance ? 'readonly' : ''}>

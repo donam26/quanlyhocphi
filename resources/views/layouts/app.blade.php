@@ -662,14 +662,6 @@
                     <div class="nav-tooltip">Điểm danh</div>
                 </a>
                 
-                <a href="{{ route('schedules.index') }}" class="nav-link {{ request()->routeIs('schedules.*') || request()->routeIs('*.schedules') ? 'active' : '' }}">
-                    <div class="nav-link-icon">
-                        <i class="fas fa-calendar-alt"></i>
-                    </div>
-                    <span class="nav-link-text">Lịch học</span>
-                    <div class="nav-tooltip">Lịch học</div>
-                </a>
-                
                 <a href="{{ route('learning-progress.index') }}" class="nav-link {{ request()->routeIs('learning-progress.*') ? 'active' : '' }}">
                     <div class="nav-link-icon">
                         <i class="fas fa-tasks"></i>
@@ -678,7 +670,7 @@
                     <div class="nav-tooltip">Tiến độ học tập</div>
                 </a>
                 
-                <a href="{{ route('enrollments.index') }}" class="nav-link {{ request()->routeIs('enrollments.*') && !request()->routeIs('course-items.waiting-tree') ? 'active' : '' }}">
+                <a href="{{ route('enrollments.index') }}" class="nav-link {{ request()->routeIs('enrollments.*') && !request()->routeIs('course-items.waiting-tree') && !request()->routeIs('enrollments.unpaid') && !request()->is('unpaid-enrollments') ? 'active' : '' }}">
                     <div class="nav-link-icon">
                         <i class="fas fa-user-plus"></i>
                     </div>

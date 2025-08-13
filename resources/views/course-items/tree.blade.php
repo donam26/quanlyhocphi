@@ -423,6 +423,9 @@
                     <button type="button" class="btn btn-outline-info" id="btn-view-learning-path" style="display: none;">
                         <i class="fas fa-road"></i> Lộ trình
                     </button>
+                    <a id="btn-export-students" href="#" class="btn btn-outline-success">
+                        <i class="fas fa-file-excel"></i> Export Excel
+                    </a>
                 </div>
                 <button type="button" class="btn btn-primary" id="btn-edit-from-modal">
                     <i class="fas fa-edit"></i> Chỉnh sửa

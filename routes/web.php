@@ -60,6 +60,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('course-items/{id}/import-students-to-waiting', [CourseItemController::class, 'importStudentsToWaiting'])->name('course-items.import-students-to-waiting');
     // Thêm route trả về danh sách học viên dạng JSON để hiển thị trong modal ở trang cây khóa học
     Route::get('course-items/{id}/students-json', [CourseItemController::class, 'getStudentsJson'])->name('course-items.students-json');
+    Route::get('course-items/{id}/export-students', [CourseItemController::class, 'exportStudents'])->name('course-items.export-students');
     Route::resource('course-items', CourseItemController::class)->except(['show']);
 
 
@@ -92,16 +93,6 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Trang cây danh sách chờ
     Route::get('waiting-tree', [CourseItemController::class, 'waitingTree'])->name('course-items.waiting-tree');
     Route::get('course-items/{courseItem}/waiting-count', [CourseItemController::class, 'getWaitingCount'])->name('course-items.waiting-count');
-    
-    // Quản lý lịch học
-    Route::get('schedules/calendar-events', [ScheduleController::class, 'getCalendarEvents'])->name('schedules.calendar-events');
-    Route::get('schedules/session-info', [ScheduleController::class, 'getSessionInfo'])->name('schedules.session-info');
-    Route::post('schedules/save-attendance', [ScheduleController::class, 'saveAttendance'])->name('schedules.save-attendance');
-    Route::resource('schedules', ScheduleController::class);
-    Route::get('course-items/{courseItem}/schedules', [ScheduleController::class, 'getSchedulesByCourse'])->name('course-items.schedules');
-    Route::post('schedules/{schedule}/toggle-active', [ScheduleController::class, 'toggleActive'])->name('schedules.toggle-active');
-    Route::post('schedules/{schedule}/close', [ScheduleController::class, 'closeSchedule'])->name('schedules.close');
-
 
     // Attendance
     Route::get('attendance/tree', [AttendanceController::class, 'tree'])->name('attendance.tree');
@@ -189,15 +180,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/course-items/{id}/attendance', [AttendanceController::class, 'createByCourse'])->name('course-items.attendance.view');
     Route::post('/course-items/{courseItem}/attendance', [AttendanceController::class, 'storeByCourse'])->name('course-items.attendance.store');
     Route::get('/course-items/{courseItem}/attendance/{date}', [AttendanceController::class, 'showByDate'])->name('course-items.attendance.by-date');
-
-    // Lịch học
-    Route::get('/schedules', [ScheduleController::class, 'index'])->name('schedules.index');
-    Route::get('/schedules/create', [ScheduleController::class, 'create'])->name('schedules.create');
-    Route::post('/schedules', [ScheduleController::class, 'store'])->name('schedules.store');
-    Route::get('/schedules/{schedule}/edit', [ScheduleController::class, 'edit'])->name('schedules.edit');
-    Route::put('/schedules/{schedule}', [ScheduleController::class, 'update'])->name('schedules.update');
-    Route::delete('/schedules/{schedule}', [ScheduleController::class, 'destroy'])->name('schedules.destroy');
-    Route::get('/course-items/{courseItem}/schedules', [ScheduleController::class, 'showCourseSchedule'])->name('course-items.schedules');
 
     // Tiến độ học tập
     Route::get('/learning-progress', [LearningProgressController::class, 'index'])->name('learning-progress.index');

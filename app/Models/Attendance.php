@@ -45,14 +45,6 @@ class Attendance extends Model
     }
 
     /**
-     * Quan hệ với lịch học
-     */
-    public function schedule()
-    {
-        return $this->belongsTo(Schedule::class);
-    }
-
-    /**
      * Lấy học viên (qua ghi danh)
      */
     public function student()

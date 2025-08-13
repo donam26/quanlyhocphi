@@ -118,6 +118,12 @@ window.showCourseDetails = function(courseId) {
                 e.preventDefault();
                 openPaymentsModal(courseId);
             });
+
+            // Nút Export Excel
+            $('#btn-export-students').off('click').on('click', function(e){
+                e.preventDefault();
+                exportStudentsExcel(courseId);
+            });
             
             // Cập nhật thông tin cơ bản
             $('#course-name').text(data.name);
@@ -2948,4 +2954,37 @@ function reopenCourse(courseId) {
             }
         }
     });
-} 
+}
+
+// Function để export danh sách học viên ra Excel
+function exportStudentsExcel(courseId) {
+    console.log("Exporting students for course ID:", courseId);
+
+    // Hiển thị loading
+    if (window.toastr && toastr.info) {
+        toastr.info('Đang tạo file Excel...', 'Vui lòng chờ');
+    } else {
+        showToast('Đang tạo file Excel...', 'info');
+    }
+
+    // Tạo URL export
+    const exportUrl = `/course-items/${courseId}/export-students`;
+
+    // Tạo link download ẩn và click
+    const link = document.createElement('a');
+    link.href = exportUrl;
+    link.download = '';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Hiển thị thông báo thành công
+    setTimeout(function() {
+        if (window.toastr && toastr.success) {
+            toastr.success('File Excel đã được tạo thành công!');
+        } else {
+            showToast('File Excel đã được tạo thành công!', 'success');
+        }
+    }, 1000);
+}

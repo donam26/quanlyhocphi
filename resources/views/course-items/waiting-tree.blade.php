@@ -202,10 +202,9 @@
                 
                 <!-- Search box -->
                 <div class="search-container">
-                    <select id="student-search" class="form-control select2-ajax" style="width: 100%;">
+                    <select id="student-search" class="form-control" style="width: 100%;">
                         <option value="">Tìm kiếm học viên...</option>
                     </select>
-                    <span class="search-clear"><i class="fas fa-times-circle"></i></span>
                 </div>
             </div>
             
@@ -571,8 +570,10 @@ $(document).ready(function() {
     let currentRootId = null;
 
     // Khởi tạo Select2 khi DOM sẵn sàng
-    initWaitingCourseSelect2();
-    initStudentSearchSelect2();
+    setTimeout(function() {
+        initWaitingCourseSelect2();
+        initStudentSearchSelect2();
+    }, 100);
     
     // Xử lý expand/collapse all
     $('#expand-all').on('click', function() {
@@ -1407,6 +1408,11 @@ $(document).ready(function() {
 
     // Khởi tạo Select2 cho tìm kiếm học viên ở header
     function initStudentSearchSelect2() {
+        // Destroy Select2 cũ nếu có
+        if ($('#student-search').hasClass('select2-hidden-accessible')) {
+            $('#student-search').select2('destroy');
+        }
+
         $('#student-search').select2({
             theme: 'bootstrap-5',
             placeholder: 'Tìm kiếm học viên...',

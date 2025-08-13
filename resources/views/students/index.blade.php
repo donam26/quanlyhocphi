@@ -43,7 +43,7 @@
             <div class="row align-items-center">
                 <div class="col-md-4">
                     <div class="form-group mb-0">
-                        <select id="student_search" name="search" class="form-control select2-ajax" style="width: 100%;">
+                        <select id="student_search" name="search" class="form-control" style="width: 100%;">
                             @if(request('search'))
                                 <option value="{{ request('search') }}" selected>{{ request('search') }}</option>
                             @endif
@@ -75,7 +75,7 @@
                     </select>
                 </div>
                 <div class="col-md-2">
-                    <button type="button" class="btn btn-primary w-100" data-bs-toggle="modal" data-bs-target="#createStudentModal">
+                    <button type="button" class="btn btn-primary w-100" data-student-action="create">
                         <i class="fas fa-plus me-2"></i>Thêm mới
                     </button>
                 </div>
@@ -113,7 +113,7 @@
                     </thead>
                     <tbody>
                         @foreach($students as $index => $student)
-                        <tr class="student-row" onclick="showStudentDetails({{ $student->id }})">
+                        <tr class="student-row" data-student-action="view" data-student-id="{{ $student->id }}" style="cursor: pointer;">
                             <td>{{ $students->firstItem() + $index }}</td>
                             <td>
                                 <div class="d-flex align-items-center">
@@ -167,22 +167,23 @@
                             <td onclick="event.stopPropagation()">
                                 <div class="btn-group">
                                     <button type="button" class="btn btn-sm btn-outline-primary"
-                                            onclick="showStudentDetails({{ $student->id }})"
+                                            data-student-action="view" data-student-id="{{ $student->id }}"
                                             title="Chi tiết">
                                         <i class="fas fa-eye"></i>
                                     </button>
                                     <button type="button" class="btn btn-sm btn-outline-warning"
-                                            onclick="editStudent({{ $student->id }})"
+                                            data-student-action="edit" data-student-id="{{ $student->id }}"
                                             title="Chỉnh sửa">
                                         <i class="fas fa-edit"></i>
                                     </button>
                                     <button type="button" class="btn btn-sm btn-outline-success"
-                                            onclick="enrollStudent({{ $student->id }})"
+                                            data-student-action="enroll" data-student-id="{{ $student->id }}"
                                             title="Ghi danh">
                                         <i class="fas fa-user-plus"></i>
                                     </button>
                                     <button type="button" class="btn btn-sm btn-outline-danger"
-                                            onclick="deleteStudent({{ $student->id }}, '{{ $student->full_name }}')"
+                                            data-student-action="delete" data-student-id="{{ $student->id }}"
+                                            data-student-name="{{ $student->full_name }}"
                                             title="Xóa học viên">
                                         <i class="fas fa-trash"></i>
                                     </button>
@@ -203,7 +204,7 @@
                 <i class="fas fa-user-graduate fa-3x text-muted mb-3"></i>
                 <h5 class="text-muted">Chưa có học viên nào</h5>
                 <p class="text-muted">Hãy thêm học viên đầu tiên để bắt đầu</p>
-                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createStudentModal">
+                <button type="button" class="btn btn-primary" data-student-action="create">
                     <i class="fas fa-plus me-2"></i>Thêm học viên mới
                 </button>
             </div>
@@ -211,601 +212,15 @@
     </div>
 </div>
 
-<!-- Modal hiển thị chi tiết học viên -->
-<div class="modal fade" id="viewStudentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Chi tiết học viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Phần loading -->
-                <div class="text-center" id="student-loading">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
-
-                <!-- Chi tiết học viên -->
-                <div id="student-details" style="display: none;">
-                    <div class="row">
-                        <div class="col-md-8">
-                            <h4 id="student-name"></h4>
-                            <p class="text-muted">Mã học viên: <span id="student-id"></span></p>
-                        </div>
-                    </div>
-
-                    <hr>
-
-                    <div class="row mt-3">
-                        <!-- Thông tin cá nhân -->
-                        <div class="col-md-6">
-                            <div class="card mb-3">
-                                <div class="card-header bg-light">
-                                    <i class="fas fa-user-circle"></i> Thông tin cá nhân
-                                </div>
-                                <div class="card-body">
-                                    <table class="table table-sm">
-                                        <tr>
-                                            <th width="40%">Giới tính:</th>
-                                            <td id="student-gender"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Ngày sinh:</th>
-                                            <td id="student-dob"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Số điện thoại:</th>
-                                            <td id="student-phone"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Email:</th>
-                                            <td id="student-email"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Địa chỉ:</th>
-                                            <td id="student-address"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>
-                                                Dân tộc:
-                                            </th>
-                                            <td id="student-nation"></td>
-                                        </tr>
-                                        <tr>
-                                            <th>Nơi sinh:</th>
-                                            <td id="student-place-of-birth"></td>
-                                        </tr>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-
-                    </div>
-
-                    <!-- Ghi chú -->
-                    <div id="student-notes-section" class="card mb-3">
-                        <div class="card-header bg-light">
-                            <i class="fas fa-sticky-note"></i> Ghi chú
-                        </div>
-                        <div class="card-body">
-                            <p id="student-notes"></p>
-                        </div>
-                    </div>
-
-                    <!-- Trường tùy chỉnh -->
-                    <div id="student-custom-fields-section" class="card mb-3">
-                        <div class="card-header bg-light">
-                            <i class="fas fa-list-alt"></i> Thông tin tùy chỉnh
-                        </div>
-                        <div class="card-body" id="student-custom-fields">
-                            <!-- Các trường tùy chỉnh sẽ được thêm vào đây -->
-                        </div>
-                    </div>
-
-                    <!-- Khóa học đã đăng ký -->
-                    <div id="student-enrollments-section" class="card mb-3">
-                        <div class="card-header bg-light">
-                            <i class="fas fa-book"></i> Khóa học đã đăng ký
-                        </div>
-                        <div class="card-body">
-                            <div id="student-enrollments">
-                                <!-- Danh sách khóa học sẽ được thêm vào đây -->
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-warning" onclick="editStudent(currentStudentId)">
-                    <i class="fas fa-edit me-1"></i> Chỉnh sửa
-                </button>
-                <button type="button" class="btn btn-success" onclick="enrollStudent(currentStudentId)">
-                    <i class="fas fa-user-plus me-1"></i> Ghi danh
-                </button>
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal chỉnh sửa học viên -->
-<div class="modal fade" id="editStudentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Chỉnh sửa thông tin học viên</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Loading spinner -->
-                <div class="text-center" id="edit-student-loading">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
-
-                <!-- Edit form -->
-                <div id="edit-student-form" style="display: none;">
-                    <form id="studentEditForm" method="POST">
-                        @csrf
-                        <!-- Sử dụng POST method -->
-                        <input type="hidden" id="edit-student-id" name="id">
-
-                        <!-- Thông tin cơ bản -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-user me-2"></i>Thông tin cơ bản
-                                </h6>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Họ <span class="text-danger">*</span></label>
-                                <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
-                                <div class="invalid-feedback" id="edit-first-name-error"></div>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tên <span class="text-danger">*</span></label>
-                                <input type="text" name="last_name" id="edit-last-name" class="form-control" required>
-                                <div class="invalid-feedback" id="edit-last-name-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                                <input type="text" name="phone" id="edit-phone" class="form-control" required>
-                                <div class="invalid-feedback" id="edit-phone-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Ngày sinh</label>
-                                <input type="text" name="date_of_birth" id="edit-date-of-birth" class="form-control" 
-                                       placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
-                                       title="Nhập ngày theo định dạng dd/mm/yyyy">
-                                <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Nơi sinh</label>
-                                <!-- Hidden field to submit the selected province name -->
-                                <input type="hidden" name="place_of_birth" id="edit-place-of-birth">
-                                <!-- Visible select2 to pick a province -->
-                                <select id="edit-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)"></select>
-                                <div class="invalid-feedback" id="edit-place-of-birth-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Dân tộc</label>
-                                <!-- Hidden field to submit the selected ethnicity name -->
-                                <input type="hidden" name="nation" id="edit-nation">
-                                <!-- Visible select2 to pick an ethnicity -->
-                                <select id="edit-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
-                                    <option value="">-- Chọn dân tộc --</option>
-                                </select>
-                                <div class="invalid-feedback" id="edit-nation-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="email" id="edit-email" class="form-control">
-                                <div class="invalid-feedback" id="edit-email-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Giới tính</label>
-                                <select name="gender" id="edit-gender" class="form-select">
-                                    <option value="">Chọn giới tính</option>
-                                    <option value="male">Nam</option>
-                                    <option value="female">Nữ</option>
-                                    <option value="other">Khác</option>
-                                </select>
-                                <div class="invalid-feedback" id="edit-gender-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tỉnh/Thành phố</label>
-                                <select name="province_id" id="edit-province" class="form-select">
-                                    <option value="">-- Chọn tỉnh thành --</option>
-                                </select>
-                                <div class="invalid-feedback" id="edit-province-error"></div>
-                            </div>
-                        </div>
-
-                        <!-- Thông tin bổ sung -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
-                                </h6>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Nơi công tác hiện tại</label>
-                                <input type="text" name="current_workplace" id="edit-current-workplace" class="form-control" placeholder="Nhập nơi công tác hiện tại">
-                                <div class="invalid-feedback" id="edit-current-workplace-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Số năm kinh nghiệm kế toán</label>
-                                <input type="number" name="accounting_experience_years" id="edit-experience" class="form-control" min="0">
-                                <div class="invalid-feedback" id="edit-experience-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Hồ sơ bản cứng</label>
-                                <select name="hard_copy_documents" id="edit-hard-copy-documents" class="form-select">
-                                    <option value="">-- Chọn trạng thái --</option>
-                                    <option value="submitted">Đã nộp</option>
-                                    <option value="not_submitted">Chưa nộp</option>
-                                </select>
-                                <div class="invalid-feedback" id="edit-hard-copy-documents-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Bằng cấp</label>
-                                <select name="education_level" id="edit-education-level" class="form-select">
-                                    <option value="">-- Chọn bằng cấp --</option>
-                                    <option value="secondary">VB2</option>
-                                    <option value="vocational">Trung cấp</option>
-                                    <option value="associate">Cao đẳng</option>
-                                    <option value="bachelor">Đại học</option>
-                                    <option value="master">Thạc sĩ</option>
-                                </select>
-                                <div class="invalid-feedback" id="edit-education-level-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Chuyên môn đào tạo</label>
-                                <input type="text" name="training_specialization" id="edit-training-specialization" class="form-control" placeholder="Ví dụ: Kế toán doanh nghiệp, Kế toán tài chính...">
-                                <div class="invalid-feedback" id="edit-training-specialization-error"></div>
-                            </div>
-                      
-                        </div>
-
-                        <!-- Ghi chú -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <label class="form-label">Ghi chú</label>
-                                <textarea name="notes" id="edit-notes" class="form-control" rows="3"></textarea>
-                                <div class="invalid-feedback" id="edit-notes-error"></div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" id="save-student-btn">
-                    <i class="fas fa-save me-1"></i> Lưu thay đổi
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal đăng ký khóa học -->
-<div class="modal fade" id="enrollStudentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Đăng ký học viên vào khóa học</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Loading spinner -->
-                <div class="text-center" id="enroll-student-loading">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
-
-                <!-- Enrollment form -->
-                <div id="enroll-student-form" style="display: none;">
-                    <form id="enrollmentForm" method="POST" action="javascript:void(0);" onsubmit="return false;">
-                        @csrf
-                        <input type="hidden" id="enroll-student-id" name="student_id">
-
-                        <!-- Thông tin học viên -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <div class="alert alert-info">
-                                    <strong>Học viên:</strong> <span id="enroll-student-name"></span>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Thông tin khóa học -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-book me-2"></i>Thông tin khóa học
-                                </h6>
-                            </div>
-
-                            <div class="col-md-12">
-                                <div class="mb-3">
-                                    <label for="course_item_id" class="form-label">Chọn khóa học <span class="text-danger">*</span></label>
-                                    <select name="course_item_id" id="course_item_id" class="form-select select2-course-search" required data-placeholder="Tìm kiếm và chọn khóa học...">
-                                        <option value="">-- Chọn khóa học --</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="enrollment_date" class="form-label">Ngày đăng ký <span class="text-danger">*</span></label>
-                                    <input type="text" name="enrollment_date" id="enrollment_date" class="form-control"
-                                           value="{{ date('d/m/Y') }}" required placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
-                                           title="Nhập ngày theo định dạng dd/mm/yyyy">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="status" class="form-label">Trạng thái <span class="text-danger">*</span></label>
-                                    <select name="status" id="status" class="form-select" required>
-                                        <option value="{{ \App\Enums\EnrollmentStatus::ACTIVE->value }}">{{ \App\Enums\EnrollmentStatus::ACTIVE->label() }}</option>
-                                        <option value="{{ \App\Enums\EnrollmentStatus::WAITING->value }}">{{ \App\Enums\EnrollmentStatus::WAITING->label() }}</option>
-                                        <option value="{{ \App\Enums\EnrollmentStatus::COMPLETED->value }}">{{ \App\Enums\EnrollmentStatus::COMPLETED->label() }}</option>
-                                        <option value="{{ \App\Enums\EnrollmentStatus::CANCELLED->value }}">{{ \App\Enums\EnrollmentStatus::CANCELLED->label() }}</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Thông tin học phí -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-file-invoice-dollar me-2"></i>Học phí và chiết khấu
-                                </h6>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="final_fee_display" class="form-label">Học phí cuối cùng</label>
-                                    <input type="text" id="final_fee_display" class="form-control" readonly>
-                                    <input type="hidden" name="final_fee" id="final_fee">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="discount_percentage" class="form-label">Chiết khấu (%)</label>
-                                    <input type="number" name="discount_percentage" id="discount_percentage" class="form-control"
-                                           min="0" max="100" step="0.1">
-                                </div>
-                            </div>
-
-                            <div class="col-md-6">
-                                <div class="mb-3">
-                                    <label for="discount_amount" class="form-label">Chiết khấu (VND)</label>
-                                    <input type="number" name="discount_amount" id="discount_amount" class="form-control"
-                                           min="0" step="1000">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Ghi chú -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <div class="mb-3">
-                                    <label for="notes" class="form-label">Ghi chú</label>
-                                    <textarea name="notes" id="notes" class="form-control" rows="3"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </form>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-success" id="save-enrollment-btn">
-                    <i class="fas fa-user-plus me-1"></i> Đăng ký khóa học
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Modal thêm học viên mới -->
-<div class="modal fade" id="createStudentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Thêm học viên mới</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Loading spinner -->
-                <div class="text-center" id="create-student-loading" style="display: none;">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                </div>
-
-                <!-- Create form -->
-                <div id="create-student-form">
-                    <form id="studentCreateForm" method="POST">
-                        @csrf
-
-                        <!-- Thông tin cơ bản -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-user me-2"></i>Thông tin cơ bản
-                                </h6>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Họ và tên đệm <span class="text-danger">*</span></label>
-                                <input type="text" name="first_name" id="create-first-name" class="form-control" required placeholder="Nguyễn Văn">
-                                <div class="invalid-feedback" id="create-first-name-error"></div>
-                            </div>
-                            
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tên <span class="text-danger">*</span></label>
-                                <input type="text" name="last_name" id="create-last-name" class="form-control" required placeholder="A">
-                                <div class="invalid-feedback" id="create-last-name-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                                <input type="tel" name="phone" id="create-phone" class="form-control" required pattern="[0-9]{10,11}" placeholder="0123456789">
-                                <div class="invalid-feedback" id="create-phone-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Ngày sinh</label>
-                                <input type="text" name="date_of_birth" id="create-date-of-birth" class="form-control" 
-                                       placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
-                                       title="Nhập ngày theo định dạng dd/mm/yyyy">
-                                <div class="invalid-feedback" id="create-date-of-birth-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Nơi sinh</label>
-                                <!-- Hidden field to submit the selected province name -->
-                                <input type="hidden" name="place_of_birth" id="create-place-of-birth">
-                                <!-- Visible select2 to pick a province -->
-                                <select id="create-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)">
-                                    <option value="">-- Chọn nơi sinh --</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-place-of-birth-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Dân tộc</label>
-                                <!-- Hidden field to submit the selected ethnicity name -->
-                                <input type="hidden" name="nation" id="create-nation">
-                                <!-- Visible select2 to pick an ethnicity -->
-                                <select id="create-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
-                                    <option value="">-- Chọn dân tộc --</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-nation-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Email</label>
-                                <input type="email" name="email" id="create-email" class="form-control" placeholder="example@email.com">
-                                <div class="invalid-feedback" id="create-email-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Giới tính</label>
-                                <select name="gender" id="create-gender" class="form-select">
-                                    <option value="">Chọn giới tính</option>
-                                    <option value="male">Nam</option>
-                                    <option value="female">Nữ</option>
-                                    <option value="other">Khác</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-gender-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Tỉnh/Thành phố</label>
-                                <select name="province_id" id="create-province" class="form-select">
-                                    <option value="">-- Chọn tỉnh thành --</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-province-error"></div>
-                            </div>
+{{-- Sử dụng component modal thống nhất --}}
+@include('components.student-modals')
 
 
-                        </div>
 
-                        <!-- Thông tin bổ sung -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <h6 class="border-bottom pb-2 mb-3">
-                                    <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
-                                </h6>
-                            </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Nơi công tác hiện tại</label>
-                                <input type="text" name="current_workplace" id="create-current-workplace" class="form-control" placeholder="Nhập nơi công tác hiện tại">
-                                <div class="invalid-feedback" id="create-current-workplace-error"></div>
-                            </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Số năm kinh nghiệm kế toán</label>
-                                <input type="number" name="accounting_experience_years" id="create-experience" class="form-control" min="0" max="50" placeholder="0">
-                                <div class="invalid-feedback" id="create-experience-error"></div>
-                            </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Hồ sơ bản cứng</label>
-                                <select name="hard_copy_documents" id="create-hard-copy-documents" class="form-select">
-                                    <option value="">-- Chọn trạng thái --</option>
-                                    <option value="submitted">Đã nộp</option>
-                                    <option value="not_submitted">Chưa nộp</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-hard-copy-documents-error"></div>
-                            </div>
 
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Bằng cấp</label>
-                                <select name="education_level" id="create-education-level" class="form-select">
-                                    <option value="">-- Chọn bằng cấp --</option>
-                                    <option value="secondary">VB2</option>
-                                    <option value="vocational">Trung cấp</option>
-                                    <option value="associate">Cao đẳng</option>
-                                    <option value="bachelor">Đại học</option>
-                                    <option value="master">Thạc sĩ</option>
-                                </select>
-                                <div class="invalid-feedback" id="create-education-level-error"></div>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label class="form-label">Chuyên môn đào tạo</label>
-                                <input type="text" name="training_specialization" id="create-training-specialization" class="form-control" placeholder="Ví dụ: Kế toán doanh nghiệp, Kế toán tài chính...">
-                                <div class="invalid-feedback" id="create-training-specialization-error"></div>
-                            </div>
-
-                        </div>
-
-                        <!-- Ghi chú -->
-                        <div class="row mb-4">
-                            <div class="col-12">
-                                <label class="form-label">Ghi chú</label>
-                                <textarea name="notes" id="create-notes" class="form-control" rows="3" placeholder="Nhập ghi chú về học viên (nếu có)"></textarea>
-                                <div class="invalid-feedback" id="create-notes-error"></div>
-                            </div>
-                        </div>
-
-                    </form>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" id="save-new-student-btn">
-                    <i class="fas fa-save me-1"></i> Lưu học viên
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
 
 <!-- Modal Export Excel -->
 <div class="modal fade" id="exportStudentModal" tabindex="-1" aria-hidden="true">
@@ -937,10 +352,18 @@
 @endsection
 
 @push('scripts')
+<script src="{{ asset('js/student-form-component.js') }}"></script>
 <script src="{{ asset('js/student-list.js') }}"></script>
 <script src="{{ asset('js/enrollment.js') }}"></script>
 <script>
 $(document).ready(function() {
+    // Destroy existing Select2 trước khi khởi tạo lại
+    try {
+        $('#student_search').select2('destroy');
+    } catch (e) {
+        // Ignore error nếu chưa được khởi tạo
+    }
+
     // Cấu hình Select2 cho ô tìm kiếm học viên với AJAX
     $('#student_search').select2({
         theme: 'bootstrap-5',
@@ -1099,7 +522,290 @@ $(document).ready(function() {
     initProvinceSelect2();
     initLocationSelect2();
     initEthnicitySelect2();
+
+    // Debug: Kiểm tra StudentManager
+    console.log('StudentManager available:', typeof window.studentManager);
+    console.log('StudentManager instance:', window.studentManager);
+
+    // Fallback: Nếu StudentManager chưa sẵn sàng, bind events trực tiếp
+    if (!window.studentManager) {
+        console.log('StudentManager not available, setting up fallback event handlers...');
+
+        // Bind events trực tiếp cho các nút với priority cao hơn
+        $(document).off('click.studentActions').on('click.studentActions', '[data-student-action]', function(e) {
+            console.log('Button clicked!', $(this).data('student-action'));
+            e.preventDefault();
+            e.stopImmediatePropagation();
+
+            const action = $(this).data('student-action');
+            const studentId = $(this).data('student-id');
+
+            console.log('Executing action:', action, 'ID:', studentId);
+
+            // Thử sử dụng StudentManager nếu có
+            if (window.studentManager && typeof window.studentManager.handleAction === 'function') {
+                console.log('Using StudentManager');
+                window.studentManager.handleAction(action, studentId);
+                return;
+            }
+
+            console.log('Using fallback functions');
+
+            // Fallback functions
+            switch(action) {
+                case 'view':
+                    console.log('Opening view modal for student:', studentId);
+                    $('#viewStudentModal').modal('show');
+                    loadStudentForView(studentId);
+                    break;
+                case 'edit':
+                    console.log('Opening edit modal for student:', studentId);
+                    $('#editStudentModal').modal('show');
+                    loadStudentForEdit(studentId);
+                    break;
+                case 'create':
+                    console.log('Opening create modal');
+                    $('#createStudentModal').modal('show');
+                    break;
+                case 'enroll':
+                    console.log('Opening enroll modal for student:', studentId);
+                    $('#enrollStudentModal').modal('show');
+                    loadStudentForEnroll(studentId);
+                    break;
+                case 'delete':
+                    const studentName = $(this).data('student-name');
+                    console.log('Deleting student:', studentId, studentName);
+                    if (confirm(`Bạn có chắc chắn muốn xóa học viên "${studentName}"?`)) {
+                        deleteStudent(studentId);
+                    }
+                    break;
+                default:
+                    console.warn('Unknown action:', action);
+            }
+        });
+
+        // Thêm event listener backup trực tiếp trên body
+        $('body').off('click.studentBackup').on('click.studentBackup', '[data-student-action]', function(e) {
+            console.log('Body event triggered for:', $(this).data('student-action'));
+        });
+
+        // Thử lại sau 2 giây
+        setTimeout(function() {
+            console.log('Retrying StudentManager check...');
+            console.log('StudentManager available after delay:', typeof window.studentManager);
+        }, 2000);
+    }
+
+    // Thêm event listener trực tiếp cho tất cả các nút hiện tại
+    $('[data-student-action]').each(function() {
+        const $btn = $(this);
+        const action = $btn.data('student-action');
+        const studentId = $btn.data('student-id');
+
+        $btn.off('click.direct').on('click.direct', function(e) {
+            console.log('Direct click event:', action, studentId);
+            e.preventDefault();
+            e.stopPropagation();
+
+            switch(action) {
+                case 'view':
+                    $('#viewStudentModal').modal('show');
+                    loadStudentForView(studentId);
+                    break;
+                case 'edit':
+                    $('#editStudentModal').modal('show');
+                    loadStudentForEdit(studentId);
+                    break;
+                case 'create':
+                    $('#createStudentModal').modal('show');
+                    break;
+                case 'enroll':
+                    $('#enrollStudentModal').modal('show');
+                    loadStudentForEnroll(studentId);
+                    break;
+                case 'delete':
+                    const studentName = $btn.data('student-name');
+                    if (confirm(`Bạn có chắc chắn muốn xóa học viên "${studentName}"?`)) {
+                        deleteStudent(studentId);
+                    }
+                    break;
+            }
+        });
+    });
 });
+
+// Helper functions để load dữ liệu học viên
+function loadStudentForView(studentId) {
+    $('#student-loading').show();
+    $('#student-details').hide();
+
+    $.ajax({
+        url: `/api/students/${studentId}/info`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                populateViewModal(response.data);
+                $('#student-loading').hide();
+                $('#student-details').show();
+            } else {
+                alert('Không thể tải thông tin học viên');
+                $('#viewStudentModal').modal('hide');
+            }
+        },
+        error: function() {
+            alert('Có lỗi xảy ra khi tải thông tin học viên');
+            $('#viewStudentModal').modal('hide');
+        }
+    });
+}
+
+function loadStudentForEdit(studentId) {
+    $('#edit-student-loading').show();
+    $('#edit-student-form').hide();
+
+    $.ajax({
+        url: `/api/students/${studentId}/info`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                populateEditForm(response.data);
+                $('#edit-student-loading').hide();
+                $('#edit-student-form').show();
+            } else {
+                alert('Không thể tải thông tin học viên');
+                $('#editStudentModal').modal('hide');
+            }
+        },
+        error: function() {
+            alert('Có lỗi xảy ra khi tải thông tin học viên');
+            $('#editStudentModal').modal('hide');
+        }
+    });
+}
+
+function loadStudentForEnroll(studentId) {
+    $('#enroll-student-loading').show();
+    $('#enroll-student-form').hide();
+
+    $.ajax({
+        url: `/api/students/${studentId}/info`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                populateEnrollForm(response.data);
+                $('#enroll-student-loading').hide();
+                $('#enroll-student-form').show();
+            } else {
+                alert('Không thể tải thông tin học viên');
+                $('#enrollStudentModal').modal('hide');
+            }
+        },
+        error: function() {
+            alert('Có lỗi xảy ra khi tải thông tin học viên');
+            $('#enrollStudentModal').modal('hide');
+        }
+    });
+}
+
+function deleteStudent(studentId) {
+    $.ajax({
+        url: `/students/${studentId}`,
+        method: 'DELETE',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            alert('Xóa học viên thành công');
+            window.location.reload();
+        },
+        error: function(xhr) {
+            let message = 'Có lỗi xảy ra khi xóa học viên';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+            alert(message);
+        }
+    });
+}
+
+// Helper functions để populate dữ liệu vào modal
+function populateViewModal(student) {
+    $('#student-name').text(student.full_name || '');
+    $('#student-id').text(student.id || '');
+    $('#student-phone').text(student.phone || '');
+    $('#student-email').text(student.email || 'Chưa có');
+    $('#student-gender').text(formatGender(student.gender));
+    $('#student-dob').text(student.formatted_date_of_birth || 'Chưa có');
+
+    // Địa chỉ
+    let addressText = '';
+    if (student.province) {
+        addressText = student.province.name + ' (' + getRegionName(student.province.region) + ')';
+    }
+    $('#student-address').text(addressText || 'Chưa có');
+
+    // Thông tin bổ sung
+    $('#student-workplace').text(student.current_workplace || 'Chưa có');
+    $('#student-experience').text(student.accounting_experience_years
+        ? student.accounting_experience_years + ' năm' : 'Chưa có');
+    $('#student-place-of-birth').text(student.place_of_birth || 'Chưa có');
+    $('#student-nation').text(student.nation || 'Chưa có');
+
+    // Ghi chú
+    if (student.notes) {
+        $('#student-notes-section').show();
+        $('#student-notes').text(student.notes);
+    } else {
+        $('#student-notes-section').hide();
+    }
+}
+
+function populateEditForm(student) {
+    $('#edit-student-id').val(student.id);
+    $('#edit-first-name').val(student.first_name || '');
+    $('#edit-last-name').val(student.last_name || '');
+    $('#edit-phone').val(student.phone || '');
+    $('#edit-email').val(student.email || '');
+    $('#edit-gender').val(student.gender || '');
+
+    if (student.date_of_birth) {
+        $('#edit-date-of-birth').val(student.formatted_date_of_birth || '');
+    }
+
+    $('#edit-notes').val(student.notes || '');
+    $('#edit-current-workplace').val(student.current_workplace || '');
+    $('#edit-experience').val(student.accounting_experience_years || '');
+    $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
+    $('#edit-education-level').val(student.education_level || '');
+    $('#edit-training-specialization').val(student.training_specialization || '');
+    $('#edit-nation').val(student.nation || '');
+    $('#edit-place-of-birth').val(student.place_of_birth || '');
+
+    // Xử lý tỉnh thành với Select2
+    if (student.province) {
+        const option = new Option(
+            student.province.name + ' (' + getRegionName(student.province.region) + ')',
+            student.province.id,
+            true,
+            true
+        );
+        $('#edit-province').empty().append(option).trigger('change');
+    }
+}
+
+function populateEnrollForm(student) {
+    $('#enroll-student-id').val(student.id);
+    $('#enroll-student-name').text(student.full_name || '');
+}
+
+function formatGender(gender) {
+    const genders = {
+        'male': 'Nam',
+        'female': 'Nữ',
+        'other': 'Khác'
+    };
+    return genders[gender] || 'Không xác định';
+}
 
 // Hàm khởi tạo select2 cho tỉnh thành với AJAX
 function initProvinceSelect2() {
@@ -1379,51 +1085,7 @@ $(document).on('click', '#save-new-student-btn', function() {
     });
 });
 
-// Xử lý xóa học viên
-function deleteStudent(studentId, studentName) {
-    // Hiển thị confirm dialog
-    if (confirm(`Bạn có chắc chắn muốn xóa học viên "${studentName}"?\n\nLưu ý: Thao tác này sẽ xóa tất cả dữ liệu liên quan (ghi danh, thanh toán, điểm danh...) và không thể hoàn tác!`)) {
-        
-        // Hiển thị loading
-        const loadingToast = toastr.info('Đang xóa học viên...', '', {timeOut: 0, extendedTimeOut: 0});
-        
-        $.ajax({
-            url: `/api/students/${studentId}/delete`,
-            method: 'DELETE',
-            headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-            },
-            success: function(response) {
-                // Ẩn loading toast
-                toastr.clear(loadingToast);
-                
-                if (response.success) {
-                    toastr.success(response.message || 'Xóa học viên thành công!');
-                    
-                    // Reload trang sau 1 giây
-                    setTimeout(function() {
-                        window.location.reload();
-                    }, 1000);
-                } else {
-                    toastr.error(response.message || 'Có lỗi xảy ra khi xóa học viên!');
-                }
-            },
-            error: function(xhr) {
-                // Ẩn loading toast
-                toastr.clear(loadingToast);
-                
-                if (xhr.status === 422) {
-                    const response = xhr.responseJSON;
-                    toastr.error(response.message || 'Không thể xóa học viên!');
-                } else if (xhr.status === 404) {
-                    toastr.error('Không tìm thấy học viên!');
-                } else {
-                    toastr.error('Có lỗi xảy ra khi xóa học viên!');
-                }
-            }
-        });
-    }
-}
+
 </script>
 @endpush
 

@@ -309,7 +309,7 @@ class PaymentController extends Controller
      */
     public function export(Request $request)
     {
-        $query = Payment::with(['enrollment.student', 'enrollment.courseItem']);
+        $query = Payment::with(['enrollment.student.province', 'enrollment.courseItem']);
         
         // Áp dụng các filter giống như trong index
         if ($request->filled('course_item_id')) {
@@ -348,10 +348,41 @@ class PaymentController extends Controller
                   });
             });
         }
+
+        // Filter theo tỉnh/thành phố
+        if ($request->filled('province_id')) {
+            $query->whereHas('enrollment.student', function($q) use ($request) {
+                $q->where('province_id', $request->province_id);
+            });
+        }
+
+        // Filter theo giới tính
+        if ($request->filled('gender')) {
+            $query->whereHas('enrollment.student', function($q) use ($request) {
+                $q->where('gender', $request->gender);
+            });
+        }
+
+        // Filter theo ngày sinh từ
+        if ($request->filled('birth_date_from')) {
+            $query->whereHas('enrollment.student', function($q) use ($request) {
+                $q->whereDate('date_of_birth', '>=', $request->birth_date_from);
+            });
+        }
+
+        // Filter theo ngày sinh đến
+        if ($request->filled('birth_date_to')) {
+            $query->whereHas('enrollment.student', function($q) use ($request) {
+                $q->whereDate('date_of_birth', '<=', $request->birth_date_to);
+            });
+        }
         
         $payments = $query->orderBy('payment_date', 'desc')->get();
-        
-        return Excel::download(new PaymentHistoryExport($payments), 'lich-su-thanh-toan-' . date('Y-m-d') . '.xlsx');
+
+        // Lấy danh sách cột cần xuất
+        $columns = $request->get('columns', ['full_name', 'phone', 'email', 'date_of_birth', 'course_registered']);
+
+        return Excel::download(new PaymentHistoryExport($payments, $columns), 'lich-su-thanh-toan-' . date('Y-m-d') . '.xlsx');
     }
 
     /**
@@ -598,29 +629,6 @@ class PaymentController extends Controller
         $remainingAmount = max(0, $enrollment->final_fee - $totalPaid);
         
         return view('payments.partials.enrollment-payments', compact('enrollment', 'payments', 'totalPaid', 'remainingAmount'));
-    }
-
-    /**
-     * Xử lý hoàn tiền
-     */
-    public function refundPayment(Request $request, Payment $payment)
-    {
-        $validated = $request->validate([
-            'reason' => 'required|string',
-        ]);
-        
-        try {
-            $this->paymentService->updatePayment($payment, [
-                'status' => 'refunded',
-                'notes' => ($payment->notes ? $payment->notes . "\n" : '') . 'Lý do hoàn tiền: ' . $validated['reason']
-            ]);
-            
-            return redirect()->back()
-                ->with('success', 'Thanh toán đã được đánh dấu hoàn tiền thành công!');
-        } catch (\Exception $e) {
-            Log::error('Payment refund error: ' . $e->getMessage());
-            return back()->withErrors(['error' => 'Có lỗi xảy ra: ' . $e->getMessage()]);
-        }
     }
 
     /**

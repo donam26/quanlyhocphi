@@ -83,13 +83,9 @@
                 Lịch sử thanh toán
             </h5>
             <div>
-                <button type="button" class="btn btn-success btn-sm" onclick="exportExcel()">
+                <button type="button" class="btn btn-success btn-sm" data-bs-toggle="modal" data-bs-target="#exportExcelModal">
                     <i class="fas fa-file-excel me-1"></i>
                     Xuất Excel
-                </button>
-                <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPaymentModal">
-                    <i class="fas fa-plus me-1"></i>
-                    Ghi nhận thanh toán
                 </button>
             </div>
         </div>
@@ -307,13 +303,6 @@
                                             <i class="fas fa-times"></i>
                                         </button>
                                     @endif
-                                    @if($payment->status === 'confirmed')
-                                        <button type="button" class="btn btn-warning" 
-                                                onclick="refundPayment({{ $payment->id }})"
-                                                title="Hoàn tiền">
-                                            <i class="fas fa-undo"></i>
-                                        </button>
-                                    @endif
                                 </div>
                             </td>
                         </tr>
@@ -343,99 +332,6 @@
     </div>
 </div>
 
-<!-- Modal thêm thanh toán -->
-<div class="modal fade" id="addPaymentModal" tabindex="-1" aria-labelledby="addPaymentModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="addPaymentModalLabel">
-                    <i class="fas fa-plus me-2"></i>
-                    Ghi nhận thanh toán mới
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <form action="{{ route('payments.store') }}" method="POST">
-                @csrf
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Học viên <span class="text-danger">*</span></label>
-                                <select name="enrollment_id" class="form-select" required>
-                                    <option value="">Chọn học viên...</option>
-                                    @foreach(App\Models\Enrollment::with(['student', 'courseItem'])->get() as $enrollment)
-                                        <option value="{{ $enrollment->id }}">
-                                            {{ $enrollment->student->full_name }} - {{ $enrollment->courseItem->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Số tiền <span class="text-danger">*</span></label>
-                                <input type="number" name="amount" class="form-control" min="1000" step="1000" required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Ngày thanh toán <span class="text-danger">*</span></label>
-                                <input type="text" name="payment_date" class="form-control" 
-                                       value="{{ date('d/m/Y') }}" 
-                                       pattern="^(\d{1,2})\/(\d{1,2})\/(\d{4})$"
-                                       placeholder="dd/mm/yyyy" 
-                                       title="Vui lòng nhập ngày theo định dạng dd/mm/yyyy"
-                                       required>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Phương thức <span class="text-danger">*</span></label>
-                                <select name="payment_method" class="form-select" required>
-                                    <option value="">Chọn phương thức...</option>
-                                    <option value="cash">Tiền mặt</option>
-                                    <option value="bank_transfer">Chuyển khoản</option>
-                                    <option value="card">Thẻ</option>
-                                    <option value="qr_code">Mã QR</option>
-                                    <option value="sepay">SePay</option>
-                                    <option value="other">Khác</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Trạng thái <span class="text-danger">*</span></label>
-                                <select name="status" class="form-select" required>
-                                    <option value="confirmed">Đã xác nhận</option>
-                                    <option value="pending">Chờ xác nhận</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="mb-3">
-                                <label class="form-label">Mã giao dịch</label>
-                                <input type="text" name="transaction_id" class="form-control" placeholder="Mã giao dịch (nếu có)">
-                            </div>
-                        </div>
-                        <div class="col-12">
-                            <div class="mb-3">
-                                <label class="form-label">Ghi chú</label>
-                                <textarea name="notes" class="form-control" rows="3" placeholder="Ghi chú thêm..."></textarea>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i>
-                        Lưu thanh toán
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
 
 <!-- Modal chi tiết thanh toán -->
 <div class="modal fade" id="paymentDetailModal" tabindex="-1" aria-labelledby="paymentDetailModalLabel" aria-hidden="true">
@@ -456,6 +352,138 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Xuất Excel -->
+<div class="modal fade" id="exportExcelModal" tabindex="-1" aria-labelledby="exportExcelModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="exportExcelModalLabel">
+                    <i class="fas fa-file-excel me-2"></i>
+                    Xuất danh sách thanh toán
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="exportForm" method="GET" action="{{ route('payments.export') }}">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <!-- Khóa học -->
+                        <div class="col-md-6">
+                            <label class="form-label">Khóa học</label>
+                            <select name="course_item_id" class="form-select">
+                                <option value="">Tất cả khóa học</option>
+                                @foreach($courseItems as $courseItem)
+                                    <option value="{{ $courseItem->id }}">{{ $courseItem->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <!-- Trạng thái -->
+                        <div class="col-md-6">
+                            <label class="form-label">Trạng thái</label>
+                            <select name="status" class="form-select">
+                                <option value="">Tất cả trạng thái</option>
+                                <option value="pending">Chờ xác nhận</option>
+                                <option value="confirmed">Đã xác nhận</option>
+                                <option value="cancelled">Đã hủy</option>
+                                <option value="refunded">Đã hoàn tiền</option>
+                            </select>
+                        </div>
+
+                        <!-- Tỉnh/Thành phố -->
+                        <div class="col-md-6">
+                            <label class="form-label">Tỉnh/Thành phố</label>
+                            <select name="province_id" id="export-province" class="form-select">
+                                <option value="">Tất cả tỉnh thành</option>
+                            </select>
+                        </div>
+
+                        <!-- Giới tính -->
+                        <div class="col-md-6">
+                            <label class="form-label">Giới tính</label>
+                            <select name="gender" class="form-select">
+                                <option value="">Tất cả giới tính</option>
+                                <option value="male">Nam</option>
+                                <option value="female">Nữ</option>
+                                <option value="other">Khác</option>
+                            </select>
+                        </div>
+
+                        <!-- Từ ngày sinh -->
+                        <div class="col-md-6">
+                            <label class="form-label">Từ ngày sinh</label>
+                            <input type="date" name="birth_date_from" class="form-control">
+                        </div>
+
+                        <!-- Đến ngày sinh -->
+                        <div class="col-md-6">
+                            <label class="form-label">Đến ngày sinh</label>
+                            <input type="date" name="birth_date_to" class="form-control">
+                        </div>
+
+                        <!-- Các cột cần xuất -->
+                        <div class="col-12">
+                            <label class="form-label">Các cột cần xuất</label>
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="full_name" id="col_full_name" checked>
+                                        <label class="form-check-label" for="col_full_name">Họ và tên</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="phone" id="col_phone" checked>
+                                        <label class="form-check-label" for="col_phone">Số điện thoại</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="email" id="col_email" checked>
+                                        <label class="form-check-label" for="col_email">Email</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="date_of_birth" id="col_date_of_birth" checked>
+                                        <label class="form-check-label" for="col_date_of_birth">Ngày sinh</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="gender" id="col_gender">
+                                        <label class="form-check-label" for="col_gender">Giới tính</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="address" id="col_address">
+                                        <label class="form-check-label" for="col_address">Địa chỉ</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="province" id="col_province">
+                                        <label class="form-check-label" for="col_province">Tỉnh/Thành phố</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="workplace" id="col_workplace">
+                                        <label class="form-check-label" for="col_workplace">Nơi làm việc</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="experience_years" id="col_experience">
+                                        <label class="form-check-label" for="col_experience">Kinh nghiệm</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="columns[]" value="course_registered" id="col_course" checked>
+                                        <label class="form-check-label" for="col_course">Khóa học đã đăng ký</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-download me-1"></i>
+                        Xuất Excel
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -604,37 +632,8 @@
             });
         }
     }
-    
-    // Hoàn tiền
-    function refundPayment(paymentId) {
-        if (confirm('Bạn có chắc chắn muốn hoàn tiền cho thanh toán này?')) {
-            fetch(`/payments/${paymentId}/refund`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert('Đã hoàn tiền thành công!');
-                    window.location.reload();
-                } else {
-                    alert('Có lỗi xảy ra: ' + data.message);
-                }
-            })
-            .catch(error => {
-                alert('Có lỗi xảy ra: ' + error.message);
-            });
-        }
-    }
-    
-    // Xuất Excel
-    function exportExcel() {
-        const params = new URLSearchParams(window.location.search);
-        window.open(`{{ route('payments.export') }}?${params.toString()}`, '_blank');
-    }
+
+
     
     // Hàm định dạng tiền tệ
     function formatCurrency(amount) {
@@ -670,5 +669,71 @@
         };
         return statusMap[status] || status;
     }
+
+    // Khởi tạo Select2 cho modal xuất Excel
+    $(document).ready(function() {
+        // Khởi tạo Select2 cho dropdown tỉnh/thành phố
+        $('#export-province').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Chọn tỉnh/thành phố...',
+            allowClear: true,
+            dropdownParent: $('#exportExcelModal'),
+            width: '100%',
+            ajax: {
+                url: '/api/provinces',
+                dataType: 'json',
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term || '',
+                        keyword: params.term || ''
+                    };
+                },
+                processResults: function(response) {
+                    if (response && response.success && Array.isArray(response.data)) {
+                        return {
+                            results: response.data.map(function(item) {
+                                return {
+                                    id: item.id,
+                                    text: item.name
+                                };
+                            })
+                        };
+                    }
+                    return { results: [] };
+                },
+                cache: true
+            }
+        });
+
+        // Xử lý submit form xuất Excel
+        $('#exportForm').on('submit', function(e) {
+            e.preventDefault();
+
+            // Kiểm tra ít nhất một cột được chọn
+            const checkedColumns = $('input[name="columns[]"]:checked').length;
+            if (checkedColumns === 0) {
+                alert('Vui lòng chọn ít nhất một cột để xuất!');
+                return;
+            }
+
+            // Tạo URL với các tham số
+            const formData = new FormData(this);
+            const params = new URLSearchParams();
+
+            for (let [key, value] of formData.entries()) {
+                if (value) {
+                    params.append(key, value);
+                }
+            }
+
+            // Mở file Excel trong tab mới
+            const exportUrl = `{{ route('payments.export') }}?${params.toString()}`;
+            window.open(exportUrl, '_blank');
+
+            // Đóng modal
+            $('#exportExcelModal').modal('hide');
+        });
+    });
 </script>
-@endpush 
+@endpush

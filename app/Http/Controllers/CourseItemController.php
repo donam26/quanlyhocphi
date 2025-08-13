@@ -11,6 +11,8 @@ use Illuminate\Http\Request;
 use App\Rules\DateDDMMYYYY;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class CourseItemController extends Controller
 {
@@ -1108,11 +1110,133 @@ class CourseItemController extends Controller
 
         } catch (\Exception $e) {
             Log::error('Error reopening course: ' . $e->getMessage());
-            
+
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Export danh sách học viên của khóa học ra Excel
+     */
+    public function exportStudents($id)
+    {
+        try {
+            $courseItem = $this->courseItemService->getCourseItem($id);
+
+            // Lấy tất cả ID của khóa học con thuộc ngành này
+            $courseItemIds = [$id];
+            $this->getAllChildrenIds($courseItem, $courseItemIds);
+
+            // Lấy tất cả học viên đã đăng ký các khóa học này
+            $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $courseItemIds)
+                ->with(['student.province', 'courseItem', 'payments' => function($query) {
+                    $query->where('status', 'confirmed')->orderBy('payment_date', 'desc');
+                }])
+                ->get();
+
+            // Chuẩn bị dữ liệu export
+            $exportData = [];
+            $exportData[] = [
+                'STT',
+                'Họ và tên',
+                'Số điện thoại',
+                'Email',
+                'Ngày sinh',
+                'Giới tính',
+                'Địa chỉ',
+                'Tỉnh/Thành phố',
+                'Khóa học',
+                'Ngày đăng ký',
+                'Trạng thái',
+                'Học phí',
+                'Đã thanh toán',
+                'Còn thiếu',
+                'Trạng thái thanh toán',
+                'Ghi chú'
+            ];
+
+            $stt = 1;
+            foreach ($enrollments as $enrollment) {
+                $student = $enrollment->student;
+                $totalPaid = $enrollment->getTotalPaidAmount();
+                $remaining = $enrollment->getRemainingAmount();
+                $paymentStatus = $remaining <= 0 ? 'Đã đóng đủ' : 'Chưa đóng đủ';
+
+                $exportData[] = [
+                    $stt++,
+                    $student->full_name,
+                    $student->phone,
+                    $student->email ?: '',
+                    $student->formatted_date_of_birth,
+                    $this->getGenderText($student->gender),
+                    $student->address ?: '',
+                    $student->province ? $student->province->name : '',
+                    $enrollment->courseItem->name,
+                    $enrollment->formatted_enrollment_date,
+                    $enrollment->getStatusEnum() ? $enrollment->getStatusEnum()->label() : $enrollment->status,
+                    number_format($enrollment->final_fee, 0, ',', '.') . ' VNĐ',
+                    number_format($totalPaid, 0, ',', '.') . ' VNĐ',
+                    number_format($remaining, 0, ',', '.') . ' VNĐ',
+                    $paymentStatus,
+                    $enrollment->notes ?: ''
+                ];
+            }
+
+            // Tạo file Excel
+            $fileName = 'danh_sach_hoc_vien_' . Str::slug($courseItem->name) . '_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+            return Excel::download(new class($exportData, $courseItem->name) implements
+                \Maatwebsite\Excel\Concerns\FromArray,
+                \Maatwebsite\Excel\Concerns\WithTitle,
+                \Maatwebsite\Excel\Concerns\WithStyles,
+                \Maatwebsite\Excel\Concerns\ShouldAutoSize {
+
+                private $data;
+                private $courseName;
+
+                public function __construct($data, $courseName) {
+                    $this->data = $data;
+                    $this->courseName = $courseName;
+                }
+
+                public function array(): array {
+                    return $this->data;
+                }
+
+                public function title(): string {
+                    return 'Danh sách học viên';
+                }
+
+                public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet) {
+                    return [
+                        1 => ['font' => ['bold' => true]],
+                    ];
+                }
+            }, $fileName);
+
+        } catch (\Exception $e) {
+            Log::error('Export students error: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Có lỗi xảy ra khi xuất file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Helper method để chuyển đổi giới tính
+     */
+    private function getGenderText($gender)
+    {
+        switch ($gender) {
+            case 'male':
+                return 'Nam';
+            case 'female':
+                return 'Nữ';
+            case 'other':
+                return 'Khác';
+            default:
+                return '';
         }
     }
 }

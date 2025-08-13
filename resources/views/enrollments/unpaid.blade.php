@@ -81,15 +81,11 @@
                                             <strong>{{ number_format($courseData['total_remaining']) }} đ</strong>
                                         </td>
                                         <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-outline-primary" 
-                                                    onclick="showCourseDetailsModal({{ $courseItemId }})"
+                                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                                    onclick="event.preventDefault(); event.stopPropagation(); showCourseDetailsModal({{ $courseItemId }}); return false;"
                                                     title="Xem chi tiết">
                                                 <i class="fas fa-eye"></i>
                                             </button>
-                                            <a href="{{ route('payments.course', $courseItemId) }}" 
-                                               class="btn btn-sm btn-primary" title="Quản lý thanh toán">
-                                                <i class="fas fa-credit-card"></i>
-                                            </a>
                                         </td>
                                     </tr>
                                 @empty
@@ -139,41 +135,58 @@
     </div>
 </div>
 
-<!-- Modal Lịch sử thanh toán -->
-<div class="modal fade" id="paymentHistoryModal" tabindex="-1" aria-labelledby="paymentHistoryModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="paymentHistoryModalLabel">
-                    <i class="fas fa-history me-2"></i>
-                    Lịch sử thanh toán
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="paymentHistoryContent">
-                    <!-- Nội dung sẽ được load bằng JavaScript -->
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Đóng</button>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="{{ asset('js/payment.js') }}"></script>
+<!-- Dữ liệu JSON ẩn -->
+<script type="application/json" id="course-enrollments-data">
+{!! json_encode($courseEnrollmentsJson ?? [], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
+</script>
+
+<script>
+    // Lấy dữ liệu từ script tag
+    try {
+        const dataElement = document.getElementById('course-enrollments-data');
+        window.courseEnrollmentsData = dataElement ? JSON.parse(dataElement.textContent) : {};
+        console.log('Loaded courseEnrollmentsData:', window.courseEnrollmentsData);
+    } catch (error) {
+        console.error('Error parsing course enrollments data:', error);
+        window.courseEnrollmentsData = {};
+    }
+</script>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, initializing unpaid enrollments page');
+        console.log('courseEnrollmentsData:', window.courseEnrollmentsData);
+
+        // Test functions
+        if (typeof showCourseDetailsModal === 'function') {
+            console.log('showCourseDetailsModal function is defined');
+        } else {
+            console.error('showCourseDetailsModal function is NOT defined');
+        }
+
+        if (typeof showPaymentManagementModal === 'function') {
+            console.log('showPaymentManagementModal function is defined');
+        } else {
+            console.error('showPaymentManagementModal function is NOT defined');
+        }
+
         // Xử lý checkbox chọn tất cả lớp học
-        document.getElementById('check-all').addEventListener('change', function() {
-            const courseCheckboxes = document.querySelectorAll('.course-checkbox');
-            courseCheckboxes.forEach(checkbox => {
-                checkbox.checked = this.checked;
+        const checkAllElement = document.getElementById('check-all');
+        if (checkAllElement) {
+            checkAllElement.addEventListener('change', function() {
+                const courseCheckboxes = document.querySelectorAll('.course-checkbox');
+                courseCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateSendReminderButton();
             });
-            updateSendReminderButton();
-        });
+        } else {
+            console.error('check-all element not found');
+        }
 
         // Xử lý khi checkbox lớp học đơn lẻ thay đổi
         document.querySelectorAll('.course-checkbox').forEach(checkbox => {
@@ -252,23 +265,56 @@
 
     // Sửa lại nút thanh toán từ <a href> thành <button> để hiển thị modal
     function showCourseDetailsModal(courseItemId) {
-        // Hiển thị loading
-        const modal = new bootstrap.Modal(document.getElementById('courseDetailsModal'));
-        document.getElementById('courseDetailsContent').innerHTML = `
-            <div class="text-center py-5">
-                <div class="spinner-border text-primary" role="status"></div>
-                <p class="mt-2">Đang tải thông tin...</p>
-            </div>
-        `;
-        modal.show();
-        
-        // Lấy dữ liệu từ PHP
-        const courseEnrollments = @json($courseEnrollments);
-        const courseData = courseEnrollments[courseItemId];
-        
-        if (!courseData) {
+        console.log('showCourseDetailsModal called with courseItemId:', courseItemId);
+
+        try {
+            // Hiển thị loading
+            const modalElement = document.getElementById('courseDetailsModal');
+            if (!modalElement) {
+                console.error('Modal element not found');
+                alert('Không tìm thấy modal element');
+                return;
+            }
+
+            const modal = new bootstrap.Modal(modalElement);
+            const contentElement = document.getElementById('courseDetailsContent');
+            if (!contentElement) {
+                console.error('Content element not found');
+                alert('Không tìm thấy content element');
+                return;
+            }
+
+            contentElement.innerHTML = `
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status"></div>
+                    <p class="mt-2">Đang tải thông tin...</p>
+                </div>
+            `;
+            modal.show();
+        } catch (error) {
+            console.error('Error showing modal:', error);
+            alert('Có lỗi khi hiển thị modal: ' + error.message);
+            return;
+        }
+
+        let courseData;
+        try {
+            // Lấy dữ liệu từ biến toàn cục
+            const courseEnrollments = window.courseEnrollmentsData || {};
+            console.log('courseEnrollments:', courseEnrollments);
+            courseData = courseEnrollments[courseItemId];
+            console.log('courseData for ID', courseItemId, ':', courseData);
+
+            if (!courseData) {
+                document.getElementById('courseDetailsContent').innerHTML = `
+                    <div class="alert alert-danger">Không tìm thấy thông tin lớp học.</div>
+                `;
+                return;
+            }
+        } catch (error) {
+            console.error('Error in showCourseDetailsModal:', error);
             document.getElementById('courseDetailsContent').innerHTML = `
-                <div class="alert alert-danger">Không tìm thấy thông tin lớp học.</div>
+                <div class="alert alert-danger">Có lỗi xảy ra khi tải thông tin: ${error.message}</div>
             `;
             return;
         }
@@ -508,9 +554,18 @@
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return response.text().then(text => {
+                    console.error('Response error:', text);
+                    throw new Error(`HTTP error! status: ${response.status}, response: ${text}`);
+                });
             }
-            return response.json();
+            return response.json().catch(err => {
+                console.error('JSON parse error:', err);
+                return response.text().then(text => {
+                    console.error('Response text:', text);
+                    throw new Error('Invalid JSON response: ' + text.substring(0, 200));
+                });
+            });
         })
         .then(data => {
             if (data.success) {
@@ -594,7 +649,10 @@
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        return response.text().then(text => {
+                            console.error('Response error:', text);
+                            throw new Error(`HTTP error! status: ${response.status}, response: ${text}`);
+                        });
                     }
                     return response.json();
                 })
@@ -663,7 +721,10 @@
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return response.text().then(text => {
+                    console.error('Response error:', text);
+                    throw new Error(`HTTP error! status: ${response.status}, response: ${text}`);
+                });
             }
             return response.json();
         })
@@ -855,19 +916,30 @@
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Accept': 'application/json'
                     },
                     body: JSON.stringify({
                         enrollment_id: enrollmentId,
                         amount: result.value.amount,
                         payment_method: result.value.method,
                         note: result.value.note,
+                        payment_date: (() => {
+                            const today = new Date();
+                            const day = String(today.getDate()).padStart(2, '0');
+                            const month = String(today.getMonth() + 1).padStart(2, '0');
+                            const year = today.getFullYear();
+                            return `${day}/${month}/${year}`;
+                        })(), // Ngày hiện tại theo định dạng dd/mm/yyyy
                         status: 'confirmed' // Mặc định là đã xác nhận
                     })
                 })
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+                        return response.text().then(text => {
+                            console.error('Response error:', text);
+                            throw new Error(`HTTP error! status: ${response.status}, response: ${text}`);
+                        });
                     }
                     return response.json();
                 })
@@ -964,7 +1036,10 @@
         })
         .then(response => {
             if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                return response.text().then(text => {
+                    console.error('Response error:', text);
+                    throw new Error(`HTTP error! status: ${response.status}, response: ${text}`);
+                });
             }
             return response.json();
         })
@@ -996,8 +1071,23 @@
             });
         });
     }
+
+    // Function để hiển thị modal quản lý thanh toán
+    function showPaymentManagementModal(courseItemId) {
+        console.log('showPaymentManagementModal called with courseItemId:', courseItemId);
+
+        try {
+            // Chuyển hướng đến trang quản lý thanh toán trong tab mới
+            const url = `/payments/course/${courseItemId}`;
+            console.log('Opening URL:', url);
+            window.open(url, '_blank');
+        } catch (error) {
+            console.error('Error opening payment management:', error);
+            alert('Có lỗi khi mở trang quản lý thanh toán: ' + error.message);
+        }
+    }
 </script>
-@endpush 
+@endpush
 
 <!-- Modal chi tiết ghi danh -->
 <div class="modal fade" id="enrollmentDetailsModal" tabindex="-1" aria-labelledby="enrollmentDetailsModalLabel" aria-hidden="true">

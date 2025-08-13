@@ -202,22 +202,30 @@ class AttendanceController extends Controller
 
     /**
      * Lấy danh sách học viên để điểm danh cho khóa học
+     * Nếu là khóa cha, sẽ lấy tất cả học viên của khóa con
      */
     public function getStudentsForAttendance(CourseItem $courseItem, Request $request)
     {
         $date = $request->get('date', now()->format('Y-m-d'));
-        
+
         // Kiểm tra xem khóa học có đang active không
         $isActive = $courseItem->isActive();
-        
-        // Lấy danh sách học viên đã ghi danh vào khóa học
-        $enrollments = Enrollment::where('course_item_id', $courseItem->id)
+
+        // Load children để có thể lấy tất cả khóa con
+        $courseItem->load('children.children.children');
+
+        // Lấy tất cả ID của khóa học này và các khóa con
+        $courseItemIds = [$courseItem->id];
+        $this->getAllChildrenIds($courseItem, $courseItemIds);
+
+        // Lấy danh sách học viên đã ghi danh vào các khóa học (bao gồm cả khóa con)
+        $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
             ->where('status', EnrollmentStatus::ACTIVE->value)
-            ->with(['student'])
+            ->with(['student', 'courseItem'])
             ->get();
 
-        // Lấy điểm danh đã có (nếu có)
-        $existingAttendances = Attendance::where('course_item_id', $courseItem->id)
+        // Lấy điểm danh đã có (nếu có) cho tất cả khóa học
+        $existingAttendances = Attendance::whereIn('course_item_id', $courseItemIds)
             ->where('attendance_date', $date)
             ->get()
             ->keyBy('enrollment_id');
@@ -225,13 +233,14 @@ class AttendanceController extends Controller
         // Chuẩn bị dữ liệu cho response
         $students = $enrollments->map(function($enrollment) use ($existingAttendances) {
             $attendance = $existingAttendances->get($enrollment->id);
-            
+
             return [
                 'enrollment_id' => $enrollment->id,
                 'student_id' => $enrollment->student->id,
                 'student_name' => $enrollment->student->full_name,
                 'student_phone' => $enrollment->student->phone,
                 'student_email' => $enrollment->student->email,
+                'course_name' => $enrollment->courseItem->name, // Thêm tên khóa học để phân biệt
                 'current_status' => $attendance ? $attendance->status : 'present',
                 'current_notes' => $attendance ? $attendance->notes : '',
                 'attendance_id' => $attendance ? $attendance->id : null
@@ -467,6 +476,19 @@ class AttendanceController extends Controller
         } catch (\Exception $e) {
             Log::error('Export attendance error: ' . $e->getMessage());
             return back()->withErrors(['export' => 'Có lỗi xảy ra khi export: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Helper method để lấy tất cả ID của khóa học con
+     */
+    private function getAllChildrenIds($courseItem, &$courseItemIds)
+    {
+        if ($courseItem->children && $courseItem->children->count() > 0) {
+            foreach ($courseItem->children as $child) {
+                $courseItemIds[] = $child->id;
+                $this->getAllChildrenIds($child, $courseItemIds);
+            }
         }
     }
 }

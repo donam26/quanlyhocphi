@@ -158,14 +158,6 @@ class CourseItem extends Model
     }
 
     /**
-     * Quan hệ với bảng lịch học
-     */
-    public function schedules()
-    {
-        return $this->hasMany(Schedule::class, 'course_item_id');
-    }
-
-    /**
      * Lấy tất cả điểm danh cho khóa học này và các khóa học con
      */
     public function getAllAttendances()
