@@ -153,4 +153,35 @@ class StudentService
         
         return Excel::download(new StudentsExport($students, $columns), $fileName);
     }
+
+    /**
+     * Xuất hóa đơn điện tử cho học viên
+     */
+    public function exportInvoice($studentId, $enrollmentId, $invoiceDate, $notes = null)
+    {
+        $student = Student::with(['province'])->findOrFail($studentId);
+        $enrollment = \App\Models\Enrollment::with(['courseItem'])->findOrFail($enrollmentId);
+
+        // Kiểm tra enrollment thuộc về student
+        if ($enrollment->student_id != $studentId) {
+            throw new \Exception('Ghi danh không thuộc về học viên này');
+        }
+
+        $invoiceData = [
+            'student' => $student,
+            'enrollment' => $enrollment,
+            'invoice_date' => $invoiceDate,
+            'notes' => $notes,
+            'company_info' => [
+                'name' => 'TRƯỜNG ĐẠI HỌC KINH TẾ QUỐC DÂN',
+                'department' => 'Đơn vị: Trung tâm Đào tạo Liên tục',
+                'address' => 'Địa chỉ: Trung tâm Đào tạo Liên tục - ĐH Kinh tế Quốc dân',
+                'purpose' => 'Đề nghị phòng TC-KT xuất cho chúng tôi hóa đơn GTGT với nội dung như sau:'
+            ]
+        ];
+
+        $fileName = 'hoa_don_' . $student->id . '_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+        return Excel::download(new \App\Exports\InvoiceExport($invoiceData), $fileName);
+    }
 }

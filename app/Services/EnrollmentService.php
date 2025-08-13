@@ -92,10 +92,10 @@ class EnrollmentService
         try {
             // Tính học phí sau khi giảm giá
             $courseItem = CourseItem::findOrFail($data['course_item_id']);
-         
+
             $finalFee = $courseItem->fee;
             $discountAmount = 0;
-            
+
             if (isset($data['discount_percentage']) && $data['discount_percentage'] > 0) {
                 $discountAmount = $finalFee * ($data['discount_percentage'] / 100);
                 $finalFee -= $discountAmount;
@@ -103,7 +103,15 @@ class EnrollmentService
                 $discountAmount = $data['discount_amount'];
                 $finalFee -= $discountAmount;
             }
-            
+
+            // Xử lý custom_fields: tự động sao chép từ khóa học đặc biệt
+            $customFields = null;
+            if ($courseItem->is_special && $courseItem->custom_fields) {
+                $customFields = $courseItem->custom_fields;
+            } elseif (isset($data['custom_fields'])) {
+                $customFields = $data['custom_fields'];
+            }
+
             // Tạo ghi danh
             $enrollment = Enrollment::create([
                 'student_id' => $data['student_id'],
@@ -114,7 +122,7 @@ class EnrollmentService
                 'discount_amount' => $discountAmount,
                 'status' => $data['status'] ?? EnrollmentStatus::ACTIVE,
                 'notes' => $data['notes'] ?? null,
-                'custom_fields' => isset($data['custom_fields']) ? $data['custom_fields'] : null
+                'custom_fields' => $customFields
             ]);
             
             // Tạo thanh toán ban đầu nếu có

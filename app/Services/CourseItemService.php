@@ -64,12 +64,26 @@ class CourseItemService
         
         // Xử lý các trường thông tin tùy chỉnh
         $customFields = [];
-        if (isset($data['is_special']) && $data['is_special'] && isset($data['custom_field_keys'])) {
-            $keys = $data['custom_field_keys'];
-            
-            foreach ($keys as $key) {
-                if (!empty($key)) {
-                    $customFields[$key] = ""; // Lưu với giá trị rỗng
+        if (isset($data['is_special']) && $data['is_special']) {
+            // Tự động thêm các trường mặc định cho khóa học đặc biệt
+            $defaultFields = [
+                'Đơn vị công tác' => '',
+                'Bằng cấp' => '',
+                'Chuyên môn công tác' => '',
+                'Số năm kinh nghiệm' => '',
+                'Hồ sơ bản cứng' => ''
+            ];
+
+            $customFields = $defaultFields;
+
+            // Thêm các trường tùy chỉnh khác nếu có
+            if (isset($data['custom_field_keys'])) {
+                $keys = $data['custom_field_keys'];
+
+                foreach ($keys as $key) {
+                    if (!empty($key) && !array_key_exists($key, $defaultFields)) {
+                        $customFields[$key] = ""; // Lưu với giá trị rỗng
+                    }
                 }
             }
         }
@@ -97,12 +111,26 @@ class CourseItemService
         
         // Xử lý các trường thông tin tùy chỉnh
         $customFields = [];
-        if (isset($data['is_special']) && $data['is_special'] && isset($data['custom_field_keys'])) {
-            $keys = $data['custom_field_keys'];
-            
-            foreach ($keys as $key) {
-                if (!empty($key)) {
-                    $customFields[$key] = ""; // Lưu với giá trị rỗng
+        if (isset($data['is_special']) && $data['is_special']) {
+            // Tự động thêm các trường mặc định cho khóa học đặc biệt
+            $defaultFields = [
+                'Đơn vị công tác' => '',
+                'Bằng cấp' => '',
+                'Chuyên môn công tác' => '',
+                'Số năm kinh nghiệm' => '',
+                'Hồ sơ bản cứng' => ''
+            ];
+
+            $customFields = $defaultFields;
+
+            // Thêm các trường tùy chỉnh khác nếu có
+            if (isset($data['custom_field_keys'])) {
+                $keys = $data['custom_field_keys'];
+
+                foreach ($keys as $key) {
+                    if (!empty($key) && !array_key_exists($key, $defaultFields)) {
+                        $customFields[$key] = ""; // Lưu với giá trị rỗng
+                    }
                 }
             }
         }

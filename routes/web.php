@@ -36,6 +36,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::post('/students', [StudentController::class, 'store'])->name('students.store');
     // Đặt route export TRƯỚC route tham số để tránh nuốt path 'export'
     Route::get('students/export', [StudentController::class, 'export'])->name('students.export');
+    Route::post('students/export-invoice', [StudentController::class, 'exportInvoice'])->name('students.export-invoice');
     // Các route theo id, ràng buộc id là số để tránh đè lên 'export'
     Route::get('students/{student}', [StudentController::class, 'show'])->whereNumber('student')->name('students.show');
     Route::get('students/{student}/edit', [StudentController::class, 'edit'])->whereNumber('student')->name('students.edit');
@@ -43,6 +44,12 @@ Route::middleware(['auth', 'admin'])->group(function () {
     Route::delete('students/{student}', [StudentController::class, 'destroy'])->whereNumber('student')->name('students.destroy');
     Route::get('students/{student}/enrollments', [StudentController::class, 'enrollments'])->whereNumber('student')->name('students.enrollments');
     Route::get('students/{student}/payments', [StudentController::class, 'payments'])->whereNumber('student')->name('students.payments');
+
+    // Routes cho cập nhật thông tin học viên hàng loạt
+    Route::get('students/update-import', [App\Http\Controllers\StudentUpdateController::class, 'showUpdateForm'])->name('students.update.form');
+    Route::post('students/update-import', [App\Http\Controllers\StudentUpdateController::class, 'updateFromExcel'])->name('students.update.import');
+    Route::get('students/update-template', [App\Http\Controllers\StudentUpdateController::class, 'downloadUpdateTemplate'])->name('students.update.template');
+    Route::post('students/update-preview', [App\Http\Controllers\StudentUpdateController::class, 'previewUpdateData'])->name('students.update.preview');
 
     // Cấu trúc cây khóa học mới
     Route::post('course-items/update-order', [CourseItemController::class, 'updateOrder'])->name('course-items.update-order');
@@ -61,6 +68,7 @@ Route::middleware(['auth', 'admin'])->group(function () {
     // Thêm route trả về danh sách học viên dạng JSON để hiển thị trong modal ở trang cây khóa học
     Route::get('course-items/{id}/students-json', [CourseItemController::class, 'getStudentsJson'])->name('course-items.students-json');
     Route::get('course-items/{id}/export-students', [CourseItemController::class, 'exportStudents'])->name('course-items.export-students');
+    Route::post('course-items/export-invoices', [CourseItemController::class, 'exportInvoices'])->name('course-items.export-invoices');
     Route::resource('course-items', CourseItemController::class)->except(['show']);
 
 

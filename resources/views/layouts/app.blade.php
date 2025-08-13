@@ -10,8 +10,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <!-- jQuery -->
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <!-- Chart.js -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
@@ -245,6 +243,64 @@
         .nav-link.active {
             background: rgba(59, 130, 246, 0.2);
             box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        /* ===== SUBMENU ===== */
+        .nav-item.has-submenu {
+            margin: 0 0.75rem 0.5rem;
+        }
+
+        .nav-item.has-submenu > .nav-link {
+            margin: 0;
+        }
+
+        .submenu-arrow {
+            margin-left: auto;
+            font-size: 0.75rem;
+            transition: transform 0.3s ease;
+        }
+
+        .nav-item.has-submenu.active .submenu-arrow {
+            transform: rotate(180deg);
+        }
+
+        .submenu {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 0 0 12px 12px;
+            margin-top: -12px;
+            padding-top: 12px;
+        }
+
+        .nav-item.has-submenu.active .submenu {
+            max-height: 200px;
+        }
+
+        .submenu-link {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 2rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .submenu-link:hover,
+        .submenu-link.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            transform: translateX(8px);
+        }
+
+        .submenu-link.active {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
+        .sidebar.collapsed .submenu {
+            display: none;
         }
 
         .nav-link-icon {
@@ -630,13 +686,27 @@
             <div class="nav-section">
                 <div class="nav-section-title">Quản lý</div>
                 
-                <a href="{{ route('students.index') }}" class="nav-link {{ request()->routeIs('students.*') ? 'active' : '' }}">
-                    <div class="nav-link-icon">
-                        <i class="fas fa-user-graduate"></i>
+                <!-- Học viên với submenu -->
+                <div class="nav-item has-submenu {{ request()->routeIs('students.*') ? 'active' : '' }}">
+                    <a href="#" class="nav-link">
+                        <div class="nav-link-icon">
+                            <i class="fas fa-user-graduate"></i>
+                        </div>
+                        <span class="nav-link-text">Học viên</span>
+                        <div class="nav-tooltip">Học viên</div>
+                        <i class="fas fa-chevron-down submenu-arrow"></i>
+                    </a>
+                    <div class="submenu">
+                        <a href="{{ route('students.index') }}" class="submenu-link {{ request()->routeIs('students.index') ? 'active' : '' }}">
+                            <i class="fas fa-list me-2"></i>
+                            Danh sách học viên
+                        </a>
+                        <a href="{{ route('students.update.form') }}" class="submenu-link {{ request()->routeIs('students.update.*') ? 'active' : '' }}">
+                            <i class="fas fa-edit me-2"></i>
+                            Cập nhật hàng loạt
+                        </a>
                     </div>
-                    <span class="nav-link-text">Học viên</span>
-                    <div class="nav-tooltip">Học viên</div>
-                </a>
+                </div>
                 
                 <a href="{{ route('course-items.tree') }}" class="nav-link {{ request()->routeIs('course-items.tree') ? 'active' : '' }}">
                     <div class="nav-link-icon">
@@ -866,6 +936,13 @@
                 return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(number);
             }
             
+            // Xử lý submenu
+            $('.nav-item.has-submenu > .nav-link').click(function(e) {
+                e.preventDefault();
+                const navItem = $(this).parent();
+                navItem.toggleClass('active');
+            });
+
             // Khôi phục trạng thái sidebar từ localStorage
             const sidebarCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
             if (sidebarCollapsed) {

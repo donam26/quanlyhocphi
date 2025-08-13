@@ -357,13 +357,6 @@
 <script src="{{ asset('js/enrollment.js') }}"></script>
 <script>
 $(document).ready(function() {
-    // Destroy existing Select2 trước khi khởi tạo lại
-    try {
-        $('#student_search').select2('destroy');
-    } catch (e) {
-        // Ignore error nếu chưa được khởi tạo
-    }
-
     // Cấu hình Select2 cho ô tìm kiếm học viên với AJAX
     $('#student_search').select2({
         theme: 'bootstrap-5',

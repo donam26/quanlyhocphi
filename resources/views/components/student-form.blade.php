@@ -4,7 +4,30 @@
     $isEdit = $prefix === 'edit';
 @endphp
 
-<div class="row">
+<!-- Nav tabs -->
+<ul class="nav nav-tabs" id="{{ $prefix }}-student-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="{{ $prefix }}-personal-tab" data-bs-toggle="tab"
+                data-bs-target="#{{ $prefix }}-personal" type="button" role="tab"
+                aria-controls="{{ $prefix }}-personal" aria-selected="true">
+            <i class="fas fa-user me-2"></i>Thông tin cá nhân
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="{{ $prefix }}-invoice-tab" data-bs-toggle="tab"
+                data-bs-target="#{{ $prefix }}-invoice" type="button" role="tab"
+                aria-controls="{{ $prefix }}-invoice" aria-selected="false">
+            <i class="fas fa-file-invoice me-2"></i>Thông tin hóa đơn
+        </button>
+    </li>
+</ul>
+
+<!-- Tab panes -->
+<div class="tab-content mt-3" id="{{ $prefix }}-student-tab-content">
+    <!-- Tab Thông tin cá nhân -->
+    <div class="tab-pane fade show active" id="{{ $prefix }}-personal" role="tabpanel"
+         aria-labelledby="{{ $prefix }}-personal-tab">
+        <div class="row">
     {{-- Thông tin cá nhân --}}
     <div class="col-md-6">
         <h6 class="text-primary mb-3"><i class="fas fa-user me-2"></i>Thông tin c2á nhân</h6>
@@ -145,12 +168,116 @@
         <h6 class="text-primary mb-3 mt-3"><i class="fas fa-sticky-note me-2"></i>Ghi chú</h6>
         <div class="mb-3">
             <label for="{{ $prefix }}-notes" class="form-label">Ghi chú</label>
-            <textarea class="form-control" id="{{ $prefix }}-notes" name="notes" rows="3" 
+            <textarea class="form-control" id="{{ $prefix }}-notes" name="notes" rows="3"
                       placeholder="Nhập ghi chú về học viên (nếu có)"></textarea>
             <div class="invalid-feedback" id="{{ $prefix }}-notes-error"></div>
         </div>
     </div>
 </div>
+        </div>
+
+    <!-- Tab Thông tin hóa đơn -->
+    <div class="tab-pane fade" id="{{ $prefix }}-invoice" role="tabpanel"
+         aria-labelledby="{{ $prefix }}-invoice-tab">
+        <div class="row">
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Thông tin này sẽ được sử dụng khi xuất hóa đơn điện tử. Tất cả các trường đều không bắt buộc.
+                </div>
+            </div>
+        </div>
+        <div class="row">
+    <div class="col-md-6">
+        {{-- Tên đơn vị --}}
+        <div class="mb-3">
+            <label for="{{ $prefix }}-company-name" class="form-label">Tên đơn vị</label>
+            <input type="text" class="form-control" id="{{ $prefix }}-company-name" name="company_name"
+                   placeholder="Nhập tên đơn vị (nếu có)">
+            <div class="invalid-feedback" id="{{ $prefix }}-company-name-error"></div>
+        </div>
+
+        {{-- Mã số thuế --}}
+        <div class="mb-3">
+            <label for="{{ $prefix }}-tax-code" class="form-label">Mã số thuế</label>
+            <input type="text" class="form-control" id="{{ $prefix }}-tax-code" name="tax_code"
+                   placeholder="Nhập mã số thuế (nếu có)">
+            <div class="invalid-feedback" id="{{ $prefix }}-tax-code-error"></div>
+        </div>
+
+        {{-- Email nhận hóa đơn --}}
+        <div class="mb-3">
+            <label for="{{ $prefix }}-invoice-email" class="form-label">Email nhận hóa đơn</label>
+            <input type="email" class="form-control" id="{{ $prefix }}-invoice-email" name="invoice_email"
+                   placeholder="Nhập email nhận hóa đơn (nếu có)">
+            <div class="invalid-feedback" id="{{ $prefix }}-invoice-email-error"></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        {{-- Địa chỉ đơn vị --}}
+        <div class="mb-3">
+            <label for="{{ $prefix }}-company-address" class="form-label">Địa chỉ đơn vị nhận hóa đơn</label>
+            <textarea class="form-control" id="{{ $prefix }}-company-address" name="company_address" rows="3"
+                      placeholder="Nhập địa chỉ đơn vị (nếu có)"></textarea>
+            <div class="invalid-feedback" id="{{ $prefix }}-company-address-error"></div>
+        </div>
+    </div>
+</div>
+        </div>
+    </div>
+</div>
+
+{{-- CSS cho tab --}}
+<style>
+.nav-tabs .nav-link {
+    color: #6c757d;
+    border: 1px solid transparent;
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: #e9ecef #e9ecef #dee2e6;
+    isolation: isolate;
+}
+
+.nav-tabs .nav-link.active {
+    color: #495057;
+    background-color: #fff;
+    border-color: #dee2e6 #dee2e6 #fff;
+}
+
+.tab-content {
+    border: 1px solid #dee2e6;
+    border-top: none;
+    border-radius: 0 0 0.375rem 0.375rem;
+    padding: 1rem;
+    background-color: #fff;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.tab-pane {
+    min-height: auto;
+}
+
+/* Đảm bảo modal có kích thước phù hợp */
+.modal-dialog {
+    max-height: 90vh;
+}
+
+.modal-content {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: calc(90vh - 120px); /* Trừ đi header và footer */
+}
+</style>
 
 {{-- Script khởi tạo form --}}
 <script>
@@ -164,8 +291,17 @@ $(document).ready(function() {
         }).mask('#{{ $prefix }}-date-of-birth');
     }
 
-    // Khởi tạo Select2 khi modal được hiển thị
+    // Khởi tạo tab và Select2 khi modal được hiển thị
     $('#{{ $prefix === 'create' ? 'createStudentModal' : 'editStudentModal' }}').on('shown.bs.modal', function() {
+        // Khởi tạo Bootstrap tabs
+        var triggerTabList = [].slice.call(document.querySelectorAll('#{{ $prefix }}-student-tabs button'));
+        triggerTabList.forEach(function (triggerEl) {
+            var tabTrigger = new bootstrap.Tab(triggerEl);
+        });
+
+        // Đảm bảo tab đầu tiên được active
+        $('#{{ $prefix }}-personal-tab').tab('show');
+
         if (window.studentFormComponent) {
             window.studentFormComponent.initializeFormComponents('{{ $prefix }}');
         }

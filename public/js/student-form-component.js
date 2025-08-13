@@ -17,6 +17,13 @@ class StudentFormComponent {
     }
 
     bindEvents() {
+        // Đảm bảo jQuery đã sẵn sàng
+        if (typeof $ === 'undefined') {
+            console.warn('jQuery chưa được load, delay bind events');
+            setTimeout(() => this.bindEvents(), 100);
+            return;
+        }
+
         // Bind events cho modal show
         $(document).on('shown.bs.modal', '#createStudentModal', () => {
             this.initializeFormComponents('create');

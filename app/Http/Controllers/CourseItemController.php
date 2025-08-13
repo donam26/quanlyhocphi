@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\InvoiceExport;
 
 class CourseItemController extends Controller
 {
@@ -722,6 +723,12 @@ class CourseItemController extends Controller
         try {
             DB::beginTransaction();
 
+            // Xử lý custom_fields cho khóa học đặc biệt
+            $customFields = null;
+            if ($courseItem->is_special && $courseItem->custom_fields) {
+                $customFields = $courseItem->custom_fields;
+            }
+
             // Tạo ghi danh mới
             $enrollment = \App\Models\Enrollment::create([
                 'student_id' => $request->student_id,
@@ -731,7 +738,8 @@ class CourseItemController extends Controller
                 'discount_percentage' => $request->discount_percentage ?? 0,
                 'discount_amount' => $request->discount_amount ?? 0,
                 'status' => $request->status,
-                'notes' => $request->notes
+                'notes' => $request->notes,
+                'custom_fields' => $customFields
             ]);
 
             // Nếu có thanh toán ban đầu
@@ -1237,6 +1245,258 @@ class CourseItemController extends Controller
                 return 'Khác';
             default:
                 return '';
+        }
+    }
+
+    /**
+     * Xuất hóa đơn điện tử cho tất cả học viên trong khóa học
+     */
+    public function exportInvoices(Request $request)
+    {
+        try {
+            $request->validate([
+                'course_id' => 'required|exists:course_items,id',
+                'invoice_date' => 'required|date',
+                'notes' => 'nullable|string'
+            ]);
+
+            $courseItem = CourseItem::with(['enrollments.student', 'enrollments.payments'])
+                ->findOrFail($request->course_id);
+
+            // Lấy danh sách học viên đã đăng ký
+            $enrollments = $courseItem->enrollments()
+                ->with(['student', 'payments'])
+                ->whereHas('student')
+                ->get();
+
+            if ($enrollments->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không có học viên nào trong khóa học này!'
+                ]);
+            }
+
+            $downloadUrls = [];
+            $fileCount = 0;
+
+            foreach ($enrollments as $enrollment) {
+                $student = $enrollment->student;
+
+                // Tính toán thông tin thanh toán
+                $totalPaid = $enrollment->payments->where('status', 'completed')->sum('amount');
+                $remaining = $enrollment->final_fee - $totalPaid;
+
+                // Tạo dữ liệu hóa đơn cho từng học viên
+                $invoiceData = [
+                    // Thông tin khóa học
+                    'course_name' => $courseItem->name,
+                    'course_fee' => $enrollment->final_fee,
+
+                    // Thông tin học viên
+                    'student_name' => $student->name,
+                    'student_phone' => $student->phone,
+                    'student_email' => $student->email,
+                    'student_address' => $student->address,
+
+                    // Thông tin hóa đơn từ học viên
+                    'company_name' => $student->company_name,
+                    'tax_code' => $student->tax_code,
+                    'invoice_email' => $student->invoice_email,
+                    'company_address' => $student->company_address,
+
+                    // Thông tin hóa đơn
+                    'invoice_date' => $request->invoice_date,
+                    'notes' => $request->notes,
+
+                    // Thông tin thanh toán
+                    'total_paid' => $totalPaid,
+                    'remaining' => $remaining,
+                    'enrollment_date' => $enrollment->enrollment_date,
+                ];
+
+                // Tạo file Excel cho từng học viên
+                $fileName = 'hoa_don_' . Str::slug($student->name) . '_' . Str::slug($courseItem->name) . '_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+                // Tạo file Excel và download trực tiếp
+                $excelFile = $this->createInvoiceExcelDirect($invoiceData, $fileName);
+
+                if ($excelFile) {
+                    $downloadUrls[] = [
+                        'filename' => $fileName,
+                        'content' => base64_encode($excelFile)
+                    ];
+                    $fileCount++;
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Đã tạo thành công {$fileCount} file hóa đơn",
+                'file_count' => $fileCount,
+                'download_urls' => $downloadUrls
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Export invoices error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tạo file Excel hóa đơn cho một học viên
+     */
+    private function createInvoiceExcel($invoiceData, $fileName)
+    {
+        try {
+            // Kiểm tra và làm sạch dữ liệu
+            $courseName = $invoiceData['course_name'] ?? 'N/A';
+            $courseFee = $invoiceData['course_fee'] ?? 0;
+            $studentName = $invoiceData['student_name'] ?? 'N/A';
+            $studentPhone = $invoiceData['student_phone'] ?? 'N/A';
+            $studentEmail = $invoiceData['student_email'] ?? 'N/A';
+            $studentAddress = $invoiceData['student_address'] ?? 'N/A';
+            $totalPaid = $invoiceData['total_paid'] ?? 0;
+            $remaining = $invoiceData['remaining'] ?? 0;
+            $enrollmentDate = $invoiceData['enrollment_date'] ?? now();
+            $invoiceDate = $invoiceData['invoice_date'] ?? now();
+            $notes = $invoiceData['notes'] ?? '';
+
+            // Tạo dữ liệu cho Excel
+            $data = [
+                ['HÓA ĐƠN ĐIỆN TỬ', ''],
+                ['', ''],
+                ['Thông tin khóa học:', ''],
+                ['Tên khóa học:', $courseName],
+                ['Học phí:', number_format($courseFee, 0, ',', '.') . ' VNĐ'],
+                ['', ''],
+                ['Thông tin học viên:', ''],
+                ['Họ và tên:', $studentName],
+                ['Số điện thoại:', $studentPhone],
+                ['Email:', $studentEmail],
+                ['Địa chỉ:', $studentAddress],
+                ['', ''],
+            ];
+
+            // Thêm thông tin doanh nghiệp nếu có
+            if (isset($invoiceData['invoice_type']) && $invoiceData['invoice_type'] === 'company') {
+                $companyName = $invoiceData['company_name'] ?? 'N/A';
+                $taxCode = $invoiceData['tax_code'] ?? 'N/A';
+                $companyAddress = $invoiceData['company_address'] ?? 'N/A';
+
+                $data = array_merge($data, [
+                    ['Thông tin doanh nghiệp:', ''],
+                    ['Tên đơn vị:', $companyName],
+                    ['Mã số thuế:', $taxCode],
+                    ['Địa chỉ:', $companyAddress],
+                    ['', ''],
+                ]);
+            }
+
+            // Thêm thông tin thanh toán
+            $data = array_merge($data, [
+                ['Thông tin thanh toán:', ''],
+                ['Ngày đăng ký:', date('d/m/Y', strtotime($enrollmentDate))],
+                ['Tổng học phí:', number_format($courseFee, 0, ',', '.') . ' VNĐ'],
+                ['Đã thanh toán:', number_format($totalPaid, 0, ',', '.') . ' VNĐ'],
+                ['Còn lại:', number_format($remaining, 0, ',', '.') . ' VNĐ'],
+                ['', ''],
+                ['Ngày xuất hóa đơn:', date('d/m/Y', strtotime($invoiceDate))],
+                ['Ghi chú:', $notes],
+            ]);
+
+            // Tạo file Excel với class riêng biệt
+            $export = new InvoiceExport($data);
+
+            // Lưu file vào storage
+            $filePath = 'invoices/' . $fileName;
+            Excel::store($export, $filePath, 'public');
+
+            return $filePath;
+
+        } catch (\Exception $e) {
+            Log::error('Create invoice Excel error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return null;
+        }
+    }
+
+    /**
+     * Tạo file Excel hóa đơn trực tiếp và trả về content
+     */
+    private function createInvoiceExcelDirect($invoiceData, $fileName)
+    {
+        try {
+            // Kiểm tra và làm sạch dữ liệu
+            $courseName = $invoiceData['course_name'] ?? 'N/A';
+            $courseFee = $invoiceData['course_fee'] ?? 0;
+            $studentName = $invoiceData['student_name'] ?? 'N/A';
+            $studentPhone = $invoiceData['student_phone'] ?? 'N/A';
+            $studentEmail = $invoiceData['student_email'] ?? 'N/A';
+            $studentAddress = $invoiceData['student_address'] ?? 'N/A';
+            $totalPaid = $invoiceData['total_paid'] ?? 0;
+            $remaining = $invoiceData['remaining'] ?? 0;
+            $enrollmentDate = $invoiceData['enrollment_date'] ?? now();
+            $invoiceDate = $invoiceData['invoice_date'] ?? now();
+            $notes = $invoiceData['notes'] ?? '';
+
+            // Tạo dữ liệu cho Excel
+            $data = [
+                ['HÓA ĐƠN ĐIỆN TỬ', ''],
+                ['', ''],
+                ['Thông tin khóa học:', ''],
+                ['Tên khóa học:', $courseName],
+                ['Học phí:', number_format($courseFee, 0, ',', '.') . ' VNĐ'],
+                ['', ''],
+                ['Thông tin học viên:', ''],
+                ['Họ và tên:', $studentName],
+                ['Số điện thoại:', $studentPhone],
+                ['Email:', $studentEmail],
+                ['Địa chỉ:', $studentAddress],
+                ['', ''],
+            ];
+
+            // Thêm thông tin doanh nghiệp nếu có
+            if (!empty($invoiceData['company_name']) || !empty($invoiceData['tax_code'])) {
+                $companyName = $invoiceData['company_name'] ?? '';
+                $taxCode = $invoiceData['tax_code'] ?? '';
+                $companyAddress = $invoiceData['company_address'] ?? '';
+                $invoiceEmail = $invoiceData['invoice_email'] ?? '';
+
+                $data = array_merge($data, [
+                    ['Thông tin doanh nghiệp:', ''],
+                    ['Tên đơn vị:', $companyName],
+                    ['Mã số thuế:', $taxCode],
+                    ['Email nhận hóa đơn:', $invoiceEmail],
+                    ['Địa chỉ đơn vị:', $companyAddress],
+                    ['', ''],
+                ]);
+            }
+
+            // Thêm thông tin thanh toán
+            $data = array_merge($data, [
+                ['Thông tin thanh toán:', ''],
+                ['Ngày đăng ký:', date('d/m/Y', strtotime($enrollmentDate))],
+                ['Học phí:', number_format($courseFee, 0, ',', '.') . ' VNĐ'],
+                ['Đã thanh toán:', number_format($totalPaid, 0, ',', '.') . ' VNĐ'],
+                ['Còn lại:', number_format($remaining, 0, ',', '.') . ' VNĐ'],
+                ['', ''],
+                ['Ngày xuất hóa đơn:', date('d/m/Y', strtotime($invoiceDate))],
+                ['Ghi chú:', $notes],
+            ]);
+
+            // Tạo file Excel với class riêng biệt
+            $export = new InvoiceExport($data);
+
+            // Tạo file Excel và trả về content
+            return Excel::raw($export, \Maatwebsite\Excel\Excel::XLSX);
+
+        } catch (\Exception $e) {
+            Log::error('Create invoice Excel direct error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
+            return null;
         }
     }
 }

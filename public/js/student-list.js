@@ -20,6 +20,13 @@ class StudentManager {
     }
 
     bindEvents() {
+        // Đảm bảo jQuery đã sẵn sàng
+        if (typeof $ === 'undefined') {
+            console.warn('jQuery chưa được load, delay bind events');
+            setTimeout(() => this.bindEvents(), 100);
+            return;
+        }
+
         // Bind các sự kiện chung
         $(document).on('click', '[data-student-action]', (e) => {
             e.preventDefault();

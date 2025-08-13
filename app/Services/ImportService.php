@@ -13,9 +13,38 @@ use Illuminate\Http\UploadedFile;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use App\Imports\StudentUpdateImport;
 
 class ImportService
 {
+    /**
+     * Import để cập nhật thông tin học viên hiện có
+     */
+    public function updateStudentsFromExcel(UploadedFile $file, string $updateMode = 'update_only')
+    {
+        try {
+            $import = new StudentUpdateImport($updateMode);
+            Excel::import($import, $file);
+
+            $stats = $import->getStats();
+
+            return [
+                'success' => true,
+                'message' => "Đã cập nhật thành công {$stats['updated_count']} học viên. Bỏ qua {$stats['skipped_count']} học viên.",
+                'updated_count' => $stats['updated_count'],
+                'skipped_count' => $stats['skipped_count'],
+                'errors' => $stats['errors']
+            ];
+        } catch (\Exception $e) {
+            return [
+                'success' => false,
+                'message' => 'Có lỗi xảy ra: ' . $e->getMessage(),
+                'updated_count' => 0,
+                'skipped_count' => 0,
+                'errors' => [$e->getMessage()]
+            ];
+        }
+    }
     public function importStudentsFromExcel(UploadedFile $file, int $courseItemId, float $discountPercentage = 0)
     {
         // Kiểm tra khóa học tồn tại
@@ -118,6 +147,12 @@ class ImportService
                 
                 // Nếu chưa đăng ký, tạo đăng ký mới
                 if (!$existingEnrollment) {
+                    // Xử lý custom_fields cho khóa học đặc biệt
+                    $customFields = null;
+                    if ($courseItem->is_special && $courseItem->custom_fields) {
+                        $customFields = $courseItem->custom_fields;
+                    }
+
                     Enrollment::create([
                         'student_id' => $student->id,
                         'course_item_id' => $courseItemId,
@@ -126,9 +161,10 @@ class ImportService
                         'discount_percentage' => $discountPercentage,
                         'discount_amount' => $discountAmount,
                         'final_fee' => $finalFee,
-                        'notes' => 'Đăng ký qua import Excel'
+                        'notes' => 'Đăng ký qua import Excel',
+                        'custom_fields' => $customFields
                     ]);
-                    
+
                     $importedCount++;
                 }
             }
@@ -388,7 +424,13 @@ class ImportService
                     if ($notes) {
                         $enrollmentNotes .= '. ' . $notes;
                     }
-                    
+
+                    // Xử lý custom_fields cho khóa học đặc biệt
+                    $customFields = null;
+                    if ($courseItem->is_special && $courseItem->custom_fields) {
+                        $customFields = $courseItem->custom_fields;
+                    }
+
                     Enrollment::create([
                         'student_id' => $student->id,
                         'course_item_id' => $courseItemId,
@@ -397,9 +439,10 @@ class ImportService
                         'discount_percentage' => 0,
                         'discount_amount' => 0,
                         'final_fee' => $courseItem->fee ?? 0, // Đặt học phí gốc, sẽ điều chỉnh khi xác nhận
-                        'notes' => $enrollmentNotes
+                        'notes' => $enrollmentNotes,
+                        'custom_fields' => $customFields
                     ]);
-                    
+
                     $importedCount++;
                 }
             }

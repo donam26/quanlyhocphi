@@ -105,7 +105,7 @@
                                                     <i class="fas fa-user-graduate"></i>
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-primary" title="Chỉnh sửa"
-                                                    onclick="setupEditModal({{ $rootItem->id }})">
+                                                    onclick="safeCall('setupEditModal', {{ $rootItem->id }})">
                                                     <i class="fas fa-edit"></i>
                                                 </button>
                                                 <button type="button" class="btn btn-sm btn-danger open-delete-item" title="Xóa" data-id="{{ $rootItem->id }}" data-name="{{ $rootItem->name }}">
@@ -423,9 +423,9 @@
                     <button type="button" class="btn btn-outline-info" id="btn-view-learning-path" style="display: none;">
                         <i class="fas fa-road"></i> Lộ trình
                     </button>
-                    <a id="btn-export-students" href="#" class="btn btn-outline-success">
-                        <i class="fas fa-file-excel"></i> Export Excel
-                    </a>
+                    <button type="button" class="btn btn-outline-success" onclick="safeCall('showInvoiceTypeModal')">
+                        <i class="fas fa-file-invoice"></i> Xuất hóa đơn điện tử
+                    </button>
                 </div>
                 <button type="button" class="btn btn-primary" id="btn-edit-from-modal">
                     <i class="fas fa-edit"></i> Chỉnh sửa
@@ -701,10 +701,96 @@
 </style>
 @endsection
 
+{{-- Include student modals --}}
+@include('components.student-modals')
+
 @push('scripts')
+<style>
+/* Fix modal footer position */
+.modal-footer {
+    position: relative !important;
+    bottom: auto !important;
+    right: auto !important;
+    left: auto !important;
+    z-index: auto !important;
+}
+
+/* Đảm bảo modal content có cấu trúc đúng */
+.modal-content {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.modal-body {
+    flex: 1 1 auto !important;
+}
+
+/* Debug: highlight modal footer */
+#editStudentModal .modal-footer {
+    background-color: #f8f9fa !important;
+    border-top: 2px solid #dee2e6 !important;
+    padding: 1rem !important;
+    margin: 0 !important;
+    width: 100% !important;
+    position: static !important;
+    display: flex !important;
+    justify-content: flex-end !important;
+    gap: 0.5rem !important;
+}
+
+/* Force modal structure */
+#editStudentModal {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    z-index: 1055 !important;
+}
+
+#editStudentModal .modal-dialog {
+    position: relative !important;
+    margin: 1.75rem auto !important;
+    max-width: 1140px !important;
+}
+
+#editStudentModal .modal-content {
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    width: 100% !important;
+    background-color: #fff !important;
+    border: 1px solid rgba(0,0,0,.2) !important;
+    border-radius: 0.375rem !important;
+}
+</style>
+
+<script>
+// Wrapper function để đảm bảo jQuery sẵn sàng trước khi gọi function
+window.safeCall = function(functionName, ...args) {
+    if (typeof $ === 'undefined') {
+        console.warn('jQuery chưa sẵn sàng, đang đợi...');
+        setTimeout(() => window.safeCall(functionName, ...args), 100);
+        return;
+    }
+
+    if (typeof window[functionName] === 'function') {
+        return window[functionName](...args);
+    } else {
+        console.error(`Function ${functionName} không tồn tại`);
+    }
+};
+</script>
+<script src="{{ asset('js/student-form-component.js') }}"></script>
+<script src="{{ asset('js/student-list.js') }}"></script>
 <script src="{{ asset('js/course-tree.js') }}"></script>
+<script src="{{ asset('js/special-course.js') }}"></script>
 <script>
 $(document).ready(function() {
+    // Đợi một chút để đảm bảo tất cả scripts đã load
+    setTimeout(function() {
+        console.log('Initializing page components...');
     // Khởi tạo trạng thái ban đầu cho modal thêm khóa học
     // Vì checkbox is-leaf được check mặc định, nên hiển thị trường học phí
     if ($('#is-leaf').is(':checked')) {
@@ -778,12 +864,23 @@ $(document).ready(function() {
     // ===== XỬ LÝ CHECKBOX KHÓA HỌC ĐẶC BIỆT =====
     // Xử lý checkbox khóa học đặc biệt
     $('#edit-is-special').change(function() {
-        if ($(this).is(':checked')) {
-            $('#custom-fields-container').slideDown();
-            $('#edit-is-special-hidden').val('1');
+        const isChecked = $(this).is(':checked');
+        $('#edit-is-special-hidden').val(isChecked ? '1' : '0');
+
+        if (isChecked) {
+            // Kiểm tra xem đã có custom fields chưa, nếu chưa thì thêm mặc định
+            if ($('#custom-fields-list .custom-field-row').length === 0) {
+                SpecialCourse.handleToggle(
+                    $(this),
+                    $('#custom-fields-container'),
+                    $('#custom-fields-list'),
+                    $('#add-custom-field')
+                );
+            } else {
+                $('#custom-fields-container').slideDown();
+            }
         } else {
             $('#custom-fields-container').slideUp();
-            $('#edit-is-special-hidden').val('0');
         }
     });
     
@@ -892,65 +989,17 @@ $(document).ready(function() {
     // ===== XỬ LÝ CUSTOM FIELDS =====
     // Thêm trường thông tin tùy chỉnh cho modal edit
     $(document).on('click', '#add-custom-field', function() {
-        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
-        const fieldHtml = `
-            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
-                <div class="row g-2">
-                    <div class="col-10">
-                        <input type="text" class="form-control form-control-sm field-key" 
-                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
-                    </div>
-                    <div class="col-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        $('#custom-fields-list').append(fieldHtml);
+        SpecialCourse.addCustomField($('#custom-fields-list'));
     });
     
     // Thêm trường thông tin tùy chỉnh cho modal add item
     $(document).on('click', '#add-custom-field-btn', function() {
-        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
-        const fieldHtml = `
-            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
-                <div class="row g-2">
-                    <div class="col-10">
-                        <input type="text" class="form-control form-control-sm field-key" 
-                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
-                    </div>
-                    <div class="col-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        $('#add-custom-fields-list').append(fieldHtml);
+        SpecialCourse.addCustomField($('#add-custom-fields-list'));
     });
     
     // Thêm trường thông tin tùy chỉnh cho modal add root item
     $(document).on('click', '#root-add-custom-field-btn', function() {
-        const fieldId = Date.now() + Math.floor(Math.random() * 1000);
-        const fieldHtml = `
-            <div class="custom-field-row mb-3" data-field-id="${fieldId}">
-                <div class="row g-2">
-                    <div class="col-10">
-                        <input type="text" class="form-control form-control-sm field-key" 
-                            placeholder="Tên trường (ví dụ: Số CMND, Địa chỉ...)" name="custom_field_keys[]" value="">
-                    </div>
-                    <div class="col-2">
-                        <button type="button" class="btn btn-sm btn-outline-danger remove-field">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-        $('#root-custom-fields-list').append(fieldHtml);
+        SpecialCourse.addCustomField($('#root-custom-fields-list'));
     });
     
     // Xóa trường thông tin tùy chỉnh
@@ -960,25 +1009,208 @@ $(document).ready(function() {
     
     // ===== XỬ LÝ CHECKBOX KHÓA HỌC ĐẶC BIỆT CHO MODAL ADD ITEM =====
     $('#is-special').change(function() {
-        if ($(this).is(':checked')) {
-            $('#add-custom-fields-container').slideDown();
-            $('#is-special-hidden').val('1');
+        const isChecked = $(this).is(':checked');
+        $('#is-special-hidden').val(isChecked ? '1' : '0');
+
+        if (isChecked) {
+            // Sử dụng helper function để tự động thêm các trường mặc định
+            SpecialCourse.handleToggle(
+                $(this),
+                $('#add-custom-fields-container'),
+                $('#add-custom-fields-list'),
+                $('#add-custom-field-btn')
+            );
         } else {
             $('#add-custom-fields-container').slideUp();
-            $('#is-special-hidden').val('0');
+            $('#add-custom-fields-list').empty();
         }
     });
     
     // ===== XỬ LÝ CHECKBOX KHÓA HỌC ĐẶC BIỆT CHO MODAL ADD ROOT ITEM =====
     $('#root-is-special').change(function() {
-        if ($(this).is(':checked')) {
-            $('#root-custom-fields-container').slideDown();
-            $('#root-is-special-hidden').val('1');
+        const isChecked = $(this).is(':checked');
+        $('#root-is-special-hidden').val(isChecked ? '1' : '0');
+
+        if (isChecked) {
+            // Sử dụng helper function để tự động thêm các trường mặc định
+            SpecialCourse.handleToggle(
+                $(this),
+                $('#root-custom-fields-container'),
+                $('#root-custom-fields-list'),
+                $('#root-add-custom-field-btn')
+            );
         } else {
             $('#root-custom-fields-container').slideUp();
-            $('#root-is-special-hidden').val('0');
+            $('#root-custom-fields-list').empty();
         }
     });
+
+        // Set ngày xuất hóa đơn mặc định
+        $('#invoice_date').val(new Date().toISOString().split('T')[0]);
+
+        console.log('Page components initialized successfully');
+
+        // Override StudentManager để sử dụng function trong course-tree.js
+        if (window.studentManager) {
+            window.studentManager.showEditForm = function(studentId) {
+                console.log('Using course-tree.js openEditStudentModal instead of StudentManager');
+                openEditStudentModal(studentId);
+            };
+        }
+
+        // Override global editStudent function
+        window.editStudent = function(studentId) {
+            console.log('Using course-tree.js openEditStudentModal');
+            openEditStudentModal(studentId);
+        };
+
+    }, 500); // Đợi 500ms
 });
 </script>
-@endpush 
+
+<script>
+// Function hiển thị modal chọn loại hóa đơn
+function showInvoiceTypeModal() {
+    if (typeof $ === 'undefined') {
+        console.error('jQuery chưa sẵn sàng');
+        return;
+    }
+
+    if (!currentCourseId) {
+        toastr.error('Vui lòng chọn khóa học trước!');
+        return;
+    }
+
+    $('#invoiceTypeModal').modal('show');
+}
+
+// Function xuất hóa đơn cho tất cả học viên trong khóa học
+function exportCourseInvoices() {
+    if (typeof $ === 'undefined') {
+        console.error('jQuery chưa sẵn sàng');
+        return;
+    }
+
+    if (!currentCourseId) {
+        toastr.error('Vui lòng chọn khóa học trước!');
+        return;
+    }
+
+    // Validate form
+    const invoiceDate = $('#invoice_date').val();
+
+    if (!invoiceDate) {
+        toastr.error('Vui lòng chọn ngày xuất hóa đơn!');
+        return;
+    }
+
+    // Hiển thị loading
+    const btn = $('button[onclick="exportCourseInvoices()"]');
+    const originalText = btn.html();
+    btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Đang xuất...').prop('disabled', true);
+
+    // Chuẩn bị dữ liệu
+    const formData = {
+        course_id: currentCourseId,
+        invoice_date: invoiceDate,
+        notes: $('#invoice_notes').val()
+    };
+
+    // Gọi API xuất hóa đơn
+    $.ajax({
+        url: '/course-items/export-invoices',
+        method: 'POST',
+        data: formData,
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                toastr.success(`Đã xuất thành công ${response.file_count} file hóa đơn!`);
+
+                // Download từng file
+                if (response.download_urls && response.download_urls.length > 0) {
+                    response.download_urls.forEach((fileData, index) => {
+                        setTimeout(() => {
+                            // Tạo blob từ base64
+                            const byteCharacters = atob(fileData.content);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) {
+                                byteNumbers[i] = byteCharacters.charCodeAt(i);
+                            }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], {
+                                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                            });
+
+                            // Tạo URL và download
+                            const url = window.URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = fileData.filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            window.URL.revokeObjectURL(url);
+                        }, index * 500); // Delay 500ms giữa các download
+                    });
+                }
+
+                $('#invoiceTypeModal').modal('hide');
+            } else {
+                toastr.error(response.message || 'Có lỗi xảy ra khi xuất hóa đơn!');
+            }
+        },
+        error: function(xhr) {
+            let message = 'Có lỗi xảy ra khi xuất hóa đơn!';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                message = xhr.responseJSON.message;
+            }
+            toastr.error(message);
+        },
+        complete: function() {
+            // Reset button
+            btn.html(originalText).prop('disabled', false);
+        }
+    });
+}
+</script>
+@endpush
+
+<!-- Modal chọn loại hóa đơn -->
+<div class="modal fade" id="invoiceTypeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-file-invoice me-2"></i>Chọn loại hóa đơn
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="invoiceTypeForm">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Hóa đơn sẽ được xuất dựa trên thông tin đã lưu trong hồ sơ của từng học viên.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ngày xuất hóa đơn <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="invoice_date" name="invoice_date" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Ghi chú</label>
+                        <textarea class="form-control" id="invoice_notes" name="invoice_notes" rows="2" placeholder="Ghi chú thêm..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-success" onclick="safeCall('exportCourseInvoices')">
+                    <i class="fas fa-download me-2"></i>Xuất hóa đơn
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -339,6 +339,12 @@ function setupAddModal(parentId, parentName) {
 
 // Thiết lập modal chỉnh sửa khóa học
 function setupEditModal(id) {
+    // Kiểm tra jQuery
+    if (typeof $ === 'undefined') {
+        console.error('jQuery chưa sẵn sàng');
+        return;
+    }
+
     // Ẩn modal xem chi tiết nếu đang mở
     if ($('#viewCourseModal').hasClass('show')) {
         $('#viewCourseModal').modal('hide');
@@ -2108,320 +2114,112 @@ function openPaymentsModal(courseId){
 
 // Modal chỉnh sửa học viên
 function openEditStudentModal(studentId) {
-    // Tạo modal nếu chưa có
-    if ($('#editStudentModal').length === 0) {
-        $('body').append(`
-        <div class="modal fade" id="editStudentModal" tabindex="-1" aria-hidden="true">
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title">Chỉnh sửa thông tin học viên</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                    </div>
-                    <form id="editStudentForm">
-                        <div class="modal-body">
-                            <div id="editStudentLoading" class="text-center py-3">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                            </div>
-                            <div id="editStudentContent" style="display:none">
-                                <!-- Thông tin cơ bản -->
-                                <div class="row mb-4">
-                                    <div class="col-12">
-                                        <h6 class="border-bottom pb-2 mb-3">
-                                            <i class="fas fa-user me-2"></i>Thông tin cơ bản
-                                        </h6>
-                                    </div>
+    // Đóng modal danh sách học viên trước
+    $('#studentsModal').modal('hide');
 
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Họ <span class="text-danger">*</span></label>
-                                        <input type="text" name="first_name" id="edit-first-name" class="form-control" required>
-                                        <div class="invalid-feedback" id="edit-first-name-error"></div>
-                                    </div>
+    // Sử dụng modal chính thức từ student-modals.blade.php
+    const modal = $('#editStudentModal');
 
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Tên <span class="text-danger">*</span></label>
-                                        <input type="text" name="last_name" id="edit-name" class="form-control" required>
-                                        <div class="invalid-feedback" id="edit-name-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Số điện thoại <span class="text-danger">*</span></label>
-                                        <input type="tel" name="phone" id="edit-phone" class="form-control" required>
-                                        <div class="invalid-feedback" id="edit-phone-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Ngày sinh</label>
-                                        <input type="text" name="date_of_birth" id="edit-date-of-birth" class="form-control" 
-                                               placeholder="dd/mm/yyyy" pattern="\\d{2}/\\d{2}/\\d{4}" 
-                                               title="Nhập ngày theo định dạng dd/mm/yyyy">
-                                        <div class="invalid-feedback" id="edit-date-of-birth-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Nơi sinh</label>
-                                        <input type="hidden" name="place_of_birth" id="edit-place-of-birth">
-                                        <select id="edit-place-of-birth-select" class="form-select" data-placeholder="Chọn nơi sinh (tỉnh/thành)">
-                                            <option value="">-- Chọn nơi sinh --</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-place-of-birth-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Dân tộc</label>
-                                        <input type="hidden" name="nation" id="edit-nation">
-                                        <select id="edit-nation-select" class="form-select" data-placeholder="Chọn dân tộc">
-                                            <option value="">-- Chọn dân tộc --</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-nation-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Email</label>
-                                        <input type="email" name="email" id="edit-email" class="form-control">
-                                        <div class="invalid-feedback" id="edit-email-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Giới tính</label>
-                                        <select name="gender" id="edit-gender" class="form-select">
-                                            <option value="">Chọn giới tính</option>
-                                            <option value="male">Nam</option>
-                                            <option value="female">Nữ</option>
-                                            <option value="other">Khác</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-gender-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Tỉnh/Thành phố</label>
-                                        <select name="province_id" id="edit-province" class="form-select">
-                                            <option value="">-- Chọn tỉnh thành --</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-province-error"></div>
-                                    </div>
-
-                                   
-                                </div>
-
-                                <!-- Thông tin bổ sung -->
-                                <div class="row mb-4">
-                                    <div class="col-12">
-                                        <h6 class="border-bottom pb-2 mb-3">
-                                            <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
-                                        </h6>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Nơi công tác hiện tại</label>
-                                        <input type="text" name="current_workplace" id="edit-current-workplace" class="form-control" placeholder="Nhập nơi công tác hiện tại">
-                                        <div class="invalid-feedback" id="edit-current-workplace-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Số năm kinh nghiệm kế toán</label>
-                                        <input type="number" name="accounting_experience_years" id="edit-experience" class="form-control" min="0" max="50">
-                                        <div class="invalid-feedback" id="edit-experience-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Chuyên môn công tác</label>
-                                        <input type="text" name="training_specialization" id="edit-training-specialization" class="form-control" placeholder="Nhập chuyên môn công tác">
-                                        <div class="invalid-feedback" id="edit-training-specialization-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Hồ sơ bản cứng</label>
-                                        <select name="hard_copy_documents" id="edit-hard-copy-documents" class="form-select">
-                                            <option value="">-- Chọn trạng thái --</option>
-                                            <option value="submitted">Đã nộp</option>
-                                            <option value="not_submitted">Chưa nộp</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-hard-copy-documents-error"></div>
-                                    </div>
-
-                                    <div class="col-md-6 mb-3">
-                                        <label class="form-label">Bằng cấp</label>
-                                        <select name="education_level" id="edit-education-level" class="form-select">
-                                            <option value="">-- Chọn bằng cấp --</option>
-                                            <option value="secondary">VB2</option>
-                                            <option value="vocational">Trung cấp</option>
-                                            <option value="associate">Cao đẳng</option>
-                                            <option value="bachelor">Đại học</option>
-                                            <option value="master">Thạc sĩ</option>
-                                        </select>
-                                        <div class="invalid-feedback" id="edit-education-level-error"></div>
-                                    </div>
-                                </div>
-
-                                <!-- Ghi chú -->
-                                <div class="row mb-4">
-                                    <div class="col-12">
-                                        <label class="form-label">Ghi chú</label>
-                                        <textarea name="notes" id="edit-notes" class="form-control" rows="3" placeholder="Nhập ghi chú về học viên (nếu có)"></textarea>
-                                        <div class="invalid-feedback" id="edit-notes-error"></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                            <button type="button" id="saveEditStudentBtn" class="btn btn-primary">
-                                <i class="fas fa-save me-1"></i> Cập nhật học viên
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>`);
+    if (modal.length === 0) {
+        console.error('Modal editStudentModal không tồn tại. Đảm bảo đã include student-modals.blade.php');
+        return;
     }
 
-    // Mở modal và load dữ liệu
-    $('#editStudentModal').modal('show');
-    $('#editStudentLoading').show();
-    $('#editStudentContent').hide();
-    
-    // Clear previous errors
-    $('#editStudentModal .is-invalid').removeClass('is-invalid');
-    $('#editStudentModal .invalid-feedback').text('');
+    // Đợi modal cũ đóng hoàn toàn trước khi mở modal mới
+    setTimeout(() => {
+        // Đảm bảo modal chỉnh sửa có z-index cao hơn
+        modal.css('z-index', '1060');
 
-    // Load student data
-    $.ajax({
-        url: `/api/students/${studentId}/details`,
+        // Hiển thị modal và loading
+        modal.modal('show');
+        $('#edit-student-loading').show();
+        $('#edit-student-form').hide();
+
+        // Load dữ liệu học viên
+        $.ajax({
+        url: `/api/students/${studentId}/info`,
         method: 'GET',
         success: function(response) {
             if (response.success) {
-                const student = response.data;
-                
-                // Store student data for later use
-                $('#editStudentModal').data('student-data', student);
-                $('#editStudentModal').data('student-id', studentId);
-
-                // Populate basic form fields first
-                $('#edit-first-name').val(student.first_name || '');
-                $('#edit-name').val(student.last_name || '');
-                $('#edit-phone').val(student.phone || '');
-                $('#edit-date-of-birth').val(student.formatted_date_of_birth || formatDate(student.date_of_birth) || '');
-                $('#edit-email').val(student.email || '');
-                $('#edit-gender').val(student.gender || '');
-                $('#edit-address').val(student.address || '');
-                $('#edit-current-workplace').val(student.current_workplace || '');
-                $('#edit-experience').val(student.accounting_experience_years || '');
-                $('#edit-training-specialization').val(student.training_specialization || '');
-                $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
-                $('#edit-education-level').val(student.education_level || '');
-                $('#edit-notes').val(student.notes || '');
-
-                // Initialize select2 and then set values
-                setTimeout(function() {
-                    initEditStudentSelect2(student);
-                }, 100);
-
-                $('#editStudentLoading').hide();
-                $('#editStudentContent').show();
-                
-                // Auto focus vào trường đầu tiên
-                setTimeout(function() {
-                    $('#edit-first-name').focus();
-                }, 200);
+                populateEditStudentForm(response.data);
+                $('#edit-student-loading').hide();
+                $('#edit-student-form').show();
             } else {
-                showToast('Không thể tải thông tin học viên: ' + (response.message || 'Lỗi không xác định'), 'error');
-                $('#editStudentModal').modal('hide');
+                toastr.error('Không thể tải thông tin học viên');
+                modal.modal('hide');
             }
         },
-        error: function(xhr) {
-            showToast('Có lỗi xảy ra khi tải thông tin học viên', 'error');
-            $('#editStudentModal').modal('hide');
+        error: function() {
+            toastr.error('Có lỗi xảy ra khi tải thông tin học viên');
+            modal.modal('hide');
         }
-    });
-
-    // Handle save button
-    $('#saveEditStudentBtn').off('click').on('click', function() {
-        const button = $(this);
-        const form = $('#editStudentForm');
-        const formData = new FormData(form[0]);
-        const studentId = $('#editStudentModal').data('student-id');
-        
-        // Disable button và hiển thị loading
-        button.prop('disabled', true);
-        button.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang cập nhật...');
-        
-        // Clear previous errors
-        $('#editStudentModal .is-invalid').removeClass('is-invalid');
-        $('#editStudentModal .invalid-feedback').text('');
-        
-        // Show loading overlay
-        $('#editStudentModal .modal-body').append('<div id="saveLoadingOverlay" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.8); z-index: 1000; display: flex; align-items: center; justify-content: center;"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Đang lưu...</span></div></div>');
-        
-        $.ajax({
-                         url: `/api/students/${studentId}/update`,
-            method: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            headers: {
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Hiển thị thông báo thành công
-                    if (window.toastr && toastr.success) {
-                        toastr.success(response.message || 'Cập nhật học viên thành công!');
-                    } else {
-                        showToast(response.message || 'Cập nhật học viên thành công!', 'success');
-                    }
-                    
-                    // Đóng modal
-                    $('#editStudentModal').modal('hide');
-                    
-                    // Refresh danh sách học viên nếu modal students đang mở
-                    const courseId = $('#studentsModal').data('course-id');
-                    if ($('#studentsModal').hasClass('show') && courseId) {
-                        openStudentsModal(courseId);
-                    }
-                } else {
-                    if (window.toastr && toastr.error) {
-                        toastr.error(response.message || 'Có lỗi xảy ra!');
-                    } else {
-                        showToast(response.message || 'Có lỗi xảy ra!', 'error');
-                    }
-                }
-            },
-            error: function(xhr) {
-                                 if (xhr.status === 422) {
-                     // Validation errors
-                     const errors = xhr.responseJSON.errors;
-                     for (const field in errors) {
-                         const input = $(`#editStudentModal [name="${field}"]`);
-                         input.addClass('is-invalid');
-                         $(`#edit-${field.replace('_', '-')}-error`).text(errors[field][0]);
-                     }
-                    if (window.toastr && toastr.error) {
-                        toastr.error('Vui lòng kiểm tra lại thông tin!');
-                    } else {
-                        showToast('Vui lòng kiểm tra lại thông tin!', 'warning');
-                    }
-                } else {
-                    if (window.toastr && toastr.error) {
-                        toastr.error('Có lỗi xảy ra khi cập nhật học viên!');
-                    } else {
-                        showToast('Có lỗi xảy ra khi cập nhật học viên!', 'error');
-                    }
-                }
-            },
-                         complete: function() {
-                 // Reset button
-                 button.prop('disabled', false);
-                 button.html('<i class="fas fa-save me-1"></i> Cập nhật học viên');
-                 
-                 // Remove loading overlay
-                 $('#saveLoadingOverlay').remove();
-             }
         });
-    });
+    }, 300); // Đóng setTimeout
 }
+
+// Function populate dữ liệu vào form chỉnh sửa
+function populateEditStudentForm(student) {
+    // Set student ID
+    $('#edit-student-id').val(student.id);
+
+    // Populate basic fields
+    $('#edit-first-name').val(student.first_name || '');
+    $('#edit-last-name').val(student.last_name || '');
+    $('#edit-phone').val(student.phone || '');
+    $('#edit-email').val(student.email || '');
+    $('#edit-gender').val(student.gender || '');
+
+    // Date of birth
+    if (student.date_of_birth) {
+        $('#edit-date-of-birth').val(student.formatted_date_of_birth || '');
+    }
+
+    // Other fields
+    $('#edit-notes').val(student.notes || '');
+    $('#edit-current-workplace').val(student.current_workplace || '');
+    $('#edit-experience').val(student.accounting_experience_years || '');
+    $('#edit-hard-copy-documents').val(student.hard_copy_documents || '');
+    $('#edit-education-level').val(student.education_level || '');
+    $('#edit-training-specialization').val(student.training_specialization || '');
+    $('#edit-nation').val(student.nation || '');
+    $('#edit-place-of-birth').val(student.place_of_birth || '');
+
+    // Company info for invoice
+    $('#edit-company-name').val(student.company_name || '');
+    $('#edit-tax-code').val(student.tax_code || '');
+    $('#edit-invoice-email').val(student.invoice_email || '');
+    $('#edit-company-address').val(student.company_address || '');
+
+    // Province with Select2
+    if (student.province) {
+        const option = new Option(
+            student.province.name + ' (' + getRegionName(student.province.region) + ')',
+            student.province.id,
+            true,
+            true
+        );
+        $('#edit-province').empty().append(option).trigger('change');
+    }
+
+    // Initialize form components if available
+    if (window.studentFormComponent) {
+        window.studentFormComponent.initializeFormComponents('edit');
+    }
+}
+
+// Helper function for region names
+function getRegionName(region) {
+    switch(region) {
+        case 'north': return 'Miền Bắc';
+        case 'central': return 'Miền Trung';
+        case 'south': return 'Miền Nam';
+        default: return 'Không xác định';
+    }
+}
+
+// Initialize select2 for edit student modal
+
+
 
 // Initialize select2 for edit student modal
 function initEditStudentSelect2(student) {

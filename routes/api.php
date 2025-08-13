@@ -48,6 +48,7 @@ Route::prefix('students')->group(function () {
     Route::get('/', [StudentController::class, 'index']);
     Route::get('/{id}/info', [StudentController::class, 'getInfo']);
     Route::get('/{id}/details', [StudentController::class, 'getStudentDetailsForModal']);
+    Route::get('/{id}/enrollments', [StudentController::class, 'getEnrollments']);
     Route::post('/{id}/update', [StudentController::class, 'update']);
     Route::post('/create', [StudentController::class, 'store']);
     Route::delete('/{id}/delete', [StudentController::class, 'destroy']);
@@ -78,6 +79,7 @@ Route::prefix('payments')->group(function () {
 // API cho Ghi danh
 Route::prefix('enrollments')->group(function() {
     Route::post('/', [EnrollmentController::class, 'store']);
+    Route::post('/create', [EnrollmentController::class, 'store']);
     Route::get('/{id}', [EnrollmentController::class, 'getInfo']);
     Route::post('/{id}', [EnrollmentController::class, 'update']);
     Route::post('/{id}/cancel', [EnrollmentController::class, 'cancelEnrollment']);

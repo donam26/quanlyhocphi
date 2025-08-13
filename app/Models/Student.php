@@ -30,7 +30,11 @@ class Student extends Model
         'experience_years',
         'place_of_birth',
         'nation',
-        'user_note_id'
+        'user_note_id',
+        'company_name',
+        'tax_code',
+        'invoice_email',
+        'company_address'
     ];
 
     /**

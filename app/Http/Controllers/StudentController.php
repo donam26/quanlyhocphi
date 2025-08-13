@@ -112,11 +112,38 @@ class StudentController extends Controller
                 'course_item_id', 'status', 'province_id', 'gender',
                 'date_of_birth_from', 'date_of_birth_to', 'columns'
             ]);
-            
+
             return $this->studentService->exportStudents($filters);
-            
+
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Có lỗi xảy ra khi xuất file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Xuất hóa đơn điện tử cho học viên
+     */
+    public function exportInvoice(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'enrollment_id' => 'required|exists:enrollments,id',
+            'invoice_date' => 'required|date',
+            'notes' => 'nullable|string|max:500'
+        ]);
+
+        try {
+            return $this->studentService->exportInvoice(
+                $request->student_id,
+                $request->enrollment_id,
+                $request->invoice_date,
+                $request->notes
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi xuất hóa đơn: ' . $e->getMessage()
+            ], 500);
         }
     }
 

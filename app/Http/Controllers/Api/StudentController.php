@@ -94,6 +94,10 @@ class StudentController extends Controller
             'training_specialization' => 'nullable|string|max:255',
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
+            'company_name' => 'nullable|string|max:255',
+            'tax_code' => 'nullable|string|max:50',
+            'invoice_email' => 'nullable|email|max:255',
+            'company_address' => 'nullable|string',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
         ]);
 
@@ -139,6 +143,10 @@ class StudentController extends Controller
             'notes' => 'nullable|string',
             'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+            'company_name' => 'nullable|string|max:255',
+            'tax_code' => 'nullable|string|max:50',
+            'invoice_email' => 'nullable|email|max:255',
+            'company_address' => 'nullable|string',
         ]);
 
         // Debug thông tin đã validate
@@ -291,6 +299,31 @@ class StudentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra khi xóa học viên: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy danh sách ghi danh của học viên
+     */
+    public function getEnrollments($id)
+    {
+        try {
+            $student = Student::findOrFail($id);
+
+            $enrollments = $student->enrollments()
+                ->with(['courseItem'])
+                ->where('status', '!=', 'cancelled')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $enrollments
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi lấy danh sách ghi danh: ' . $e->getMessage()
             ], 500);
         }
     }
