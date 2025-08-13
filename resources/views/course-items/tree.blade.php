@@ -420,10 +420,10 @@
                     <button type="button" class="btn btn-success" id="btn-learning-path" style="display: none;">
                         <i class="fas fa-road"></i> Cài đặt lộ trình
                     </button>
-                    <button type="button" class="btn btn-outline-info" id="btn-view-learning-path" style="display: none;">
+                    <button type="button" class="btn btn-info" id="btn-view-learning-path" style="display: none;">
                         <i class="fas fa-road"></i> Lộ trình
                     </button>
-                    <button type="button" class="btn btn-outline-success" onclick="safeCall('showInvoiceTypeModal')">
+                    <button type="button" class="btn btn-success" onclick="safeCall('showInvoiceTypeModal')">
                         <i class="fas fa-file-invoice"></i> Xuất hóa đơn điện tử
                     </button>
                 </div>
@@ -1098,9 +1098,15 @@ function exportCourseInvoices() {
 
     // Validate form
     const invoiceDate = $('#invoice_date').val();
+    const invoiceType = $('input[name="invoice_type"]:checked').val();
 
     if (!invoiceDate) {
         toastr.error('Vui lòng chọn ngày xuất hóa đơn!');
+        return;
+    }
+
+    if (!invoiceType) {
+        toastr.error('Vui lòng chọn loại hóa đơn!');
         return;
     }
 
@@ -1113,6 +1119,7 @@ function exportCourseInvoices() {
     const formData = {
         course_id: currentCourseId,
         invoice_date: invoiceDate,
+        invoice_type: invoiceType,
         notes: $('#invoice_notes').val()
     };
 
@@ -1178,7 +1185,7 @@ function exportCourseInvoices() {
 @endpush
 
 <!-- Modal chọn loại hóa đơn -->
-<div class="modal fade" id="invoiceTypeModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade" id="invoiceTypeModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -1192,6 +1199,22 @@ function exportCourseInvoices() {
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>
                         Hóa đơn sẽ được xuất dựa trên thông tin đã lưu trong hồ sơ của từng học viên.
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Loại hóa đơn <span class="text-danger">*</span></label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="invoice_type" id="invoice_type_company" value="company" checked>
+                            <label class="form-check-label" for="invoice_type_company">
+                                <i class="fas fa-building me-2"></i>Doanh nghiệp
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="invoice_type" id="invoice_type_personal" value="personal">
+                            <label class="form-check-label" for="invoice_type_personal">
+                                <i class="fas fa-user me-2"></i>Cá nhân
+                            </label>
+                        </div>
                     </div>
 
                     <div class="mb-3">

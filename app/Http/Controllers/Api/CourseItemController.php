@@ -163,25 +163,28 @@ class CourseItemController extends Controller
         $totalPathsCount = $learningPaths->count();
 
         return response()->json([
-            'id' => $courseItem->id,
-            'name' => $courseItem->name,
-            'description' => $courseItem->description,
-            'code' => $courseItem->code,
-            'fee' => $courseItem->fee,
-            'level' => $courseItem->level,
-            'is_leaf' => $courseItem->is_leaf,
-            'is_special' => $courseItem->is_special,
-            'active' => $courseItem->active,
-            'status' => $courseItem->status,
-            'status_badge' => $courseItem->status_badge,
-            'custom_fields' => $courseItem->custom_fields,
-            'enrollment_count' => $enrollmentCount,
-            'total_revenue' => $totalRevenue,
-            'path' => $path,
-            'children' => $courseItem->children,
-            'learning_paths' => $learningPaths,
-            'learning_paths_count' => $totalPathsCount,
-            'learning_paths_completed' => $completedPathsCount,
+            'success' => true,
+            'data' => [
+                'id' => $courseItem->id,
+                'name' => $courseItem->name,
+                'description' => $courseItem->description,
+                'code' => $courseItem->code,
+                'fee' => $courseItem->fee,
+                'level' => $courseItem->level,
+                'is_leaf' => $courseItem->is_leaf,
+                'is_special' => $courseItem->is_special,
+                'active' => $courseItem->active,
+                'status' => $courseItem->status,
+                'status_badge' => $courseItem->status_badge,
+                'custom_fields' => $courseItem->custom_fields,
+                'enrollment_count' => $enrollmentCount,
+                'total_revenue' => $totalRevenue,
+                'path' => $path,
+                'children' => $courseItem->children,
+                'learning_paths' => $learningPaths,
+                'learning_paths_count' => $totalPathsCount,
+                'learning_paths_completed' => $completedPathsCount,
+            ]
         ]);
     }
 

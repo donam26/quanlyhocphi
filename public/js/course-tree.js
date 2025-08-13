@@ -101,9 +101,13 @@ window.showCourseDetails = function(courseId) {
     $.ajax({
         url: `/api/course-items/${courseId}`,
         method: 'GET',
-        success: function(data) {
-            console.log("Nhận dữ liệu thành công:", data);
-            
+        success: function(response) {
+            console.log("Nhận dữ liệu thành công:", response);
+
+            // API trả về {success: true, data: {...}}, cần lấy data
+            const data = response.success ? response.data : response;
+            console.log("Course data:", data);
+
             // Cập nhật các nút hành động
             // Chuyển sang hành vi mở modal thay vì điều hướng sang trang khác
             $('#btn-students').off('click').on('click', function(e){
@@ -124,7 +128,7 @@ window.showCourseDetails = function(courseId) {
                 e.preventDefault();
                 exportStudentsExcel(courseId);
             });
-            
+
             // Cập nhật thông tin cơ bản
             $('#course-name').text(data.name);
             $('#course-id').text(data.id);
@@ -163,13 +167,21 @@ window.showCourseDetails = function(courseId) {
             }
             
             // Hiển thị số lượng học viên và doanh thu
-            $('#enrollment-count').text(data.enrollment_count || 0);
-            $('#total-revenue').text(formatCurrency(data.total_revenue || 0) + ' đ');
+            const enrollmentCount = data.enrollment_count || 0;
+            const totalRevenue = data.total_revenue || 0;
+
+            $('#enrollment-count').text(enrollmentCount);
+            $('#total-revenue').text(formatCurrency(totalRevenue) + ' đ');
+
+            console.log("Updated enrollment count:", enrollmentCount);
+            console.log("Updated total revenue:", totalRevenue);
 
             // Hiển thị số lượng lộ trình dạng "đã hoàn thành/tổng số"
             const completedPaths = data.learning_paths_completed || 0;
             const totalPaths = data.learning_paths_count || 0;
             $('#learning-paths-count').text(totalPaths > 0 ? `${completedPaths}/${totalPaths}` : '0');
+
+            console.log("Updated learning paths:", `${completedPaths}/${totalPaths}`);
             
             // Xử lý các trường thông tin tùy chỉnh
             if (data.is_special && data.custom_fields && Object.keys(data.custom_fields).length > 0) {
@@ -275,6 +287,26 @@ $(function() {
     $('[data-bs-target="#addRootItemModal"]').on('click', function() {
         const currentRootId = getCurrentRootId();
         $('#root-current-root-id-input').val(currentRootId);
+    });
+
+    // Setup fee calculation cho modal ghi danh học viên
+    $(document).on('shown.bs.modal', '#enrollStudentModal', function() {
+        setTimeout(function() {
+            // Setup fee calculation cho modal enroll
+            if (typeof setupFeeCalculation === 'function') {
+                setupFeeCalculation('#enrollStudentModal');
+            }
+        }, 100);
+    });
+
+    // Setup fee calculation cho modal chỉnh sửa đăng ký
+    $(document).on('shown.bs.modal', '#editEnrollmentModal', function() {
+        setTimeout(function() {
+            // Setup fee calculation cho modal edit enrollment
+            if (typeof setupFeeCalculation === 'function') {
+                setupFeeCalculation('#editEnrollmentModal');
+            }
+        }, 100);
     });
 
     // Cập nhật URL khi chuyển tab
@@ -838,8 +870,8 @@ function openAddStudentModal(courseId) {
     $('#addStudentForm').hide();
     $('#saveStudentBtn').hide();
 
-    // Đặt ngày ghi danh mặc định là hôm nay (dd/mm/yyyy)
-    $('#enrollment_date').val(getCurrentDate());
+    // KHÔNG set giá trị ở đây vì form đang bị ẩn
+    console.log('Modal opened, form is hidden, will set values after form is shown');
 
     // Khởi tạo select2 cho dropdown học viên
     initAddStudentSelect2();
@@ -924,12 +956,28 @@ function loadAvailableStudents(courseId) {
                         // Trigger change để select2 cập nhật
                         select.trigger('change');
                         
-                        // Lấy thông tin khóa học để tính học phí
-                        loadCourseInfo(courseId);
-                        
                         $('#addStudentModalLoading').hide();
                         $('#addStudentForm').show();
                         $('#saveStudentBtn').show();
+
+                        // Đợi modal hiển thị hoàn toàn rồi mới set giá trị
+                        setTimeout(() => {
+                            // Set lại ngày ghi danh với selector cụ thể
+                            const today = new Date();
+                            const formattedDate = String(today.getDate()).padStart(2, '0') + '/' +
+                                                 String(today.getMonth() + 1).padStart(2, '0') + '/' +
+                                                 today.getFullYear();
+
+                            const enrollmentDateElement = $('#addStudentModal #enrollment_date');
+                            enrollmentDateElement.val(formattedDate);
+                            console.log('Re-set enrollment_date to:', formattedDate, 'Element found:', enrollmentDateElement.length);
+
+                            // Lấy thông tin khóa học để tính học phí
+                            loadCourseInfo(courseId);
+
+                            // Thiết lập event listeners cho tính toán học phí
+                            setupFeeCalculation();
+                        }, 300);
                     },
                     error: function() {
                         showErrorInAddStudentModal('Không thể tải danh sách học viên đã đăng ký');
@@ -955,9 +1003,73 @@ function loadCourseInfo(courseId) {
             // API trả về với wrapper success/data
             if (response.success && response.data) {
                 const baseFee = parseFloat(response.data.fee) || 0;
-                $('#final_fee').val(baseFee);
-                
-                console.log('Loaded course fee:', baseFee, 'for course:', response.data.name);
+
+                console.log('Setting final_fee to:', baseFee, 'for course:', response.data.name);
+
+                // Debug: Kiểm tra tất cả elements có id final_fee
+                const allFinalFeeElements = $('[id="final_fee"]');
+                console.log('All elements with id final_fee:', allFinalFeeElements.length);
+                allFinalFeeElements.each(function(index) {
+                    console.log(`Element ${index}:`, {
+                        type: $(this).attr('type'),
+                        visible: $(this).is(':visible'),
+                        value: $(this).val(),
+                        parent: $(this).parent().attr('class')
+                    });
+                });
+
+                // Đảm bảo element tồn tại và visible trước khi gán giá trị
+                const finalFeeElement = $('#addStudentModal #final_fee'); // Specific to modal
+                if (finalFeeElement.length && finalFeeElement.is(':visible')) {
+                    // Tạm thời bỏ readonly để gán giá trị
+                    finalFeeElement.prop('readonly', false);
+                    finalFeeElement.val(baseFee);
+
+                    // Trigger change event để đảm bảo UI cập nhật
+                    finalFeeElement.trigger('change');
+
+                    // Đặt lại readonly
+                    finalFeeElement.prop('readonly', true);
+
+                    // Lưu base fee cho tính toán discount
+                    $('#addStudentModal').data('base-fee', baseFee);
+
+                    console.log('Successfully set final_fee value to:', finalFeeElement.val());
+                    console.log('Set base-fee to:', baseFee);
+                    console.log('Element visible:', finalFeeElement.is(':visible'));
+                    console.log('Element readonly status:', finalFeeElement.prop('readonly'));
+                } else {
+                    console.error('Element #final_fee not found or not visible!', {
+                        exists: finalFeeElement.length > 0,
+                        visible: finalFeeElement.is(':visible'),
+                        formVisible: $('#addStudentForm').is(':visible')
+                    });
+
+                    // Thử lại sau 500ms với selector cụ thể
+                    setTimeout(() => {
+                        const retryElement = $('#addStudentModal #final_fee');
+                        console.log('Retry attempt - Element status:', {
+                            exists: retryElement.length > 0,
+                            visible: retryElement.is(':visible'),
+                            formVisible: $('#addStudentForm').is(':visible'),
+                            type: retryElement.attr('type')
+                        });
+
+                        if (retryElement.length && retryElement.is(':visible')) {
+                            retryElement.prop('readonly', false);
+                            retryElement.val(baseFee);
+                            retryElement.trigger('change');
+                            retryElement.prop('readonly', true);
+
+                            // Lưu base fee cho tính toán discount
+                            $('#addStudentModal').data('base-fee', baseFee);
+                            console.log('Retry: Successfully set final_fee value to:', retryElement.val());
+                            console.log('Retry: Set base-fee to:', baseFee);
+                        } else {
+                            console.error('Retry failed - element still not visible');
+                        }
+                    }, 500);
+                }
                 
                 // Kiểm tra học phí > 0
                 if (baseFee <= 0) {
@@ -1007,8 +1119,12 @@ function loadCourseInfoFromDOM(courseId) {
         if (feeMatch) {
             const baseFee = parseFloat(feeMatch[1].replace(/,/g, '')) || 0;
             $('#final_fee').val(baseFee);
-            
+
+            // Lưu base fee cho tính toán discount
+            $('#addStudentModal').data('base-fee', baseFee);
+
             console.log('Loaded course fee from DOM:', baseFee);
+            console.log('Set base-fee from DOM to:', baseFee);
             
             // Kiểm tra học phí > 0 (fallback từ DOM)
             if (baseFee <= 0) {
@@ -1051,14 +1167,134 @@ function findCourseInTree(courseId, treeData) {
     return null;
 }
 
-// Tính toán học phí cuối
+// Thiết lập event listeners cho tính toán học phí (cho cả Add và Edit modal)
+function setupFeeCalculation(modalId = '#addStudentModal') {
+    // Đợi một chút để đảm bảo elements đã sẵn sàng
+    setTimeout(() => {
+        // Kiểm tra elements tồn tại - thử cả id và name selectors
+        let discountPercentageEl = $(`${modalId} #discount_percentage`);
+        let discountAmountEl = $(`${modalId} #discount_amount`);
+        let finalFeeEl = $(`${modalId} #final_fee`);
+
+        // Nếu không tìm thấy bằng id, thử bằng name
+        if (discountPercentageEl.length === 0) {
+            discountPercentageEl = $(`${modalId} [name="discount_percentage"]`);
+        }
+        if (discountAmountEl.length === 0) {
+            discountAmountEl = $(`${modalId} [name="discount_amount"]`);
+        }
+        if (finalFeeEl.length === 0) {
+            finalFeeEl = $(`${modalId} [name="final_fee"]`);
+        }
+
+        console.log(`Setting up fee calculation for ${modalId}:`, {
+            discountPercentageEl: discountPercentageEl.length,
+            discountAmountEl: discountAmountEl.length,
+            finalFeeEl: finalFeeEl.length,
+            currentFinalFee: finalFeeEl.val()
+        });
+
+        // Remove existing events và add new ones
+        discountPercentageEl.off('input.feeCalc keyup.feeCalc change.feeCalc');
+        discountAmountEl.off('input.feeCalc keyup.feeCalc change.feeCalc');
+
+        // Event listeners cho giảm giá %
+        discountPercentageEl.on('input.feeCalc keyup.feeCalc change.feeCalc', function() {
+            console.log('Discount percentage changed:', $(this).val());
+            // Clear giảm giá VND khi nhập %
+            discountAmountEl.val('');
+            calculateFinalFeeInModal(modalId);
+        });
+
+        // Event listeners cho giảm giá VND
+        discountAmountEl.on('input.feeCalc keyup.feeCalc change.feeCalc', function() {
+            console.log('Discount amount changed:', $(this).val());
+            // Clear giảm giá % khi nhập VND
+            discountPercentageEl.val('');
+            calculateFinalFeeInModal(modalId);
+        });
+
+        console.log(`Fee calculation setup completed for ${modalId}`);
+    }, 100);
+}
+
+// Tính toán học phí cuối trong modal (hỗ trợ cả Add và Edit modal)
+function calculateFinalFeeInModal(modalId = '#addStudentModal') {
+    // Lấy baseFee từ data hoặc từ field hiện tại (nếu chưa có discount)
+    let baseFee = parseFloat($(modalId).data('base-fee')) || 0;
+
+    // Helper function để tìm element bằng id hoặc name
+    function findElement(selector) {
+        let el = $(`${modalId} #${selector}`);
+        if (el.length === 0) {
+            el = $(`${modalId} [name="${selector}"]`);
+        }
+        return el;
+    }
+
+    // Nếu baseFee = 0, lấy từ field final_fee hiện tại (khi chưa có discount)
+    if (baseFee === 0) {
+        const finalFeeEl = findElement('final_fee');
+        const discountPercentageEl = findElement('discount_percentage');
+        const discountAmountEl = findElement('discount_amount');
+
+        const currentFinalFee = parseFloat(finalFeeEl.val()) || 0;
+        const currentDiscountPercentage = parseFloat(discountPercentageEl.val()) || 0;
+        const currentDiscountAmount = parseFloat(discountAmountEl.val()) || 0;
+
+        // Nếu chưa có discount nào, final_fee hiện tại chính là base fee
+        if (currentDiscountPercentage === 0 && currentDiscountAmount === 0) {
+            baseFee = currentFinalFee;
+            $(modalId).data('base-fee', baseFee);
+            console.log(`Set base fee from current final fee for ${modalId}:`, baseFee);
+        }
+    }
+
+    const discountPercentage = parseFloat(findElement('discount_percentage').val()) || 0;
+    const discountAmount = parseFloat(findElement('discount_amount').val()) || 0;
+
+    console.log(`calculateFinalFeeInModal called for ${modalId}:`, {
+        baseFee: baseFee,
+        discountPercentage: discountPercentage,
+        discountAmount: discountAmount
+    });
+
+    let finalFee = baseFee;
+
+    if (discountPercentage > 0) {
+        finalFee = baseFee * (1 - discountPercentage / 100);
+        console.log('Applied percentage discount:', discountPercentage + '%');
+    } else if (discountAmount > 0) {
+        finalFee = baseFee - discountAmount;
+        console.log('Applied amount discount:', discountAmount);
+    }
+
+    finalFee = Math.max(0, Math.round(finalFee));
+
+    // Update final fee field - sử dụng helper function
+    const finalFeeElement = findElement('final_fee');
+    console.log(`Final fee element found for ${modalId}:`, finalFeeElement.length);
+
+    if (finalFeeElement.length > 0) {
+        finalFeeElement.prop('readonly', false);
+        finalFeeElement.val(finalFee);
+        finalFeeElement.prop('readonly', true);
+        console.log('Updated final fee to:', finalFee);
+    } else {
+        console.error(`Final fee element not found for ${modalId}!`);
+    }
+
+    console.log(`Fee calculation completed for ${modalId}:`, {baseFee, discountPercentage, discountAmount, finalFee});
+}
+
+// Tính toán học phí cuối (legacy function - keep for compatibility)
 function calculateFinalFee(baseFee) {
     const discountPercentage = parseFloat($('#discount_percentage').val()) || 0;
     const discountAmount = parseFloat($('#discount_amount').val()) || 0;
-    
+
     const percentageDiscount = baseFee * (discountPercentage / 100);
     const finalFee = Math.max(0, baseFee - percentageDiscount - discountAmount);
-    
+
     $('#final_fee').val(Math.round(finalFee));
 }
 
@@ -1345,12 +1581,22 @@ function openEditEnrollmentModal(enrollmentId){
             }
         }
         const $form = $('#editEnrollmentForm');
-        $form.find('[name="enrollment_date"]').val(dateVal || getCurrentDate());
+        // Tạo ngày hiện tại nếu không có dateVal
+        if (!dateVal) {
+            const today = new Date();
+            dateVal = String(today.getDate()).padStart(2, '0') + '/' +
+                     String(today.getMonth() + 1).padStart(2, '0') + '/' +
+                     today.getFullYear();
+        }
+        $form.find('[name="enrollment_date"]').val(dateVal);
         $form.find('[name="status"]').val(d.status || 'active');
-        $form.find('[name="discount_percentage"]').val(d.discount_percentage || 0);
+
+
+        $form.find('[name="discount_percentage"]').val(discountPercentage);
         $form.find('[name="discount_amount"]').val(d.discount_amount || 0);
         $form.find('[name="final_fee"]').val(d.final_fee || 0);
         $form.find('[name="notes"]').val(d.notes || '');
+
 
         // Lưu thông tin phụ để refresh danh sách sau khi lưu
         $('#editEnrollmentModal').data('enrollment-id', d.id);
@@ -1358,9 +1604,28 @@ function openEditEnrollmentModal(enrollmentId){
 
         // Khởi tạo Select2 cho waiting course select
         initWaitingCourseSelect2ForEdit();
-        
+
         // Setup event handler cho status change
         setupStatusChangeHandler();
+
+        // Lưu base fee cho tính toán discount trong modal edit
+        const finalFee = parseFloat(d.final_fee) || 0;
+        const discountPercentage = parseFloat(d.discount_percentage) || 0;
+        const discountAmount = parseFloat(d.discount_amount) || 0;
+
+        // Tính base fee từ final fee hiện tại
+        let baseFee = finalFee;
+        if (discountPercentage > 0) {
+            baseFee = finalFee / (1 - discountPercentage / 100);
+        } else if (discountAmount > 0) {
+            baseFee = finalFee + discountAmount;
+        }
+
+        $('#editEnrollmentModal').data('base-fee', Math.round(baseFee));
+        console.log('Set base fee for edit enrollment modal:', Math.round(baseFee));
+
+        // Setup fee calculation cho modal edit
+        setupFeeCalculation('#editEnrollmentModal');
         
         // Trigger initial status change để hiển thị/ẩn waiting course field
         $form.find('[name="status"]').trigger('change');

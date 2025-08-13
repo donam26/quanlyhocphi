@@ -1110,7 +1110,64 @@ function initEthnicitySelect2(){
     });
 }
 
-// Hàm initCourseSelect2 đã được định nghĩa trong student-list.js
+// Khởi tạo Select2 cho course dropdown trong modal ghi danh
+function initCourseSelect2() {
+    $('#course_item_id').select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Tìm kiếm và chọn khóa học...',
+        allowClear: true,
+        dropdownParent: $('#enrollStudentModal'),
+        width: '100%',
+        minimumInputLength: 0,
+        ajax: {
+            url: '/api/course-items/search-active',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    q: params.term || '',
+                    preload: params.term ? 'false' : 'true'
+                };
+            },
+            processResults: function (response) {
+                if (Array.isArray(response)) {
+                    return {
+                        results: response.map(function(course) {
+                            return {
+                                id: course.id,
+                                text: course.name + (course.path ? ' (' + course.path + ')' : ''),
+                                fee: course.fee || 0,
+                                status: course.status,
+                                status_label: course.status_label
+                            };
+                        })
+                    };
+                }
+                return { results: [] };
+            },
+            cache: true
+        }
+    });
+
+    // Event listener khi chọn khóa học để cập nhật học phí
+    $('#course_item_id').on('select2:select', function(e) {
+        const selectedData = e.params.data;
+        const fee = selectedData.fee || 0;
+
+        // Cập nhật học phí hiển thị
+        $('#final_fee_display').val(formatCurrency(fee));
+        $('#final_fee').val(fee);
+
+        // Lưu base fee để tính toán discount
+        $('#enrollStudentModal').data('base-fee', fee);
+
+        // Reset discount fields
+        $('#discount_percentage').val('');
+        $('#discount_amount').val('');
+
+        console.log('Selected course:', selectedData.text, 'Fee:', fee);
+    });
+}
 
 // Lấy tên miền theo mã
 function getRegionName(region) {
