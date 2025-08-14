@@ -218,34 +218,14 @@ class AttendanceController extends Controller
         $courseItemIds = [$courseItem->id];
         $this->getAllChildrenIds($courseItem, $courseItemIds);
 
-        // Lấy danh sách học viên đã ghi danh vào các khóa học (bao gồm cả khóa con)
-        $enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->where('status', EnrollmentStatus::ACTIVE->value)
-            ->with(['student', 'courseItem'])
-            ->get();
-
         // Lấy điểm danh đã có (nếu có) cho tất cả khóa học
         $existingAttendances = Attendance::whereIn('course_item_id', $courseItemIds)
             ->where('attendance_date', $date)
             ->get()
             ->keyBy('enrollment_id');
 
-        // Chuẩn bị dữ liệu cho response
-        $students = $enrollments->map(function($enrollment) use ($existingAttendances) {
-            $attendance = $existingAttendances->get($enrollment->id);
-
-            return [
-                'enrollment_id' => $enrollment->id,
-                'student_id' => $enrollment->student->id,
-                'student_name' => $enrollment->student->full_name,
-                'student_phone' => $enrollment->student->phone,
-                'student_email' => $enrollment->student->email,
-                'course_name' => $enrollment->courseItem->name, // Thêm tên khóa học để phân biệt
-                'current_status' => $attendance ? $attendance->status : 'present',
-                'current_notes' => $attendance ? $attendance->notes : '',
-                'attendance_id' => $attendance ? $attendance->id : null
-            ];
-        });
+        // Lấy danh sách học viên được sắp xếp theo khóa học
+        $students = $this->getStudentsGroupedByCourse($courseItemIds, $existingAttendances);
 
         return response()->json([
             'success' => true,
@@ -351,127 +331,12 @@ class AttendanceController extends Controller
         ]);
 
         $courseItem = CourseItem::findOrFail($validated['course_id']);
-        
+
         try {
-            // Lấy danh sách học viên đã ghi danh
-            $enrollments = Enrollment::where('course_item_id', $courseItem->id)
-                ->where('status', EnrollmentStatus::ACTIVE->value)
-                ->with(['student'])
-                ->orderBy('id')
-                ->get();
+            // Sử dụng Export class mới
+            $fileName = 'diem_danh_' . Str::slug($courseItem->name) . '_' . now()->format('Y_m_d') . '.xlsx';
 
-            // Lấy tất cả điểm danh của khóa học này
-            $allAttendances = Attendance::where('course_item_id', $courseItem->id)
-                ->orderBy('attendance_date')
-                ->get();
-
-            // Lấy tất cả ngày đã điểm danh (unique) - convert sang string format
-            $attendanceDates = $allAttendances->map(function($attendance) {
-                    return $attendance->attendance_date instanceof \Carbon\Carbon 
-                        ? $attendance->attendance_date->format('Y-m-d')
-                        : $attendance->attendance_date;
-                })
-                ->unique()
-                ->sort()
-                ->values();
-
-            if ($attendanceDates->isEmpty()) {
-                return back()->withErrors(['export' => 'Chưa có dữ liệu điểm danh nào cho khóa học này']);
-            }
-
-            // Tạo map điểm danh: [enrollment_id][date] = status
-            $attendanceMap = [];
-            foreach ($allAttendances as $attendance) {
-                $dateKey = $attendance->attendance_date instanceof \Carbon\Carbon 
-                    ? $attendance->attendance_date->format('Y-m-d')
-                    : $attendance->attendance_date;
-                $attendanceMap[$attendance->enrollment_id][$dateKey] = $attendance->status;
-            }
-
-            // Chuẩn bị dữ liệu export dạng ma trận
-            $exportData = [];
-            
-            // Header row 1: Tên khóa học
-            $headerRow1 = ['ĐIỂM DANH KHÓA HỌC: ' . strtoupper($courseItem->name)];
-            for ($i = 0; $i < $attendanceDates->count(); $i++) {
-                $headerRow1[] = '';
-            }
-            $exportData[] = $headerRow1;
-
-            // Header row 2: Trống
-            $exportData[] = array_fill(0, $attendanceDates->count() + 1, '');
-
-            // Header row 3: "Ngày" + các ngày
-            $headerRow3 = ['Ngày'];
-            foreach ($attendanceDates as $date) {
-                $headerRow3[] = \Carbon\Carbon::parse($date)->format('d/m');
-            }
-            $exportData[] = $headerRow3;
-
-            // Data rows: Mỗi học viên một hàng
-            foreach ($enrollments as $enrollment) {
-                $studentRow = [$enrollment->student->full_name];
-                
-                foreach ($attendanceDates as $date) {
-                    $status = $attendanceMap[$enrollment->id][$date] ?? null;
-                    
-                    // Đánh dấu theo status
-                    $mark = match($status) {
-                        'present' => 'x',
-                        'late' => 'x', // Đi muộn vẫn coi là có mặt
-                        'excused' => 'p', // Có phép
-                        'absent' => '', // Vắng để trống
-                        null => '', // Chưa điểm danh
-                        default => ''
-                    };
-                    
-                    $studentRow[] = $mark;
-                }
-                
-                $exportData[] = $studentRow;
-            }
-
-            // Tạo file Excel
-            $fileName = 'diem_danh_' . Str::slug($courseItem->name) . '_full.xlsx';
-            
-            return Excel::download(new class($exportData, $courseItem->name, $attendanceDates) implements \Maatwebsite\Excel\Concerns\FromArray, \Maatwebsite\Excel\Concerns\WithTitle, \Maatwebsite\Excel\Concerns\WithStyles {
-                
-                private $data;
-                private $courseName;
-                private $attendanceDates;
-                
-                public function __construct($data, $courseName, $attendanceDates) {
-                    $this->data = $data;
-                    $this->courseName = $courseName;
-                    $this->attendanceDates = $attendanceDates;
-                }
-                
-                public function array(): array {
-                    return $this->data;
-                }
-                
-                public function title(): string {
-                    return 'Điểm danh';
-                }
-
-                public function styles(\PhpOffice\PhpSpreadsheet\Worksheet\Worksheet $sheet) {
-                    // Style cho header
-                    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-                    $sheet->getStyle('A3:' . $sheet->getHighestColumn() . '3')->getFont()->setBold(true);
-                    
-                    // Căn giữa cho tất cả cells
-                    $sheet->getStyle('A1:' . $sheet->getHighestColumn() . $sheet->getHighestRow())
-                          ->getAlignment()->setHorizontal('center');
-                          
-                    // Auto width cho các cột
-                    foreach (range('A', $sheet->getHighestColumn()) as $column) {
-                        $sheet->getColumnDimension($column)->setAutoSize(true);
-                    }
-                    
-                    return [];
-                }
-                
-            }, $fileName);
+            return Excel::download(new \App\Exports\AttendanceMatrixExport($courseItem), $fileName);
 
         } catch (\Exception $e) {
             Log::error('Export attendance error: ' . $e->getMessage());
@@ -490,5 +355,61 @@ class AttendanceController extends Controller
                 $this->getAllChildrenIds($child, $courseItemIds);
             }
         }
+    }
+
+    /**
+     * Lấy danh sách học viên được nhóm và sắp xếp theo khóa học
+     */
+    private function getStudentsGroupedByCourse($courseItemIds, $existingAttendances)
+    {
+        // Lấy tất cả khóa học theo thứ tự order_index
+        $courseItems = CourseItem::whereIn('id', $courseItemIds)
+            ->orderBy('order_index')
+            ->orderBy('id')
+            ->get()
+            ->keyBy('id');
+
+        // Lấy enrollments nhóm theo course_item_id
+        $enrollmentsByCourse = Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->where('status', EnrollmentStatus::ACTIVE->value)
+            ->with(['student', 'courseItem'])
+            ->get()
+            ->groupBy('course_item_id');
+
+        $students = collect();
+
+        // Duyệt qua từng khóa học theo thứ tự đã sắp xếp
+        foreach ($courseItemIds as $courseItemId) {
+            if (!isset($enrollmentsByCourse[$courseItemId])) {
+                continue;
+            }
+
+            $courseEnrollments = $enrollmentsByCourse[$courseItemId];
+
+            // Sắp xếp học viên trong khóa học theo tên
+            $courseEnrollments = $courseEnrollments->sortBy(function($enrollment) {
+                return $enrollment->student->full_name;
+            });
+
+            // Thêm học viên của khóa học này vào danh sách
+            foreach ($courseEnrollments as $enrollment) {
+                $attendance = $existingAttendances->get($enrollment->id);
+
+                $students->push([
+                    'enrollment_id' => $enrollment->id,
+                    'student_id' => $enrollment->student->id,
+                    'student_name' => $enrollment->student->full_name,
+                    'student_phone' => $enrollment->student->phone,
+                    'student_email' => $enrollment->student->email,
+                    'course_name' => $enrollment->courseItem->name,
+                    'course_id' => $enrollment->courseItem->id,
+                    'current_status' => $attendance ? $attendance->status : 'present',
+                    'current_notes' => $attendance ? $attendance->notes : '',
+                    'attendance_id' => $attendance ? $attendance->id : null
+                ]);
+            }
+        }
+
+        return $students;
     }
 }

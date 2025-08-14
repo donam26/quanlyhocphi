@@ -215,8 +215,7 @@
     </div>
 </div>
 
-{{-- Sử dụng component modal thống nhất --}}
-@include('components.student-modals')
+
 
 
 
@@ -446,6 +445,9 @@
 <script src="{{ asset('js/enrollment.js') }}"></script>
 <script>
 $(document).ready(function() {
+    // Debug: Kiểm tra xem modal có tồn tại không
+    console.log('Edit enrollment modal exists:', $('#editEnrollmentModal').length);
+    console.log('Edit enrollment form exists:', $('#edit-enrollment-form').length);
     // Cấu hình Select2 cho ô tìm kiếm học viên với AJAX
     $('#student_search').select2({
         theme: 'bootstrap-5',
@@ -573,9 +575,11 @@ function executeExport() {
 // Khởi tạo select2 cho tỉnh thành khi mở modal
 $(document).on('shown.bs.modal', '#createStudentModal', function() {
     setTimeout(function() {
+        console.log('Initializing select2 for create modal...');
         initProvinceSelect2();
         initLocationSelect2();
         initEthnicitySelect2();
+        console.log('Select2 initialization completed');
     }, 100);
 });
 
@@ -598,6 +602,106 @@ $(document).on('shown.bs.modal', '#enrollStudentModal', function() {
     }, 100);
 });
 
+// Xử lý submit form ghi danh
+$(document).on('submit', '#enrollmentForm', function(e) {
+    e.preventDefault();
+
+    const form = this;
+    const formData = new FormData(form);
+    const submitBtn = $('#enroll-btn');
+
+    // Kiểm tra dữ liệu bắt buộc
+    const courseId = $('#course_item_id').val();
+    const studentId = $('#enroll-student-id').val();
+
+    if (!courseId) {
+        alert('Vui lòng chọn khóa học');
+        return;
+    }
+
+    if (!studentId) {
+        alert('Không tìm thấy thông tin học viên');
+        return;
+    }
+
+    // Disable button và hiển thị loading
+    submitBtn.prop('disabled', true);
+    submitBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang đăng ký...');
+
+    // Clear previous errors
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
+
+    $.ajax({
+        url: '/api/enrollments',
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                $('#enrollStudentModal').modal('hide');
+
+                // Hiển thị thông báo thành công
+                if (typeof showToast === 'function') {
+                    showToast('Ghi danh học viên thành công!', 'success');
+                } else {
+                    alert('Ghi danh học viên thành công!');
+                }
+
+                // Reset form
+                form.reset();
+                $('#course_item_id').val(null).trigger('change');
+
+                // Reload trang sau 1.5s
+                setTimeout(function() {
+                    window.location.reload();
+                }, 1500);
+            } else {
+                alert(response.message || 'Có lỗi xảy ra khi ghi danh');
+                // Reset button
+                submitBtn.prop('disabled', false);
+                submitBtn.html('<i class="fas fa-user-plus me-1"></i>Đăng ký');
+            }
+        },
+        error: function(xhr) {
+            console.error('Enrollment error:', xhr);
+
+            if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                // Hiển thị lỗi validation
+                const errors = xhr.responseJSON.errors;
+                Object.keys(errors).forEach(key => {
+                    const errorMessage = errors[key][0];
+                    const inputField = $(`[name="${key}"]`);
+                    const errorField = inputField.siblings('.invalid-feedback');
+
+                    inputField.addClass('is-invalid');
+                    if (errorField.length) {
+                        errorField.text(errorMessage);
+                    }
+                });
+
+                if (typeof showToast === 'function') {
+                    showToast('Vui lòng kiểm tra lại thông tin', 'error');
+                } else {
+                    alert('Vui lòng kiểm tra lại thông tin');
+                }
+            } else {
+                const errorMessage = xhr.responseJSON?.message || 'Có lỗi xảy ra khi ghi danh học viên';
+                if (typeof showToast === 'function') {
+                    showToast(errorMessage, 'error');
+                } else {
+                    alert(errorMessage);
+                }
+            }
+
+            // Reset button
+            submitBtn.prop('disabled', false);
+            submitBtn.html('<i class="fas fa-user-plus me-1"></i>Đăng ký');
+        }
+    });
+});
+
 // Reset form khi đóng modal
 $(document).on('hidden.bs.modal', '#enrollStudentModal', function() {
     // Reset các trường học phí
@@ -612,10 +716,10 @@ $(document).on('hidden.bs.modal', '#enrollStudentModal', function() {
 
 // Chắc chắn rằng select2 được áp dụng khi trang load
 $(document).ready(function() {
-    // Đợi modal mở để khởi tạo select2
-    initProvinceSelect2();
-    initLocationSelect2();
-    initEthnicitySelect2();
+    // Không khởi tạo select2 ở đây vì sẽ được khởi tạo khi modal mở
+    // initProvinceSelect2();
+    // initLocationSelect2();
+    // initEthnicitySelect2();
 
     // Debug: Kiểm tra StudentManager
     console.log('StudentManager available:', typeof window.studentManager);
@@ -824,35 +928,352 @@ function deleteStudent(studentId) {
 
 // Helper functions để populate dữ liệu vào modal
 function populateViewModal(student) {
-    $('#student-name').text(student.full_name || '');
-    $('#student-id').text(student.id || '');
-    $('#student-phone').text(student.phone || '');
-    $('#student-email').text(student.email || 'Chưa có');
-    $('#student-gender').text(formatGender(student.gender));
-    $('#student-dob').text(student.formatted_date_of_birth || 'Chưa có');
+    // Thông tin cá nhân
+    $('#view-first-name').text(student.first_name || 'Chưa có');
+    $('#view-last-name').text(student.last_name || 'Chưa có');
+    $('#view-phone').text(student.phone || 'Chưa có');
+    $('#view-email').text(student.email || 'Chưa có');
+    $('#view-gender').text(formatGender(student.gender));
+    $('#view-date-of-birth').text(student.formatted_date_of_birth || 'Chưa có');
+    $('#view-address').text(student.address || 'Chưa có');
 
-    // Địa chỉ
-    let addressText = '';
+    // Tỉnh thành
+    let provinceText = '';
     if (student.province) {
-        addressText = student.province.name + ' (' + getRegionName(student.province.region) + ')';
+        provinceText = student.province.name + ' (' + getRegionName(student.province.region) + ')';
     }
-    $('#student-address').text(addressText || 'Chưa có');
+    $('#view-province').text(provinceText || 'Chưa có');
 
     // Thông tin bổ sung
-    $('#student-workplace').text(student.current_workplace || 'Chưa có');
-    $('#student-experience').text(student.accounting_experience_years
+    $('#view-workplace').text(student.current_workplace || 'Chưa có');
+    $('#view-experience').text(student.accounting_experience_years
         ? student.accounting_experience_years + ' năm' : 'Chưa có');
-    $('#student-place-of-birth').text(student.place_of_birth || 'Chưa có');
-    $('#student-nation').text(student.nation || 'Chưa có');
+    $('#view-place-of-birth').text(student.place_of_birth || 'Chưa có');
+    $('#view-nation').text(student.nation || 'Chưa có');
+    $('#view-id-number').text(student.id_number || 'Chưa có');
+    $('#view-education-level').text(student.education_level || 'Chưa có');
+    $('#view-training-specialization').text(student.training_specialization || 'Chưa có');
+    $('#view-hard-copy-documents').text(student.hard_copy_documents || 'Chưa có');
 
     // Ghi chú
-    if (student.notes) {
-        $('#student-notes-section').show();
-        $('#student-notes').text(student.notes);
-    } else {
-        $('#student-notes-section').hide();
+    $('#view-notes').text(student.notes || 'Chưa có');
+
+    // Thông tin hóa đơn
+    $('#view-company-name').text(student.company_name || 'Chưa có');
+    $('#view-tax-code').text(student.tax_code || 'Chưa có');
+    $('#view-invoice-email').text(student.invoice_email || 'Chưa có');
+    $('#view-company-address').text(student.company_address || 'Chưa có');
+
+    // Cập nhật student ID cho các nút action
+    $('[data-student-action="edit"]').attr('data-student-id', student.id);
+    $('[data-student-action="enroll"]').attr('data-student-id', student.id);
+}
+
+// Function để load thông tin ghi danh khi click vào tab
+function loadEnrollmentInfo(studentId) {
+    $('#enrollment-loading').show();
+    $('#enrollment-content').hide();
+
+    $.ajax({
+        url: `/api/students/${studentId}/enrollments`,
+        method: 'GET',
+        success: function(response) {
+            if (response.success) {
+                populateEnrollmentTab(response.data, studentId);
+                $('#enrollment-loading').hide();
+                $('#enrollment-content').show();
+            } else {
+                alert('Không thể tải thông tin ghi danh');
+            }
+        },
+        error: function() {
+            alert('Có lỗi xảy ra khi tải thông tin ghi danh');
+            $('#enrollment-loading').hide();
+        }
+    });
+}
+
+// Function để populate dữ liệu ghi danh vào tab
+function populateEnrollmentTab(enrollments, studentId) {
+    const $enrollmentList = $('#enrollment-list');
+    const $noEnrollments = $('#no-enrollments');
+
+    // Cập nhật student ID cho các nút thêm ghi danh
+    $('[data-student-action="enroll"]').attr('data-student-id', studentId);
+
+    if (enrollments.length === 0) {
+        $enrollmentList.hide();
+        $noEnrollments.show();
+        return;
+    }
+
+    $noEnrollments.hide();
+    $enrollmentList.show();
+
+    let html = '';
+    enrollments.forEach(function(enrollment) {
+        const statusBadge = getEnrollmentStatusBadge(enrollment.status);
+        const formattedFee = formatCurrency(enrollment.final_fee);
+        const totalPaid = enrollment.total_paid || 0;
+        const remaining = enrollment.final_fee - totalPaid;
+
+        html += `
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h6 class="card-title mb-1">
+                                <i class="fas fa-book me-2"></i>${enrollment.course_item ? enrollment.course_item.name : 'N/A'}
+                            </h6>
+                            <p class="text-muted mb-1">
+                                <i class="fas fa-calendar me-1"></i>Ngày ghi danh: ${enrollment.formatted_enrollment_date || 'N/A'}
+                            </p>
+                            <p class="mb-0">${statusBadge}</p>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="text-end">
+                                <p class="mb-1"><strong>Học phí: ${formattedFee}</strong></p>
+                                <p class="mb-1 text-success">Đã thanh toán: ${formatCurrency(totalPaid)}</p>
+                                <p class="mb-0 ${remaining > 0 ? 'text-danger' : 'text-success'}">
+                                    Còn lại: ${formatCurrency(remaining)}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
+                            <div class="btn-group-vertical w-100">
+                                <button type="button" class="btn btn-sm btn-outline-primary mb-1"
+                                        onclick="editEnrollment(${enrollment.id})" title="Chỉnh sửa">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" class="btn btn-sm btn-outline-success"
+                                        onclick="viewPayments(${enrollment.id})" title="Thanh toán">
+                                    <i class="fas fa-money-bill"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    ${enrollment.notes ? `
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-sticky-note me-1"></i>Ghi chú: ${enrollment.notes}
+                            </small>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    $enrollmentList.html(html);
+}
+
+// Function để lấy badge trạng thái ghi danh
+function getEnrollmentStatusBadge(status) {
+    const statusMap = {
+        'active': '<span class="badge bg-success">Đang học</span>',
+        'waiting': '<span class="badge bg-warning">Danh sách chờ</span>',
+        'completed': '<span class="badge bg-primary">Hoàn thành</span>',
+        'cancelled': '<span class="badge bg-danger">Đã hủy</span>'
+    };
+    return statusMap[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+// Function để format tiền tệ
+function formatCurrency(amount) {
+    if (!amount) return '0 VNĐ';
+    return new Intl.NumberFormat('vi-VN').format(amount) + ' VNĐ';
+}
+
+// Function để chỉnh sửa ghi danh
+function editEnrollment(enrollmentId) {
+    console.log('editEnrollment called with ID:', enrollmentId);
+
+    // Test xem modal có tồn tại không
+    console.log('Modal exists:', $('#editEnrollmentModal').length);
+    console.log('Form exists:', $('#edit-enrollment-form').length);
+    console.log('Loading exists:', $('#edit-enrollment-loading').length);
+
+    // Test hiển thị modal trước
+    $('#editEnrollmentModal').modal('show');
+
+    // Đợi modal hiển thị xong rồi mới load data
+    setTimeout(function() {
+        console.log('Modal should be visible now, loading data...');
+        console.log('Modal content:', $('#editEnrollmentModal .modal-body').html().substring(0, 200));
+        loadEnrollmentForEdit(enrollmentId);
+    }, 500);
+}
+
+// Function để xem thanh toán
+function viewPayments(enrollmentId) {
+    // TODO: Implement payment view functionality
+    alert('Chức năng xem thanh toán sẽ được triển khai sau');
+}
+
+// Function để load thông tin ghi danh cho chỉnh sửa
+function loadEnrollmentForEdit(enrollmentId) {
+    console.log('loadEnrollmentForEdit called with ID:', enrollmentId);
+    $('#edit-enrollment-loading').removeClass('d-none');
+    $('#edit-enrollment-form').addClass('d-none');
+
+    $.ajax({
+        url: `/api/enrollments/${enrollmentId}`,
+        method: 'GET',
+        success: function(response) {
+            console.log('Enrollment API response:', response);
+            if (response.success) {
+                populateEditEnrollmentForm(response.data);
+                $('#edit-enrollment-loading').addClass('d-none');
+                $('#edit-enrollment-form').removeClass('d-none');
+                console.log('Form should be visible now');
+            } else {
+                console.error('API returned error:', response.message);
+                alert('Không thể tải thông tin ghi danh: ' + (response.message || 'Unknown error'));
+                $('#editEnrollmentModal').modal('hide');
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX error:', xhr, status, error);
+            alert('Có lỗi xảy ra khi tải thông tin ghi danh: ' + error);
+            $('#editEnrollmentModal').modal('hide');
+        }
+    });
+}
+
+// Function để populate form chỉnh sửa ghi danh
+function populateEditEnrollmentForm(enrollment) {
+    console.log('populateEditEnrollmentForm called with:', enrollment);
+
+    // Kiểm tra xem các element có tồn tại không
+    console.log('edit-enrollment-id element:', $('#edit-enrollment-id').length);
+    console.log('edit-enrollment-form element:', $('#edit-enrollment-form').length);
+
+    $('#edit-enrollment-id').val(enrollment.id);
+    $('#edit-enrollment-course-name').text(enrollment.course_item ? enrollment.course_item.name : 'N/A');
+    $('#edit-enrollment-student-name').text(enrollment.student ? enrollment.student.full_name : 'N/A');
+    $('#edit-enrollment-date').val(enrollment.formatted_enrollment_date || '');
+    $('#edit-status').val(enrollment.status || '');
+    $('#edit-final-fee').val(enrollment.final_fee || 0);
+    $('#edit-final-fee-display').val(formatCurrencyInput(enrollment.final_fee || 0));
+    $('#edit-discount-percentage').val(enrollment.discount_percentage || 0);
+    $('#edit-discount-amount').val(enrollment.discount_amount || 0);
+    $('#edit-enrollment-notes').val(enrollment.notes || '');
+
+    console.log('Form populated successfully');
+
+    // Khởi tạo input mask cho ngày
+    if (typeof Inputmask !== 'undefined') {
+        Inputmask({
+            mask: '99/99/9999',
+            placeholder: 'dd/mm/yyyy',
+            clearIncomplete: true
+        }).mask('#edit-enrollment-date');
     }
 }
+
+// Function để format tiền tệ cho input (không có VNĐ)
+function formatCurrencyInput(amount) {
+    if (!amount) return '0';
+    return new Intl.NumberFormat('vi-VN').format(amount);
+}
+
+// Event listener cho tab enrollment
+$(document).on('shown.bs.tab', '#view-enrollment-tab', function() {
+    const studentId = $('[data-student-action="edit"]').attr('data-student-id');
+    if (studentId) {
+        loadEnrollmentInfo(studentId);
+    }
+});
+
+// Event listener cho form chỉnh sửa ghi danh
+$(document).on('submit', '#enrollmentEditForm', function(e) {
+    e.preventDefault();
+
+    const form = this;
+    const formData = new FormData(form);
+    const enrollmentId = $('#edit-enrollment-id').val();
+    const submitBtn = $('#save-enrollment-btn');
+
+    if (!enrollmentId) {
+        alert('Không tìm thấy thông tin ghi danh');
+        return;
+    }
+
+    // Disable button và hiển thị loading
+    submitBtn.prop('disabled', true);
+    submitBtn.html('<i class="fas fa-spinner fa-spin me-1"></i>Đang lưu...');
+
+    // Clear previous errors
+    $('.is-invalid').removeClass('is-invalid');
+    $('.invalid-feedback').text('');
+
+    $.ajax({
+        url: `/api/enrollments/${enrollmentId}`,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(response) {
+            if (response.success) {
+                $('#editEnrollmentModal').modal('hide');
+
+                // Hiển thị thông báo thành công
+                if (typeof showToast === 'function') {
+                    showToast('Cập nhật thông tin ghi danh thành công!', 'success');
+                } else {
+                    alert('Cập nhật thông tin ghi danh thành công!');
+                }
+
+                // Reload tab enrollment nếu đang mở
+                const activeTab = $('#view-enrollment-tab');
+                if (activeTab.hasClass('active')) {
+                    const studentId = $('[data-student-action="edit"]').attr('data-student-id');
+                    if (studentId) {
+                        loadEnrollmentInfo(studentId);
+                    }
+                }
+            } else {
+                alert(response.message || 'Có lỗi xảy ra khi cập nhật ghi danh');
+            }
+        },
+        error: function(xhr) {
+            console.error('Enrollment update error:', xhr);
+
+            if (xhr.status === 422 && xhr.responseJSON && xhr.responseJSON.errors) {
+                // Hiển thị lỗi validation
+                const errors = xhr.responseJSON.errors;
+                Object.keys(errors).forEach(key => {
+                    const errorMessage = errors[key][0];
+                    const inputField = $(`[name="${key}"]`);
+                    const errorField = inputField.siblings('.invalid-feedback');
+
+                    inputField.addClass('is-invalid');
+                    if (errorField.length) {
+                        errorField.text(errorMessage);
+                    }
+                });
+
+                if (typeof showToast === 'function') {
+                    showToast('Vui lòng kiểm tra lại thông tin', 'error');
+                } else {
+                    alert('Vui lòng kiểm tra lại thông tin');
+                }
+            } else {
+                const errorMessage = xhr.responseJSON?.message || 'Có lỗi xảy ra khi cập nhật ghi danh';
+                if (typeof showToast === 'function') {
+                    showToast(errorMessage, 'error');
+                } else {
+                    alert(errorMessage);
+                }
+            }
+        },
+        complete: function() {
+            // Reset button
+            submitBtn.prop('disabled', false);
+            submitBtn.html('<i class="fas fa-save me-1"></i>Lưu thay đổi');
+        }
+    });
+});
 
 function populateEditForm(student) {
     $('#edit-student-id').val(student.id);
@@ -1247,92 +1668,7 @@ $(document).on('click', '#save-new-student-btn', function() {
 </script>
 @endpush
 
-<!-- Modal chỉnh sửa ghi danh (copied from enrollments page) -->
-<div class="modal fade" id="editEnrollmentModal" tabindex="-1" aria-labelledby="editEnrollmentModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="editEnrollmentModalLabel">Chỉnh sửa ghi danh</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <!-- Loading spinner -->
-                <div id="edit-enrollment-loading" class="text-center my-5">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Đang tải...</span>
-                    </div>
-                    <p class="mt-2">Đang tải thông tin ghi danh...</p>
-                </div>
-                
-                <!-- Form chỉnh sửa -->
-                <form id="enrollmentEditForm" method="POST" style="display: none;">
-                    @csrf
-                    <input type="hidden" id="edit-enrollment-id" name="id">
-                    <input type="hidden" id="edit-course-item-id" name="course_item_id">
-                    <input type="hidden" id="edit-course-fee" name="course_fee">
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Học viên</label>
-                        <p class="form-control-plaintext fw-bold" id="edit-student-name"></p>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-enrollment-date" class="form-label">Ngày ghi danh</label>
-                        <input type="text" class="form-control" id="edit-enrollment-date" name="enrollment_date" required
-                               placeholder="dd/mm/yyyy" pattern="\d{2}/\d{2}/\d{4}" 
-                               title="Nhập ngày theo định dạng dd/mm/yyyy">
-                        <div class="invalid-feedback" id="edit-enrollment-date-error"></div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-status" class="form-label">Trạng thái</label>
-                        <select class="form-select" id="edit-status" name="status" required>
-                            <option value="active">Đang học</option>
-                            <option value="waiting">Danh sách chờ</option>
-                            <option value="completed">Đã hoàn thành</option>
-                            <option value="cancelled">Đã hủy</option>
-                        </select>
-                        <div class="invalid-feedback" id="edit-status-error"></div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-discount-percentage" class="form-label">Giảm giá (%)</label>
-                        <input type="number" class="form-control" id="edit-discount-percentage" name="discount_percentage" min="0" max="100" step="0.01" value="0">
-                        <div class="invalid-feedback" id="edit-discount-percentage-error"></div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-discount-amount" class="form-label">Giảm giá (VNĐ)</label>
-                        <input type="number" class="form-control" id="edit-discount-amount" name="discount_amount" min="0" value="0">
-                        <div class="invalid-feedback" id="edit-discount-amount-error"></div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-final-fee-display" class="form-label">Học phí cuối cùng</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="edit-final-fee-display" readonly>
-                            <span class="input-group-text">VNĐ</span>
-                        </div>
-                        <input type="hidden" id="edit-final-fee" name="final_fee">
-                        <div class="invalid-feedback" id="edit-final-fee-error"></div>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label for="edit-notes" class="form-label">Ghi chú</label>
-                        <textarea class="form-control" id="edit-notes" name="notes" rows="3"></textarea>
-                        <div class="invalid-feedback" id="edit-notes-error"></div>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
-                <button type="button" class="btn btn-primary" id="save-edit-enrollment-btn">
-                    <i class="fas fa-save me-1"></i> Lưu thay đổi
-                </button>
-            </div>
-        </div>
-    </div>
-</div>
+
 
 <script>
 // Xử lý form chỉnh sửa học viên

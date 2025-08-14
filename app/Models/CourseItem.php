@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Attendance;
 use App\Enums\CourseStatus;
 use App\Enums\EnrollmentStatus;
+use App\Enums\LearningMethod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -25,6 +26,7 @@ class CourseItem extends Model
         'active',
         'status',
         'is_special',
+        'learning_method',
         'custom_fields'
     ];
 
@@ -34,6 +36,7 @@ class CourseItem extends Model
         'active' => 'boolean',
         'status' => CourseStatus::class,
         'is_special' => 'boolean',
+        'learning_method' => LearningMethod::class,
         'custom_fields' => 'array'
     ];
 
@@ -278,5 +281,62 @@ class CourseItem extends Model
             Log::error('Error reopening course: ' . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Lấy phương thức học dưới dạng enum
+     */
+    public function getLearningMethodEnum(): ?LearningMethod
+    {
+        return $this->learning_method instanceof LearningMethod ? $this->learning_method : LearningMethod::fromString($this->learning_method);
+    }
+
+    /**
+     * Lấy badge HTML cho phương thức học
+     */
+    public function getLearningMethodBadgeAttribute(): string
+    {
+        $method = $this->getLearningMethodEnum();
+        return $method ? $method->badge() : '<span class="badge bg-secondary">Chưa xác định</span>';
+    }
+
+    /**
+     * Kiểm tra xem khóa học có phải là online không
+     */
+    public function isOnline(): bool
+    {
+        return $this->learning_method === LearningMethod::ONLINE->value;
+    }
+
+    /**
+     * Kiểm tra xem khóa học có phải là offline không
+     */
+    public function isOffline(): bool
+    {
+        return $this->learning_method === LearningMethod::OFFLINE->value;
+    }
+
+    /**
+     * Scope để lọc khóa học theo phương thức học
+     */
+    public function scopeByLearningMethod($query, $method)
+    {
+        return $query->where('learning_method', $method);
+    }
+
+    /**
+     * Scope để lấy khóa học online
+     */
+    public function scopeOnline($query)
+    {
+        return $query->where('learning_method', LearningMethod::ONLINE->value);
+    }
+
+    /**
+     * Scope để lấy khóa học offline
+     */
+    public function scopeOffline($query)
+    {
+        return $query->where('learning_method', LearningMethod::OFFLINE->value);
     }
 }

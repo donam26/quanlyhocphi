@@ -83,6 +83,9 @@
                                                 {{ $rootItem->name }}
                                                 @if($rootItem->is_leaf)
                                                     {!! $rootItem->status_badge !!}
+                                                    @if($rootItem->learning_method)
+                                                        {!! $rootItem->learning_method_badge !!}
+                                                    @endif
                                                 @endif
                                             </a>
                                             <div class="item-actions">
@@ -186,9 +189,23 @@
                     <div id="leaf-options">
                         <div class="mb-3">
                             <label for="item-fee" class="form-label">Học phí <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="item-fee" name="fee" min="0" value="" 
+                            <input type="number" class="form-control" id="item-fee" name="fee" min="0" value=""
                                    placeholder="Nhập học phí (VNĐ)" required>
                             <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="learning-method" class="form-label">Phương thức học</label>
+                            <select class="form-select" id="learning-method" name="learning_method">
+                                <option value="">-- Chọn phương thức học --</option>
+                                <option value="online">
+                                    <i class="fas fa-laptop me-2"></i>Trực tuyến (Online)
+                                </option>
+                                <option value="offline">
+                                    <i class="fas fa-chalkboard-teacher me-2"></i>Trực tiếp (Offline)
+                                </option>
+                            </select>
+                            <div class="form-text">Chọn phương thức học cho khóa học này (chỉ dành cho thống kê)</div>
                         </div>
                     </div>
                     
@@ -265,9 +282,23 @@
                     <div id="root-leaf-options" style="display: none;">
                         <div class="mb-3">
                             <label for="root-item-fee" class="form-label">Học phí <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="root-item-fee" name="fee" min="0" value="" 
+                            <input type="number" class="form-control" id="root-item-fee" name="fee" min="0" value=""
                                    placeholder="Nhập học phí (VNĐ)" required>
                             <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="root-learning-method" class="form-label">Phương thức học</label>
+                            <select class="form-select" id="root-learning-method" name="learning_method">
+                                <option value="">-- Chọn phương thức học --</option>
+                                <option value="online">
+                                    <i class="fas fa-laptop me-2"></i>Trực tuyến (Online)
+                                </option>
+                                <option value="offline">
+                                    <i class="fas fa-chalkboard-teacher me-2"></i>Trực tiếp (Offline)
+                                </option>
+                            </select>
+                            <div class="form-text">Chọn phương thức học cho khóa học này (chỉ dành cho thống kê)</div>
                         </div>
                     </div>
                     
@@ -563,11 +594,25 @@
                     <div id="edit-leaf-options">
                         <div class="mb-3">
                             <label for="edit-item-fee" class="form-label">Học phí <span class="text-danger">*</span></label>
-                            <input type="number" class="form-control" id="edit-item-fee" name="fee" min="0" value="" 
+                            <input type="number" class="form-control" id="edit-item-fee" name="fee" min="0" value=""
                                    placeholder="Nhập học phí (VNĐ)" required>
                             <div class="form-text">Học phí cho khóa học này (đơn vị: VNĐ)</div>
                         </div>
-                       
+
+                        <div class="mb-3">
+                            <label for="edit-learning-method" class="form-label">Phương thức học</label>
+                            <select class="form-select" id="edit-learning-method" name="learning_method">
+                                <option value="">-- Chọn phương thức học --</option>
+                                <option value="online">
+                                    <i class="fas fa-laptop me-2"></i>Trực tuyến (Online)
+                                </option>
+                                <option value="offline">
+                                    <i class="fas fa-chalkboard-teacher me-2"></i>Trực tiếp (Offline)
+                                </option>
+                            </select>
+                            <div class="form-text">Chọn phương thức học cho khóa học này (chỉ dành cho thống kê)</div>
+                        </div>
+
                     </div>
                     
                             <input type="hidden" name="active" value="1">
@@ -917,7 +962,8 @@ $(document).ready(function() {
         $('#is-leaf').prop('checked', true); // Mặc định tick
         $('#leaf-options').show();
         $('#item-fee').val('').prop('required', true);
-        
+        $('#learning-method').val(''); // Reset phương thức học
+
         // Reset khóa học đặc biệt
         $('#is-special').prop('checked', false);
         $('#add-custom-fields-container').hide();
@@ -930,6 +976,7 @@ $(document).ready(function() {
         $('#edit-is-leaf').prop('checked', false); // Reset về false
         $('#edit-leaf-options').hide();
         $('#edit-item-fee').val('').prop('required', false);
+        $('#edit-learning-method').val(''); // Reset phương thức học
         $('#edit-is-leaf-hidden').val('0'); // Reset hidden input
         
         $('#edit-is-special').prop('checked', false); // Reset khóa học đặc biệt
@@ -977,8 +1024,9 @@ $(document).ready(function() {
         $('#root-is-leaf').prop('checked', false); // Reset về false
         $('#root-leaf-options').hide();
         $('#root-item-fee').val('').prop('required', false);
+        $('#root-learning-method').val(''); // Reset phương thức học
         $('#root-item-name').val('');
-        
+
         // Reset khóa học đặc biệt
         $('#root-is-special').prop('checked', false);
         $('#root-custom-fields-container').hide();

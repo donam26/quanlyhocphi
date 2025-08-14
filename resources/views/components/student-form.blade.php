@@ -14,6 +14,13 @@ $isEdit = $prefix === 'edit';
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="{{ $prefix }}-additional-tab" data-bs-toggle="tab"
+            data-bs-target="#{{ $prefix }}-additional" type="button" role="tab"
+            aria-controls="{{ $prefix }}-additional" aria-selected="false">
+            <i class="fas fa-briefcase me-2"></i>Thông tin bổ sung
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="{{ $prefix }}-invoice-tab" data-bs-toggle="tab"
             data-bs-target="#{{ $prefix }}-invoice" type="button" role="tab"
             aria-controls="{{ $prefix }}-invoice" aria-selected="false">
@@ -65,6 +72,11 @@ $isEdit = $prefix === 'edit';
                         placeholder="dd/mm/yyyy" data-inputmask="'mask': '99/99/9999'">
                     <div class="invalid-feedback" id="{{ $prefix }}-date-of-birth-error"></div>
                 </div>
+            </div>
+
+            {{-- Cột phải: Thông tin liên hệ --}}
+            <div class="col-md-6">
+                <h6 class="text-primary mb-3"><i class="fas fa-phone me-2"></i>Thông tin liên hệ</h6>
 
                 {{-- Số điện thoại --}}
                 <div class="mb-3">
@@ -91,45 +103,16 @@ $isEdit = $prefix === 'edit';
                 {{-- Tỉnh thành --}}
                 <div class="mb-3">
                     <label for="{{ $prefix }}-province" class="form-label">Tỉnh thành</label>
-                    <select class="form-select select2" id="{{ $prefix }}-province" name="province_id">
+                    <select class="form-select" id="{{ $prefix }}-province" name="province_id">
                         <option value="">Chọn tỉnh thành</option>
                     </select>
                     <div class="invalid-feedback" id="{{ $prefix }}-province-error"></div>
-                </div>
-            </div>
-
-            {{-- Cột phải: Thông tin bổ sung --}}
-            <div class="col-md-6">
-                <h6 class="text-primary mb-3"><i class="fas fa-info-circle me-2"></i>Thông tin bổ sung</h6>
-
-                {{-- Nơi công tác hiện tại --}}
-                <div class="mb-3">
-                    <label for="{{ $prefix }}-current-workplace" class="form-label">Nơi công tác hiện tại</label>
-                    <input type="text" class="form-control" id="{{ $prefix }}-current-workplace" name="current_workplace">
-                    <div class="invalid-feedback" id="{{ $prefix }}-current-workplace-error"></div>
-                </div>
-
-                {{-- Kinh nghiệm kế toán --}}
-                <div class="mb-3">
-                    <label for="{{ $prefix }}-experience" class="form-label">Kinh nghiệm kế toán (năm)</label>
-                    <input type="number" class="form-control" id="{{ $prefix }}-experience" name="accounting_experience_years" min="0">
-                    <div class="invalid-feedback" id="{{ $prefix }}-experience-error"></div>
-                </div>
-
-                {{-- Nơi sinh --}}
-                <div class="mb-3">
-                    <label for="{{ $prefix }}-place-of-birth-select" class="form-label">Nơi sinh</label>
-                    <select class="form-select select2" id="{{ $prefix }}-place-of-birth-select">
-                        <option value="">Chọn nơi sinh</option>
-                    </select>
-                    <input type="hidden" id="{{ $prefix }}-place-of-birth" name="place_of_birth">
-                    <div class="invalid-feedback" id="{{ $prefix }}-place-of-birth-error"></div>
                 </div>
 
                 {{-- Dân tộc --}}
                 <div class="mb-3">
                     <label for="{{ $prefix }}-nation-select" class="form-label">Dân tộc</label>
-                    <select class="form-select select2" id="{{ $prefix }}-nation-select">
+                    <select class="form-select" id="{{ $prefix }}-nation-select">
                         <option value="">Chọn dân tộc</option>
                     </select>
                     <input type="hidden" id="{{ $prefix }}-nation" name="nation">
@@ -149,8 +132,8 @@ $isEdit = $prefix === 'edit';
 
                 {{-- Bằng cấp --}}
                 <div class="mb-3">
-                    <label for="{{ $prefix }}-education-level" class="form-label">Bằng cấp</label>
-                    <select class="form-select" id="{{ $prefix }}-education-level" name="education_level">
+                    <label for="{{ $prefix }}-degree" class="form-label">Bằng cấp</label>
+                    <select class="form-select" id="{{ $prefix }}-degree" name="degree">
                         <option value="">Chọn bằng cấp</option>
                         <option value="secondary">VB2</option>
                         <option value="vocational">Trung cấp</option>
@@ -158,7 +141,7 @@ $isEdit = $prefix === 'edit';
                         <option value="bachelor">Đại học</option>
                         <option value="master">Thạc sĩ</option>
                     </select>
-                    <div class="invalid-feedback" id="{{ $prefix }}-education-level-error"></div>
+                    <div class="invalid-feedback" id="{{ $prefix }}-degree-error"></div>
                 </div>
 
                 {{-- Chuyên môn đào tạo --}}
@@ -184,24 +167,83 @@ $isEdit = $prefix === 'edit';
         </div>
     </div>
 
-    <!-- Tab Thông tin hóa đơn -->
-    <div class="tab-pane fade" id="{{ $prefix }}-invoice" role="tabpanel"
-        aria-labelledby="{{ $prefix }}-invoice-tab">
+    <!-- Tab Thông tin bổ sung (chỉ dành cho Kế toán trưởng) -->
+    <div class="tab-pane fade" id="{{ $prefix }}-additional" role="tabpanel"
+        aria-labelledby="{{ $prefix }}-additional-tab">
         <div class="row">
             <div class="col-12">
                 <div class="alert alert-info">
                     <i class="fas fa-info-circle me-2"></i>
-                    Thông tin này sẽ được sử dụng khi xuất hóa đơn điện tử. Tất cả các trường đều không bắt buộc.
+                    <strong>Thông tin bổ sung cho lớp Kế toán trưởng</strong>
                 </div>
             </div>
         </div>
+
         <div class="row">
             <div class="col-md-6">
-                {{-- Tên đơn vị --}}
+                {{-- Nơi công tác hiện tại --}}
                 <div class="mb-3">
-                    <label for="{{ $prefix }}-company-name" class="form-label">Tên đơn vị</label>
+                    <label for="{{ $prefix }}-current-workplace" class="form-label">Nơi công tác hiện tại</label>
+                    <input type="text" class="form-control" id="{{ $prefix }}-current-workplace" name="current_workplace">
+                    <div class="invalid-feedback" id="{{ $prefix }}-current-workplace-error"></div>
+                </div>
+
+                {{-- Số năm kinh nghiệm làm kế toán --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-experience" class="form-label">Số năm kinh nghiệm làm kế toán</label>
+                    <input type="number" class="form-control" id="{{ $prefix }}-experience" name="accounting_experience_years" min="0">
+                    <div class="invalid-feedback" id="{{ $prefix }}-experience-error"></div>
+                </div>
+
+                {{-- Chuyên môn đào tạo --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-training-specialization" class="form-label">Chuyên môn đào tạo</label>
+                    <input type="text" class="form-control" id="{{ $prefix }}-training-specialization" name="training_specialization">
+                    <div class="invalid-feedback" id="{{ $prefix }}-training-specialization-error"></div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                {{-- Tài liệu bản cứng --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-hard-copy-documents" class="form-label">Tài liệu bản cứng</label>
+                    <select class="form-select" id="{{ $prefix }}-hard-copy-documents" name="hard_copy_documents">
+                        <option value="">Chọn trạng thái</option>
+                        <option value="submitted">Đã nộp</option>
+                        <option value="not_submitted">Chưa nộp</option>
+                    </select>
+                    <div class="invalid-feedback" id="{{ $prefix }}-hard-copy-documents-error"></div>
+                </div>
+
+                {{-- Trình độ học vấn --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-education-level" class="form-label">Trình độ học vấn</label>
+                    <select class="form-select" id="{{ $prefix }}-education-level" name="education_level">
+                        <option value="">Chọn trình độ học vấn</option>
+                        <option value="secondary">Trung học cơ sở</option>
+                        <option value="vocational">Trung cấp/Nghề</option>
+                        <option value="associate">Cao đẳng</option>
+                        <option value="bachelor">Đại học</option>
+                        <option value="master">Thạc sĩ</option>
+                    </select>
+                    <div class="invalid-feedback" id="{{ $prefix }}-education-level-error"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Thông tin hóa đơn -->
+    <div class="tab-pane fade" id="{{ $prefix }}-invoice" role="tabpanel"
+        aria-labelledby="{{ $prefix }}-invoice-tab">
+        <div class="row">
+            <div class="col-md-6">
+                <h6 class="text-primary mb-3"><i class="fas fa-building me-2"></i>Thông tin công ty</h6>
+
+                {{-- Tên công ty --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-company-name" class="form-label">Tên công ty</label>
                     <input type="text" class="form-control" id="{{ $prefix }}-company-name" name="company_name"
-                        placeholder="Nhập tên đơn vị (nếu có)">
+                        placeholder="Nhập tên công ty (nếu có)">
                     <div class="invalid-feedback" id="{{ $prefix }}-company-name-error"></div>
                 </div>
 
@@ -213,6 +255,18 @@ $isEdit = $prefix === 'edit';
                     <div class="invalid-feedback" id="{{ $prefix }}-tax-code-error"></div>
                 </div>
 
+                {{-- Địa chỉ công ty --}}
+                <div class="mb-3">
+                    <label for="{{ $prefix }}-company-address" class="form-label">Địa chỉ công ty</label>
+                    <textarea class="form-control" id="{{ $prefix }}-company-address" name="company_address" rows="3"
+                        placeholder="Nhập địa chỉ công ty (nếu có)"></textarea>
+                    <div class="invalid-feedback" id="{{ $prefix }}-company-address-error"></div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <h6 class="text-primary mb-3"><i class="fas fa-envelope me-2"></i>Thông tin liên hệ</h6>
+
                 {{-- Email nhận hóa đơn --}}
                 <div class="mb-3">
                     <label for="{{ $prefix }}-invoice-email" class="form-label">Email nhận hóa đơn</label>
@@ -221,13 +275,16 @@ $isEdit = $prefix === 'edit';
                     <div class="invalid-feedback" id="{{ $prefix }}-invoice-email-error"></div>
                 </div>
             </div>
-            <div class="col-md-6">
-                {{-- Địa chỉ đơn vị --}}
+        </div>
+    </div>
+</div>
+
+                {{-- Kinh nghiệm --}}
                 <div class="mb-3">
-                    <label for="{{ $prefix }}-company-address" class="form-label">Địa chỉ đơn vị nhận hóa đơn</label>
-                    <textarea class="form-control" id="{{ $prefix }}-company-address" name="company_address" rows="5"
-                        placeholder="Nhập địa chỉ đơn vị (nếu có)"></textarea>
-                    <div class="invalid-feedback" id="{{ $prefix }}-company-address-error"></div>
+                    <label for="{{ $prefix }}-experience" class="form-label">Kinh nghiệm (năm)</label>
+                    <input type="number" class="form-control" id="{{ $prefix }}-experience" name="experience"
+                        min="0" max="50" placeholder="Số năm kinh nghiệm">
+                    <div class="invalid-feedback" id="{{ $prefix }}-experience-error"></div>
                 </div>
             </div>
         </div>

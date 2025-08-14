@@ -439,7 +439,10 @@ function setupEditModal(id) {
             
             // Thiết lập học phí
             $('#edit-item-fee').val(response.fee || 0);
-            
+
+            // Thiết lập phương thức học
+            $('#edit-learning-method').val(response.learning_method || '');
+
             // Thiết lập checkbox khóa học đặc biệt
             $('#edit-is-special').prop('checked', response.is_special);
             
@@ -1591,12 +1594,15 @@ function openEditEnrollmentModal(enrollmentId){
         $form.find('[name="enrollment_date"]').val(dateVal);
         $form.find('[name="status"]').val(d.status || 'active');
 
+        // Lưu base fee cho tính toán discount trong modal edit
+        const finalFee = parseFloat(d.final_fee) || 0;
+        const discountPercentage = parseFloat(d.discount_percentage) || 0;
+        const discountAmount = parseFloat(d.discount_amount) || 0;
 
         $form.find('[name="discount_percentage"]').val(discountPercentage);
-        $form.find('[name="discount_amount"]').val(d.discount_amount || 0);
-        $form.find('[name="final_fee"]').val(d.final_fee || 0);
+        $form.find('[name="discount_amount"]').val(discountAmount);
+        $form.find('[name="final_fee"]').val(finalFee);
         $form.find('[name="notes"]').val(d.notes || '');
-
 
         // Lưu thông tin phụ để refresh danh sách sau khi lưu
         $('#editEnrollmentModal').data('enrollment-id', d.id);
@@ -1607,11 +1613,6 @@ function openEditEnrollmentModal(enrollmentId){
 
         // Setup event handler cho status change
         setupStatusChangeHandler();
-
-        // Lưu base fee cho tính toán discount trong modal edit
-        const finalFee = parseFloat(d.final_fee) || 0;
-        const discountPercentage = parseFloat(d.discount_percentage) || 0;
-        const discountAmount = parseFloat(d.discount_amount) || 0;
 
         // Tính base fee từ final fee hiện tại
         let baseFee = finalFee;

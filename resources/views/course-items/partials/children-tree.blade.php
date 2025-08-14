@@ -17,6 +17,9 @@
                     {{ $courseItem->name }}
                     @if($courseItem->is_leaf)
                         {!! $courseItem->status_badge !!}
+                        @if($courseItem->learning_method)
+                            {!! $courseItem->learning_method_badge !!}
+                        @endif
                     @endif
                 </a>
                 <div class="item-actions">

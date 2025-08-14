@@ -72,6 +72,7 @@ class CourseItemController extends Controller
             'is_leaf' => 'nullable|boolean',
             'active' => 'nullable|boolean',
             'is_special' => 'nullable|boolean',
+            'learning_method' => 'nullable|in:online,offline',
             'custom_field_keys' => 'nullable|array',
         ]);
         
@@ -184,6 +185,7 @@ class CourseItemController extends Controller
             'level' => $courseItem->level,
             'is_leaf' => $courseItem->is_leaf,
             'fee' => $courseItem->fee,
+            'learning_method' => $courseItem->learning_method?->value,
             'active' => $courseItem->active,
             'is_special' => $courseItem->is_special,
             'custom_fields' => $courseItem->custom_fields,
@@ -209,7 +211,7 @@ class CourseItemController extends Controller
                     if ($value && $value == $courseItem->id) {
                         $fail('Không thể chọn chính nó làm khóa cha.');
                     }
-                    
+
                     // Kiểm tra circular reference
                     if ($value && $this->wouldCreateCircularReference($courseItem->id, $value)) {
                         $fail('Không thể chọn khóa con làm khóa cha.');
@@ -220,6 +222,7 @@ class CourseItemController extends Controller
             'active' => 'required|boolean',
             'is_leaf' => 'required|boolean',
             'is_special' => 'nullable|boolean',
+            'learning_method' => 'nullable|in:online,offline',
             'custom_field_keys' => 'nullable|array',
         ]);
 

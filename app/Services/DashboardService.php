@@ -428,17 +428,16 @@ class DashboardService
      */
     public function getStudentsByLearningMode($range = 'total', $courseItemId = null)
     {
-        // Thay vì dựa vào custom_fields, chúng ta sẽ sử dụng dữ liệu cố định
         // Lấy tổng số học viên theo các điều kiện lọc
-        $query = Enrollment::query();
-        
+        $query = Enrollment::with('courseItem');
+
         // Chỉ xét các ghi danh đang hoạt động
         $query->where('status', EnrollmentStatus::ACTIVE);
-        
+
         // Lọc theo khoảng thời gian nếu cần
         if ($range !== 'total') {
             $today = now();
-            
+
             switch($range) {
                 case 'day':
                     $query->whereDate('enrollment_date', $today);
@@ -457,35 +456,43 @@ class DashboardService
                     break;
             }
         }
-        
+
         // Lọc theo khóa học nếu có
         if ($courseItemId) {
             $query->where('course_item_id', $courseItemId);
         }
-        
-        $totalEnrollments = $query->count();
-        
-        // Phân bố học viên theo phương thức học (dữ liệu mẫu)
-        // Tạo phân phối với tỉ lệ cố định
+
+        $enrollments = $query->get();
+
+        // Khởi tạo mảng với giá trị mặc định
         $learningModeData = [
-            'online' => (int)($totalEnrollments * 0.6),   // 60% học trực tuyến
-            'offline' => (int)($totalEnrollments * 0.4),  // 40% học trực tiếp
-            'unknown' => 0                               // Phần còn lại là không xác định
+            'online' => 0,
+            'offline' => 0,
+            'unknown' => 0
         ];
-        
-        // Cập nhật giá trị unknown để đảm bảo tổng bằng đúng $totalEnrollments
-        $sum = $learningModeData['online'] + $learningModeData['offline'];
-        $learningModeData['unknown'] = $totalEnrollments - $sum;
-        
+
+        // Đếm học viên theo phương thức học của khóa học
+        foreach ($enrollments as $enrollment) {
+            $learningMethod = $enrollment->courseItem->learning_method;
+
+            if ($learningMethod === 'online') {
+                $learningModeData['online']++;
+            } elseif ($learningMethod === 'offline') {
+                $learningModeData['offline']++;
+            } else {
+                $learningModeData['unknown']++;
+            }
+        }
+
         // Tính tổng số lượng
         $total = array_sum($learningModeData);
-        
+
         // Tính tỉ lệ phần trăm
         $learningModeRatio = [];
         foreach ($learningModeData as $mode => $count) {
             $learningModeRatio[$mode] = $total > 0 ? round(($count / $total) * 100, 2) : 0;
         }
-        
+
         return [
             'labels' => ['Trực tuyến', 'Trực tiếp', 'Không xác định'],
             'data' => array_values($learningModeData),

@@ -173,6 +173,7 @@ class CourseItemController extends Controller
                 'level' => $courseItem->level,
                 'is_leaf' => $courseItem->is_leaf,
                 'is_special' => $courseItem->is_special,
+                'learning_method' => $courseItem->learning_method?->value,
                 'active' => $courseItem->active,
                 'status' => $courseItem->status,
                 'status_badge' => $courseItem->status_badge,
