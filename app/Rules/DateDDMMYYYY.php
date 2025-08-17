@@ -8,6 +8,21 @@ use Carbon\Carbon;
 
 class DateDDMMYYYY implements ValidationRule
 {
+    private $allowPastDates;
+    private $maxFutureDays;
+
+    /**
+     * Create a new rule instance.
+     *
+     * @param bool $allowPastDates
+     * @param int $maxFutureDays
+     */
+    public function __construct($allowPastDates = true, $maxFutureDays = 365)
+    {
+        $this->allowPastDates = $allowPastDates;
+        $this->maxFutureDays = $maxFutureDays;
+    }
+
     /**
      * Run the validation rule.
      */
@@ -16,32 +31,39 @@ class DateDDMMYYYY implements ValidationRule
         if (empty($value)) {
             return; // Allow empty values
         }
-        
+
         // Check if it matches dd/mm/yyyy format
         if (!preg_match('/^\d{2}\/\d{2}\/\d{4}$/', $value)) {
             $fail('Trường :attribute phải có định dạng dd/mm/yyyy.');
             return;
         }
-        
+
         // Try to parse the date
         $parts = explode('/', $value);
         $day = (int)$parts[0];
-        $month = (int)$parts[1];  
+        $month = (int)$parts[1];
         $year = (int)$parts[2];
-        
+
         // Validate date parts
         if (!checkdate($month, $day, $year)) {
             $fail('Trường :attribute không phải là một ngày hợp lệ.');
             return;
         }
-        
-        // Optional: Check if date is not too far in the future
-        // For enrollment dates, we allow some future dates but not too far
+
+        // Additional business logic validation
         try {
             $date = Carbon::createFromFormat('d/m/Y', $value);
-            // Only restrict if date is more than 1 year in the future
-            if ($date > Carbon::now()->addYear()) {
-                $fail('Trường :attribute không được quá xa trong tương lai.');
+            $now = Carbon::now();
+
+            // Check past dates if not allowed
+            if (!$this->allowPastDates && $date < $now->startOfDay()) {
+                $fail('Trường :attribute không được trong quá khứ.');
+                return;
+            }
+
+            // Check future dates limit
+            if ($date > $now->addDays($this->maxFutureDays)) {
+                $fail("Trường :attribute không được quá {$this->maxFutureDays} ngày trong tương lai.");
                 return;
             }
         } catch (\Exception $e) {

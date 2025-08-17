@@ -30,6 +30,11 @@ class EnrollmentService
         if (isset($filters['course_item_id'])) {
             $query->where('course_item_id', $filters['course_item_id']);
         }
+
+        // Hỗ trợ filter nhiều khóa học (cho khóa cha)
+        if (isset($filters['course_item_ids']) && is_array($filters['course_item_ids'])) {
+            $query->whereIn('course_item_id', $filters['course_item_ids']);
+        }
         
         if (isset($filters['student_id'])) {
             $query->where('student_id', $filters['student_id']);
@@ -137,11 +142,6 @@ class EnrollmentService
                 ]);
             }
             
-            // Tạo tiến độ học tập nếu ghi danh trực tiếp
-            if ($data['status'] === EnrollmentStatus::ACTIVE->value || $data['status'] === 'enrolled' || $data['status'] === 'confirmed') {
-                $this->createLearningPathProgress($enrollment);
-            }
-            
             DB::commit();
             return $enrollment;
         } catch (\Exception $e) {
@@ -153,14 +153,20 @@ class EnrollmentService
     public function updateEnrollment(Enrollment $enrollment, array $data)
     {
         DB::beginTransaction();
-        
+
         try {
+            \Log::info('EnrollmentService updateEnrollment - Before update:', [
+                'enrollment_id' => $enrollment->id,
+                'current_enrollment_date' => $enrollment->enrollment_date,
+                'data_to_update' => $data
+            ]);
+
             // Tính học phí sau khi giảm giá nếu có thay đổi
             if (isset($data['discount_percentage']) || isset($data['discount_amount']) || isset($data['final_fee'])) {
                 $courseItem = $enrollment->courseItem;
                 $finalFee = isset($data['final_fee']) ? $data['final_fee'] : $courseItem->fee;
                 $discountAmount = $enrollment->discount_amount;
-                
+
                 if (isset($data['discount_percentage']) && $data['discount_percentage'] > 0) {
                     $discountAmount = $courseItem->fee * ($data['discount_percentage'] / 100);
                     $finalFee = $courseItem->fee - $discountAmount;
@@ -168,23 +174,21 @@ class EnrollmentService
                     $discountAmount = $data['discount_amount'];
                     $finalFee = $courseItem->fee - $discountAmount;
                 }
-                
+
                 $data['final_fee'] = $finalFee;
                 $data['discount_amount'] = $discountAmount;
             }
-            
-            // Theo dõi thay đổi trạng thái
-            $oldStatus = $enrollment->status;
-            
+
             $enrollment->update($data);
-            
-            // Nếu trạng thái thay đổi từ waiting sang enrolled
-            if ($oldStatus === EnrollmentStatus::WAITING && isset($data['status']) && $data['status'] === EnrollmentStatus::ACTIVE) {
-                $this->createLearningPathProgress($enrollment);
-            }
-            
+
+            \Log::info('EnrollmentService updateEnrollment - After update:', [
+                'enrollment_id' => $enrollment->id,
+                'new_enrollment_date' => $enrollment->fresh()->enrollment_date,
+                'updated_data' => $data
+            ]);
+
             DB::commit();
-            return $enrollment;
+            return $enrollment->fresh();
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
@@ -252,8 +256,6 @@ class EnrollmentService
                 'status' => EnrollmentStatus::ACTIVE->value,
                 'enrollment_date' => now()
             ]);
-            
-            $this->createLearningPathProgress($enrollment);
             
             DB::commit();
             return $enrollment;
@@ -344,24 +346,350 @@ class EnrollmentService
         
         return $query->latest('request_date')->paginate(15);
     }
-    
+
     /**
-     * Tạo các bản ghi tiến độ học tập cho enrollment
+     * Get enrollment statistics
      */
-    private function createLearningPathProgress($enrollment)
+    public function getEnrollmentStatistics($filters = [])
     {
-        // Lấy tất cả các lộ trình học tập của khóa học
-        $learningPaths = $enrollment->courseItem->learningPaths;
-        
-        // Tạo tiến độ cho mỗi lộ trình
-        foreach ($learningPaths as $path) {
-            LearningPathProgress::firstOrCreate([
-                'enrollment_id' => $enrollment->id,
-                'learning_path_id' => $path->id
-            ], [
-                'is_completed' => false,
-                'completed_at' => null
+        $query = Enrollment::query();
+
+        // Apply filters
+        if (isset($filters['start_date'])) {
+            $query->where('enrollment_date', '>=', $filters['start_date']);
+        }
+
+        if (isset($filters['end_date'])) {
+            $query->where('enrollment_date', '<=', $filters['end_date']);
+        }
+
+        if (isset($filters['course_item_id'])) {
+            $query->where('course_item_id', $filters['course_item_id']);
+        }
+
+        $stats = [
+            'total_enrollments' => $query->count(),
+            'by_status' => $query->groupBy('status')
+                ->selectRaw('status, count(*) as count')
+                ->pluck('count', 'status')
+                ->toArray(),
+            'total_revenue' => $query->sum('final_fee'),
+            'average_fee' => $query->avg('final_fee'),
+        ];
+
+        // Payment statistics
+        $paymentStats = $query->with('payments')
+            ->get()
+            ->map(function ($enrollment) {
+                $totalPaid = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
+                return [
+                    'final_fee' => $enrollment->final_fee,
+                    'paid_amount' => $totalPaid,
+                    'remaining_amount' => $enrollment->final_fee - $totalPaid,
+                    'is_fully_paid' => $totalPaid >= $enrollment->final_fee
+                ];
+            });
+
+        $stats['payment_stats'] = [
+            'total_paid' => $paymentStats->sum('paid_amount'),
+            'total_remaining' => $paymentStats->sum('remaining_amount'),
+            'fully_paid_count' => $paymentStats->where('is_fully_paid', true)->count(),
+            'partially_paid_count' => $paymentStats->where('paid_amount', '>', 0)
+                ->where('is_fully_paid', false)->count(),
+            'unpaid_count' => $paymentStats->where('paid_amount', 0)->count(),
+        ];
+
+        return $stats;
+    }
+
+    /**
+     * Get overdue enrollments (waiting too long)
+     */
+    public function getOverdueWaitingEnrollments($daysSinceEnrollment = 7)
+    {
+        $cutoffDate = Carbon::now()->subDays($daysSinceEnrollment);
+
+        return Enrollment::where('status', EnrollmentStatus::WAITING->value)
+            ->where('enrollment_date', '<', $cutoffDate)
+            ->with(['student', 'courseItem'])
+            ->orderBy('enrollment_date', 'asc')
+            ->get();
+    }
+
+    /**
+     * Auto-promote waiting enrollments based on course capacity
+     */
+    public function autoPromoteWaitingEnrollments($courseItemId = null)
+    {
+        $query = CourseItem::where('active', true);
+
+        if ($courseItemId) {
+            $query->where('id', $courseItemId);
+        }
+
+        $courses = $query->get();
+        $promotedCount = 0;
+
+        foreach ($courses as $course) {
+            // Check if course has capacity limit
+            if (!isset($course->custom_fields['max_students'])) {
+                continue;
+            }
+
+            $maxStudents = (int) $course->custom_fields['max_students'];
+            $currentEnrollments = Enrollment::where('course_item_id', $course->id)
+                ->where('status', EnrollmentStatus::ACTIVE->value)
+                ->count();
+
+            $availableSlots = $maxStudents - $currentEnrollments;
+
+            if ($availableSlots > 0) {
+                // Get waiting enrollments ordered by enrollment date
+                $waitingEnrollments = Enrollment::where('course_item_id', $course->id)
+                    ->where('status', EnrollmentStatus::WAITING->value)
+                    ->orderBy('enrollment_date', 'asc')
+                    ->limit($availableSlots)
+                    ->get();
+
+                foreach ($waitingEnrollments as $enrollment) {
+                    $this->moveFromWaitingToEnrolled($enrollment);
+                    $promotedCount++;
+                }
+            }
+        }
+
+        return $promotedCount;
+    }
+
+    /**
+     * Calculate enrollment capacity utilization
+     */
+    public function getCapacityUtilization($courseItemId = null)
+    {
+        $query = CourseItem::where('active', true)->where('is_leaf', true);
+
+        if ($courseItemId) {
+            $query->where('id', $courseItemId);
+        }
+
+        $courses = $query->get();
+        $utilization = [];
+
+        foreach ($courses as $course) {
+            $activeEnrollments = Enrollment::where('course_item_id', $course->id)
+                ->where('status', EnrollmentStatus::ACTIVE->value)
+                ->count();
+
+            $waitingEnrollments = Enrollment::where('course_item_id', $course->id)
+                ->where('status', EnrollmentStatus::WAITING->value)
+                ->count();
+
+            $maxStudents = isset($course->custom_fields['max_students'])
+                ? (int) $course->custom_fields['max_students']
+                : null;
+
+            $utilizationData = [
+                'course_id' => $course->id,
+                'course_name' => $course->name,
+                'active_enrollments' => $activeEnrollments,
+                'waiting_enrollments' => $waitingEnrollments,
+                'max_students' => $maxStudents,
+                'utilization_percentage' => $maxStudents ? ($activeEnrollments / $maxStudents) * 100 : null,
+                'available_slots' => $maxStudents ? max(0, $maxStudents - $activeEnrollments) : null,
+                'is_full' => $maxStudents ? $activeEnrollments >= $maxStudents : false
+            ];
+
+            $utilization[] = $utilizationData;
+        }
+
+        return $utilization;
+    }
+
+    /**
+     * Get waiting list tree with counts
+     */
+    public function getWaitingListTree()
+    {
+        $courses = CourseItem::with(['children' => function($query) {
+            $query->orderBy('order_index');
+        }])
+        ->whereNull('parent_id')
+        ->orderBy('order_index')
+        ->get();
+
+        return $this->buildWaitingTreeWithCounts($courses);
+    }
+
+    private function buildWaitingTreeWithCounts($courses)
+    {
+        $result = [];
+
+        foreach ($courses as $course) {
+            $waitingCount = Enrollment::where('course_item_id', $course->id)
+                ->where('status', EnrollmentStatus::WAITING->value)
+                ->count();
+
+            $courseData = [
+                'id' => $course->id,
+                'name' => $course->name,
+                'parent_id' => $course->parent_id,
+                'level' => $course->level,
+                'is_leaf' => $course->is_leaf,
+                'waiting_count' => $waitingCount,
+                'children' => []
+            ];
+
+            if ($course->children->count() > 0) {
+                $courseData['children'] = $this->buildWaitingTreeWithCounts($course->children);
+                // Sum up children waiting counts
+                $courseData['waiting_count'] += collect($courseData['children'])->sum('waiting_count');
+            }
+
+            $result[] = $courseData;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Transfer student to another course
+     */
+    public function transferStudent($enrollmentId, $data)
+    {
+        DB::beginTransaction();
+
+        try {
+            $enrollment = Enrollment::findOrFail($enrollmentId);
+            $targetCourse = CourseItem::findOrFail($data['target_course_id']);
+
+            // Check if student already enrolled in target course
+            $existingEnrollment = Enrollment::where('student_id', $enrollment->student_id)
+                ->where('course_item_id', $data['target_course_id'])
+                ->first();
+
+            if ($existingEnrollment) {
+                throw new \Exception('Học viên đã được ghi danh vào khóa học này');
+            }
+
+            // Create new enrollment in target course
+            $newEnrollment = Enrollment::create([
+                'student_id' => $enrollment->student_id,
+                'course_item_id' => $data['target_course_id'],
+                'enrollment_date' => now(),
+                'status' => $enrollment->status,
+                'discount_percentage' => $enrollment->discount_percentage,
+                'discount_amount' => $enrollment->discount_amount,
+                'final_fee' => $targetCourse->fee * (1 - $enrollment->discount_percentage / 100),
+                'notes' => $data['notes'] ?? 'Chuyển từ khóa học: ' . $enrollment->courseItem->name
             ]);
+
+            // Cancel old enrollment
+            $enrollment->updateStatus(EnrollmentStatus::CANCELLED->value);
+            $enrollment->cancelled_at = now();
+            $enrollment->notes = 'Đã chuyển sang khóa học: ' . $targetCourse->name;
+            $enrollment->save();
+
+            DB::commit();
+            return $newEnrollment->load(['student', 'courseItem']);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
         }
     }
-} 
+
+    /**
+     * Get enrollment statistics
+     */
+    public function getEnrollmentStats($filters = [])
+    {
+        $query = Enrollment::query();
+
+        // Apply filters
+        if (isset($filters['date_from'])) {
+            $query->where('enrollment_date', '>=', $filters['date_from']);
+        }
+
+        if (isset($filters['date_to'])) {
+            $query->where('enrollment_date', '<=', $filters['date_to']);
+        }
+
+        if (isset($filters['course_item_id'])) {
+            $query->where('course_item_id', $filters['course_item_id']);
+        }
+
+        $total = $query->count();
+        $waiting = $query->clone()->where('status', EnrollmentStatus::WAITING->value)->count();
+        $active = $query->clone()->where('status', EnrollmentStatus::ACTIVE->value)->count();
+        $completed = $query->clone()->where('status', EnrollmentStatus::COMPLETED->value)->count();
+        $cancelled = $query->clone()->where('status', EnrollmentStatus::CANCELLED->value)->count();
+
+        return [
+            'total' => $total,
+            'waiting' => $waiting,
+            'active' => $active,
+            'completed' => $completed,
+            'cancelled' => $cancelled,
+            'completion_rate' => $total > 0 ? round(($completed / $total) * 100, 2) : 0,
+            'cancellation_rate' => $total > 0 ? round(($cancelled / $total) * 100, 2) : 0
+        ];
+    }
+
+    /**
+     * Export enrollments to Excel
+     */
+    public function exportEnrollments($filters = [])
+    {
+        $enrollments = $this->getEnrollments($filters);
+
+        // This would typically use Laravel Excel package
+        // For now, return a simple implementation
+        $filename = 'enrollments_' . date('Y-m-d_H-i-s') . '.xlsx';
+        $filepath = storage_path('app/exports/' . $filename);
+
+        // Create directory if not exists
+        if (!file_exists(dirname($filepath))) {
+            mkdir(dirname($filepath), 0755, true);
+        }
+
+        // Simple CSV export for now
+        $csvFilename = str_replace('.xlsx', '.csv', $filename);
+        $csvFilepath = storage_path('app/exports/' . $csvFilename);
+
+        $file = fopen($csvFilepath, 'w');
+
+        // Headers
+        fputcsv($file, [
+            'ID',
+            'Học viên',
+            'Số điện thoại',
+            'Khóa học',
+            'Ngày ghi danh',
+            'Trạng thái',
+            'Học phí',
+            'Chiết khấu (%)',
+            'Học phí cuối',
+            'Ghi chú'
+        ]);
+
+        // Data
+        foreach ($enrollments->items() as $enrollment) {
+            fputcsv($file, [
+                $enrollment->id,
+                $enrollment->student->full_name ?? '',
+                $enrollment->student->phone ?? '',
+                $enrollment->courseItem->name ?? '',
+                $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : '',
+                $enrollment->status,
+                $enrollment->courseItem->fee ?? 0,
+                $enrollment->discount_percentage ?? 0,
+                $enrollment->final_fee ?? 0,
+                $enrollment->notes ?? ''
+            ]);
+        }
+
+        fclose($file);
+
+        return $csvFilepath;
+    }
+
+}

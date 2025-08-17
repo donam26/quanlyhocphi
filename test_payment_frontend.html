@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Payment Frontend</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .button {
+            background: #1976d2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .button:hover {
+            background: #1565c0;
+        }
+        .button.success {
+            background: #4caf50;
+        }
+        .button.warning {
+            background: #ff9800;
+        }
+        .button.error {
+            background: #f44336;
+        }
+        .result {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .status-chip {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+        .status-confirmed {
+            background: #d4edda;
+            color: #155724;
+        }
+        .status-cancelled {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Payment Frontend APIs</h1>
+    
+    <div class="container">
+        <h2>📊 Payment Overview</h2>
+        <button class="button" onclick="testPaymentOverview()">Get Payment Overview</button>
+        <div id="overview-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>💰 All Payments</h2>
+        <div class="form-group">
+            <label>Search:</label>
+            <input type="text" id="payment-search" placeholder="Tìm kiếm học viên, khóa học...">
+        </div>
+        <div class="grid">
+            <div class="form-group">
+                <label>Status:</label>
+                <select id="payment-status">
+                    <option value="">Tất cả</option>
+                    <option value="pending">Chờ xác nhận</option>
+                    <option value="confirmed">Đã xác nhận</option>
+                    <option value="cancelled">Đã hủy</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Payment Method:</label>
+                <select id="payment-method">
+                    <option value="">Tất cả</option>
+                    <option value="cash">Tiền mặt</option>
+                    <option value="bank_transfer">Chuyển khoản</option>
+                    <option value="card">Thẻ tín dụng</option>
+                    <option value="qr_code">Quét QR</option>
+                    <option value="sepay">SePay</option>
+                </select>
+            </div>
+        </div>
+        <button class="button" onclick="testGetPayments()">Get All Payments</button>
+        <div id="payments-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>🏫 Unpaid Courses</h2>
+        <div class="form-group">
+            <label>Search:</label>
+            <input type="text" id="course-search" placeholder="Tìm kiếm lớp học...">
+        </div>
+        <button class="button" onclick="testUnpaidCourses()">Get Unpaid Courses</button>
+        <div id="courses-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>📧 Send Reminders</h2>
+        <div class="form-group">
+            <label>Enrollment IDs (comma separated):</label>
+            <input type="text" id="enrollment-ids" placeholder="1,2,3">
+        </div>
+        <div class="form-group">
+            <label>Batch Name:</label>
+            <input type="text" id="batch-name" placeholder="Test Reminder Batch">
+        </div>
+        <button class="button warning" onclick="testSendBulkReminders()">Send Bulk Reminders</button>
+        <div id="reminder-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>📱 QR Code Generation</h2>
+        <div class="form-group">
+            <label>Enrollment ID:</label>
+            <input type="number" id="qr-enrollment-id" placeholder="1">
+        </div>
+        <div class="form-group">
+            <label>Amount:</label>
+            <input type="number" id="qr-amount" placeholder="1000000">
+        </div>
+        <button class="button success" onclick="testGenerateQR()">Generate QR Code</button>
+        <div id="qr-result" class="result"></div>
+    </div>
+
+    <div class="container">
+        <h2>✅ Payment Actions</h2>
+        <div class="form-group">
+            <label>Payment ID:</label>
+            <input type="number" id="action-payment-id" placeholder="1">
+        </div>
+        <button class="button success" onclick="testConfirmPayment()">Confirm Payment</button>
+        <button class="button error" onclick="testCancelPayment()">Cancel Payment</button>
+        <div id="action-result" class="result"></div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000/api';
+        
+        // Helper function to make API calls
+        async function apiCall(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        // Add auth header if needed
+                        // 'Authorization': 'Bearer YOUR_TOKEN'
+                    },
+                    ...options
+                });
+                
+                const data = await response.json();
+                return { success: response.ok, data, status: response.status };
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        // Format currency
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('vi-VN', {
+                style: 'currency',
+                currency: 'VND'
+            }).format(amount);
+        }
+
+        // Display result
+        function displayResult(elementId, result) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(result, null, 2);
+        }
+
+        // Test Payment Overview
+        async function testPaymentOverview() {
+            const result = await apiCall('/payments/payment-overview');
+            displayResult('overview-result', result);
+        }
+
+        // Test Get All Payments
+        async function testGetPayments() {
+            const search = document.getElementById('payment-search').value;
+            const status = document.getElementById('payment-status').value;
+            const method = document.getElementById('payment-method').value;
+            
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            if (status) params.append('status', status);
+            if (method) params.append('payment_method', method);
+            
+            const endpoint = `/payments?${params.toString()}`;
+            const result = await apiCall(endpoint);
+            displayResult('payments-result', result);
+        }
+
+        // Test Unpaid Courses
+        async function testUnpaidCourses() {
+            const search = document.getElementById('course-search').value;
+            const params = new URLSearchParams();
+            if (search) params.append('search', search);
+            
+            const endpoint = `/payments/courses-with-unpaid?${params.toString()}`;
+            const result = await apiCall(endpoint);
+            displayResult('courses-result', result);
+        }
+
+        // Test Send Bulk Reminders
+        async function testSendBulkReminders() {
+            const enrollmentIds = document.getElementById('enrollment-ids').value
+                .split(',')
+                .map(id => parseInt(id.trim()))
+                .filter(id => !isNaN(id));
+            const batchName = document.getElementById('batch-name').value;
+            
+            const result = await apiCall('/payments/send-bulk-reminders', {
+                method: 'POST',
+                body: JSON.stringify({
+                    enrollment_ids: enrollmentIds,
+                    batch_name: batchName
+                })
+            });
+            displayResult('reminder-result', result);
+        }
+
+        // Test Generate QR
+        async function testGenerateQR() {
+            const enrollmentId = parseInt(document.getElementById('qr-enrollment-id').value);
+            const amount = parseInt(document.getElementById('qr-amount').value);
+            
+            const result = await apiCall('/payments/sepay/initiate', {
+                method: 'POST',
+                body: JSON.stringify({
+                    enrollment_id: enrollmentId,
+                    amount: amount
+                })
+            });
+            displayResult('qr-result', result);
+        }
+
+        // Test Confirm Payment
+        async function testConfirmPayment() {
+            const paymentId = parseInt(document.getElementById('action-payment-id').value);
+            const result = await apiCall(`/payments/${paymentId}/confirm`, {
+                method: 'POST'
+            });
+            displayResult('action-result', result);
+        }
+
+        // Test Cancel Payment
+        async function testCancelPayment() {
+            const paymentId = parseInt(document.getElementById('action-payment-id').value);
+            const result = await apiCall(`/payments/${paymentId}/cancel`, {
+                method: 'POST'
+            });
+            displayResult('action-result', result);
+        }
+
+        // Auto-load overview on page load
+        window.onload = function() {
+            testPaymentOverview();
+        };
+    </script>
+</body>
+</html>

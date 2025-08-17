@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Date;
+use App\Enums\StudentSource;
 
 class Student extends Model
 {
@@ -17,24 +18,22 @@ class Student extends Model
         'gender',
         'email',
         'phone',
-        'address',
         'province_id',
+        'place_of_birth_province_id',
+        'nation',
+        'ethnicity_id',
         'current_workplace',
         'accounting_experience_years',
-        'status',
         'notes',
         'hard_copy_documents',
         'education_level',
         'training_specialization',
-        'workplace',
-        'experience_years',
-        'place_of_birth',
-        'nation',
         'user_note_id',
         'company_name',
         'tax_code',
         'invoice_email',
-        'company_address'
+        'company_address',
+        'source'
     ];
 
     /**
@@ -48,14 +47,31 @@ class Student extends Model
         'date_of_birth' => 'date',
         'hard_copy_documents' => 'string',
         'education_level' => 'string',
+        'source' => StudentSource::class,
     ];
 
     /**
-     * Quan hệ với tỉnh thành
+     * Quan hệ với tỉnh thành hiện tại
      */
     public function province()
     {
         return $this->belongsTo(Province::class);
+    }
+
+    /**
+     * Quan hệ với tỉnh thành nơi sinh
+     */
+    public function placeOfBirthProvince()
+    {
+        return $this->belongsTo(Province::class, 'place_of_birth_province_id');
+    }
+
+    /**
+     * Quan hệ với dân tộc
+     */
+    public function ethnicity()
+    {
+        return $this->belongsTo(Ethnicity::class);
     }
 
     /**
@@ -221,5 +237,38 @@ class Student extends Model
                   ->orWhere('email', 'like', "%{$term}%");
             });
         }
+    }
+
+    /**
+     * Lấy nguồn dưới dạng enum
+     */
+    public function getSourceEnum(): ?StudentSource
+    {
+        if ($this->source instanceof StudentSource) {
+            return $this->source;
+        }
+
+        if (is_string($this->source)) {
+            return StudentSource::fromString($this->source);
+        }
+
+        return null;
+    }
+
+    /**
+     * Lấy badge HTML cho nguồn
+     */
+    public function getSourceBadgeAttribute(): string
+    {
+        $source = $this->getSourceEnum();
+        return $source ? $source->badge() : '<span class="badge bg-secondary">Chưa xác định</span>';
+    }
+
+    /**
+     * Scope lọc theo nguồn
+     */
+    public function scopeBySource($query, $source)
+    {
+        return $query->where('source', $source);
     }
 }

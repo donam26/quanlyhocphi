@@ -5,8 +5,9 @@ namespace App\Services;
 use App\Models\ReminderBatch;
 use App\Models\Enrollment;
 use App\Models\CourseItem;
-use App\Jobs\ProcessReminderBatchJob;
-use App\Jobs\SendPaymentReminderJob;
+// use App\Jobs\ProcessReminderBatchJob;
+// use App\Jobs\SendPaymentReminderJob;
+use App\Jobs\SendBulkPaymentReminders;
 use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
@@ -47,7 +48,11 @@ class ReminderService
             $batch->update(['course_ids' => $courseItemIds]);
 
             // Dispatch batch job
-            ProcessReminderBatchJob::dispatch($batch->id)->onQueue('batches');
+            SendBulkPaymentReminders::dispatch(
+                $enrollments->pluck('id')->toArray(),
+                $batch->id,
+                3 // 3 seconds delay for bulk course reminders
+            )->delay(now()->addSeconds(10));
 
             Log::info('Bulk course reminders initiated', [
                 'batch_id' => $batch->id,
@@ -77,89 +82,7 @@ class ReminderService
         }
     }
 
-    /**
-     * Gửi nhắc nhở cho một khóa học
-     */
-    public function sendCourseReminders($courseItemId, ?array $enrollmentIds = null): array
-    {
-        try {
-            $courseItem = CourseItem::find($courseItemId);
-            if (!$courseItem) {
-                return [
-                    'success' => false,
-                    'message' => 'Không tìm thấy khóa học.'
-                ];
-            }
 
-            // Nếu không chỉ định enrollments, lấy tất cả chưa thanh toán đủ
-            if (empty($enrollmentIds)) {
-                $enrollments = $this->getUnpaidEnrollmentsByCourses([$courseItemId]);
-            } else {
-                // Lấy enrollment và đảm bảo student tồn tại
-                $enrollments = Enrollment::with(['student', 'payments'])
-                    ->whereIn('id', $enrollmentIds)
-                    ->where('course_item_id', $courseItemId)
-                    ->whereHas('student') // Đảm bảo enrollment có student
-                    ->get()
-                    ->filter(function ($enrollment) {
-                        if (!$enrollment->student) {
-                            return false;
-                        }
-                        
-                        $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
-                        return $totalPaid < $enrollment->final_fee;
-                    });
-            }
-
-            if ($enrollments->isEmpty()) {
-                return [
-                    'success' => false,
-                    'message' => 'Không có học viên nào cần gửi nhắc nhở trong khóa học này.'
-                ];
-            }
-
-            // Tạo batch
-            $batchName = 'Nhắc nhở khóa: ' . $courseItem->name;
-            $batch = ReminderBatch::createBatch(
-                $batchName,
-                'single_course',
-                $enrollments->pluck('id')->toArray(),
-                Auth::id()
-            );
-
-            $batch->update(['course_ids' => [$courseItemId]]);
-
-            // Dispatch batch job
-            ProcessReminderBatchJob::dispatch($batch->id)->onQueue('batches');
-
-            Log::info('Course reminders initiated', [
-                'batch_id' => $batch->id,
-                'course_id' => $courseItemId,
-                'course_name' => $courseItem->name,
-                'enrollment_count' => $enrollments->count(),
-                'user_id' => Auth::id()
-            ]);
-
-            return [
-                'success' => true,
-                'message' => "Đã bắt đầu gửi nhắc nhở cho {$enrollments->count()} học viên trong khóa {$courseItem->name}.",
-                'batch_id' => $batch->id,
-                'total_emails' => $enrollments->count()
-            ];
-
-        } catch (\Exception $e) {
-            Log::error('Course reminders failed', [
-                'course_id' => $courseItemId,
-                'error' => $e->getMessage(),
-                'user_id' => Auth::id()
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
-            ];
-        }
-    }
 
     /**
      * Gửi nhắc nhở cho học viên cụ thể
@@ -263,18 +186,68 @@ class ReminderService
                     Log::warning('Enrollment without student found', ['enrollment_id' => $enrollment->id]);
                     return false;
                 }
-                
+
                 // Chỉ lấy những enrollment có email và chưa thanh toán đủ
                 if (!$enrollment->student->email) {
                     return false;
                 }
-                
+
                 $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
                 return $totalPaid < $enrollment->final_fee;
             });
         } catch (\Exception $e) {
             Log::error('Error filtering unpaid enrollments: ' . $e->getMessage());
             return collect(); // Trả về collection rỗng nếu có lỗi
+        }
+    }
+
+    /**
+     * Lấy thống kê reminder batches
+     */
+    public function getBatchStatistics($userId = null)
+    {
+        try {
+            $query = ReminderBatch::query();
+
+            if ($userId) {
+                $query->where('created_by', $userId);
+            }
+
+            $batches = $query->orderBy('created_at', 'desc')->limit(10)->get();
+
+            $stats = [
+                'total_batches' => $query->count(),
+                'completed_batches' => $query->where('status', 'completed')->count(),
+                'processing_batches' => $query->where('status', 'processing')->count(),
+                'total_emails_sent' => $query->sum('sent_count'),
+                'recent_batches' => $batches->map(function($batch) {
+                    return [
+                        'id' => $batch->id,
+                        'name' => $batch->name,
+                        'type' => $batch->type,
+                        'status' => $batch->status,
+                        'total_count' => $batch->total_count,
+                        'sent_count' => $batch->sent_count,
+                        'failed_count' => $batch->failed_count,
+                        'progress_percentage' => $batch->progress_percentage,
+                        'success_rate' => $batch->success_rate,
+                        'created_at' => $batch->created_at->format('d/m/Y H:i'),
+                        'processing_time' => $batch->processing_time,
+                    ];
+                })
+            ];
+
+            return [
+                'success' => true,
+                'data' => $stats
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error getting batch statistics: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'message' => 'Lỗi khi lấy thống kê: ' . $e->getMessage()
+            ];
         }
     }
 
@@ -323,4 +296,171 @@ class ReminderService
                 return $this->getBatchStats($batch->id);
             });
     }
-} 
+
+    /**
+     * Gửi nhắc nhở cho danh sách enrollment IDs (sử dụng queue)
+     */
+    public function sendBulkReminders(array $enrollmentIds, $batchName = null): array
+    {
+        try {
+            if (empty($enrollmentIds)) {
+                return [
+                    'success' => false,
+                    'message' => 'Danh sách học viên trống'
+                ];
+            }
+
+            // Validate enrollments
+            $validEnrollments = Enrollment::with(['student', 'courseItem'])
+                ->whereIn('id', $enrollmentIds)
+                ->whereIn('status', [EnrollmentStatus::ACTIVE])
+                ->whereHas('student', function($q) {
+                    $q->whereNotNull('email');
+                })
+                ->get();
+
+            if ($validEnrollments->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'Không tìm thấy học viên hợp lệ có email'
+                ];
+            }
+
+            // Lọc chỉ những enrollment chưa thanh toán đủ
+            $unpaidEnrollments = $validEnrollments->filter(function($enrollment) {
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                return $totalPaid < $enrollment->final_fee;
+            });
+
+            if ($unpaidEnrollments->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'Tất cả học viên đã thanh toán đủ học phí'
+                ];
+            }
+
+            // Tạo batch
+            $batchName = $batchName ?: 'Nhắc nhở thanh toán - ' . now()->format('d/m/Y H:i');
+            $batch = ReminderBatch::createBatch(
+                $batchName,
+                'bulk_reminder',
+                $unpaidEnrollments->pluck('id')->toArray()
+            );
+
+            // Dispatch job với delay nhỏ để tránh overload
+            SendBulkPaymentReminders::dispatch(
+                $unpaidEnrollments->pluck('id')->toArray(),
+                $batch->id,
+                2 // 2 seconds delay between emails
+            )->delay(now()->addSeconds(5));
+
+            Log::info('Bulk reminder job dispatched', [
+                'batch_id' => $batch->id,
+                'enrollment_count' => $unpaidEnrollments->count(),
+                'user_id' => Auth::id()
+            ]);
+
+            return [
+                'success' => true,
+                'message' => "Đã tạo batch gửi nhắc nhở cho {$unpaidEnrollments->count()} học viên",
+                'batch_id' => $batch->id,
+                'enrollment_count' => $unpaidEnrollments->count()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error creating bulk reminder batch', [
+                'enrollment_ids' => $enrollmentIds,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tạo batch nhắc nhở: ' . $e->getMessage()
+            ];
+        }
+    }
+
+    /**
+     * Gửi nhắc nhở cho toàn bộ khóa học (sử dụng queue)
+     */
+    public function sendCourseReminders($courseItemId, array $enrollmentIds = []): array
+    {
+        try {
+            $courseItem = CourseItem::find($courseItemId);
+            if (!$courseItem) {
+                return [
+                    'success' => false,
+                    'message' => 'Không tìm thấy khóa học'
+                ];
+            }
+
+            // Nếu không chỉ định enrollments, lấy tất cả chưa thanh toán đủ
+            if (empty($enrollmentIds)) {
+                $enrollments = $this->getUnpaidEnrollmentsByCourses([$courseItemId]);
+            } else {
+                // Lấy enrollment và đảm bảo thuộc khóa học này
+                $enrollments = Enrollment::with(['student', 'payments'])
+                    ->whereIn('id', $enrollmentIds)
+                    ->where('course_item_id', $courseItemId)
+                    ->whereIn('status', [EnrollmentStatus::ACTIVE])
+                    ->whereHas('student', function($q) {
+                        $q->whereNotNull('email');
+                    })
+                    ->get()
+                    ->filter(function($enrollment) {
+                        $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                        return $totalPaid < $enrollment->final_fee;
+                    });
+            }
+
+            if ($enrollments->isEmpty()) {
+                return [
+                    'success' => false,
+                    'message' => 'Không có học viên nào cần nhắc nhở trong khóa học này'
+                ];
+            }
+
+            // Tạo batch
+            $batchName = 'Nhắc nhở khóa: ' . $courseItem->name;
+            $batch = ReminderBatch::createBatch(
+                $batchName,
+                'single_course',
+                $enrollments->pluck('id')->toArray()
+            );
+
+            // Dispatch job
+            SendBulkPaymentReminders::dispatch(
+                $enrollments->pluck('id')->toArray(),
+                $batch->id,
+                3 // 3 seconds delay for course reminders
+            )->delay(now()->addSeconds(10));
+
+            Log::info('Course reminder job dispatched', [
+                'course_id' => $courseItemId,
+                'batch_id' => $batch->id,
+                'enrollment_count' => $enrollments->count(),
+                'user_id' => Auth::id()
+            ]);
+
+            return [
+                'success' => true,
+                'message' => "Đã tạo batch gửi nhắc nhở cho {$enrollments->count()} học viên trong khóa {$courseItem->name}",
+                'batch_id' => $batch->id,
+                'enrollment_count' => $enrollments->count()
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Error creating course reminder batch', [
+                'course_id' => $courseItemId,
+                'enrollment_ids' => $enrollmentIds,
+                'error' => $e->getMessage()
+            ]);
+
+            return [
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tạo batch nhắc nhở: ' . $e->getMessage()
+            ];
+        }
+    }
+}

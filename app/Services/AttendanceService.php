@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Attendance;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\Schedule;
 use App\Models\Student;
 use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;

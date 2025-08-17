@@ -16,7 +16,8 @@ class DatabaseSeeder extends Seeder
         $this->call([
             AdminUserSeeder::class, // Thêm admin user seeder đầu tiên
             ProvinceSeeder::class,  // Seeder tỉnh thành
-            EthnicitySeeder::class
+            EthnicitySeeder::class,
+            LearningPathSeeder::class // Seeder lộ trình học tập
         ]);
     }
 }

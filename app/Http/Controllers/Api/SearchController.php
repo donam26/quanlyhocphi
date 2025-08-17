@@ -3,219 +3,269 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\Student;
+use App\Models\CourseItem;
+use App\Models\Enrollment;
+use App\Models\Payment;
 use App\Services\SearchService;
 use Illuminate\Http\Request;
-use App\Models\Student;
 
 class SearchController extends Controller
 {
     protected $searchService;
-    
+
     public function __construct(SearchService $searchService)
     {
         $this->searchService = $searchService;
     }
-    
+
     /**
-     * Tìm kiếm gợi ý tự động cho select2
+     * API: Tìm kiếm tự động hoàn thành
      */
     public function autocomplete(Request $request)
     {
-        $q = $request->get('q');
-        $type = $request->get('type', 'student'); // Mặc định tìm học viên
-        $limit = $request->get('limit', 10);
-
-        // Nếu không có query và yêu cầu preload, trả về một số kết quả mặc định
-        if (empty($q)) {
-            if ($request->get('preload') === 'true') {
-                return $this->getPreloadData($type, $limit);
-            }
-            return response()->json([]);
-        }
-
-        if (strlen($q) < 2) {
-            return response()->json([]);
-        }
-
-        switch ($type) {
-            case 'course':
-                return $this->searchCourses($q, $limit);
-            case 'student':
-            default:
-                return $this->searchStudents($q, $limit);
-        }
-    }
-
-    /**
-     * Tìm kiếm học viên
-     */
-    private function searchStudents($q, $limit = 10)
-    {
-        $students = Student::where('first_name', 'like', "%{$q}%")
-            ->orWhere('last_name', 'like', "%{$q}%")
-            ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$q}%"])
-            ->orWhere('phone', 'like', "%{$q}%")
-            ->orWhere('email', 'like', "%{$q}%")
-            ->limit($limit)
-            ->get();
-
-        $results = $students->map(function ($student) {
-            return [
-                'id' => $student->id,
-                'text' => $student->full_name . ' - ' . $student->phone,
-                'full_name' => $student->full_name,
-                'phone' => $student->phone,
-                'email' => $student->email
-            ];
-        });
-
-        return response()->json($results);
-    }
-
-    /**
-     * Tìm kiếm khóa học
-     */
-    private function searchCourses($q, $limit = 10)
-    {
-        $courses = \App\Models\CourseItem::where('active', true)
-            ->where('name', 'like', "%{$q}%")
-            ->limit($limit)
-            ->get();
-
-        $results = $courses->map(function ($course) {
-            return [
-                'id' => $course->id,
-                'text' => $course->name,
-                'name' => $course->name,
-                'fee' => $course->fee
-            ];
-        });
-
-        return response()->json($results);
-    }
-
-    /**
-     * Lấy dữ liệu preload cho Select2
-     */
-    private function getPreloadData($type, $limit = 10)
-    {
-        switch ($type) {
-            case 'course':
-                $courses = \App\Models\CourseItem::where('active', true)
-                    ->where('is_leaf', true)
-                    ->orderBy('name')
-                    ->limit($limit)
-                    ->get();
-
-                $results = $courses->map(function ($course) {
-                    return [
-                        'id' => $course->id,
-                        'text' => $course->name,
-                        'name' => $course->name,
-                        'fee' => $course->fee
-                    ];
-                });
-                break;
-
-            case 'student':
-            default:
-                $students = Student::orderBy('created_at', 'desc')
-                    ->limit($limit)
-                    ->get();
-
-                $results = $students->map(function ($student) {
+        try {
+            $term = $request->input('term', '');
+            $type = $request->input('type', 'all'); // all, students, courses
+            
+            $results = [];
+            
+            if ($type === 'all' || $type === 'students') {
+                $students = Student::search($term)->limit(10)->get();
+                $results['students'] = $students->map(function ($student) {
                     return [
                         'id' => $student->id,
-                        'text' => $student->full_name . ' - ' . $student->phone,
-                        'full_name' => $student->full_name,
+                        'type' => 'student',
+                        'label' => $student->full_name,
                         'phone' => $student->phone,
                         'email' => $student->email
                     ];
                 });
-                break;
-        }
-
-        return response()->json($results);
-    }
-    
-    /**
-     * Tìm kiếm chung
-     */
-    public function search(Request $request)
-    {
-        $term = $request->input('term');
-        if (empty($term) || strlen($term) < 2) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Từ khóa tìm kiếm quá ngắn',
-                'data' => []
-            ], 400);
-        }
-
-        $studentId = $request->input('student_id');
-        $result = $this->searchService->searchStudents($term, $studentId);
-        
-        return response()->json([
-            'success' => true,
-            'data' => $result
-        ]);
-    }
-    
-    /**
-     * API: Lấy chi tiết học viên cho modal
-     */
-    public function getStudentDetails(Request $request)
-    {
-        $term = $request->input('term');
-        $studentId = $request->input('student_id');
-        
-        if (!$term && !$studentId) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Thiếu thông tin tìm kiếm'
-            ], 400);
-        }
-        
-        try {
-            $result = $this->searchService->searchStudents($term, $studentId);
+            }
+            
+            if ($type === 'all' || $type === 'courses') {
+                $courses = CourseItem::where('name', 'like', "%{$term}%")
+                    ->where('status', 'active')
+                    ->limit(10)
+                    ->get();
+                $results['courses'] = $courses->map(function ($course) {
+                    return [
+                        'id' => $course->id,
+                        'type' => 'course',
+                        'label' => $course->name,
+                        'path' => $course->path
+                    ];
+                });
+            }
             
             return response()->json([
                 'success' => true,
-                'data' => $result
+                'data' => $results
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra khi tìm kiếm: ' . $e->getMessage()
+                'message' => 'Lỗi khi tìm kiếm: ' . $e->getMessage()
             ], 500);
         }
     }
-    
+
     /**
-     * API: Lấy lịch sử học viên cho modal
+     * API: Tìm kiếm chi tiết
      */
-    public function getStudentHistory($studentId)
+    public function details(Request $request)
     {
         try {
-            $data = $this->searchService->getStudentHistory($studentId);
+            $term = $request->input('term', '');
+            $filters = $request->input('filters', []);
+            
+            $results = $this->searchService->search($term, $filters);
             
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data' => $results
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không tìm thấy học viên hoặc có lỗi xảy ra: ' . $e->getMessage()
-            ], 404);
+                'message' => 'Lỗi khi tìm kiếm chi tiết: ' . $e->getMessage()
+            ], 500);
         }
     }
-    
+
     /**
-     * Lấy lịch sử học viên (legacy method - giữ lại cho backward compatibility)
+     * API: Lịch sử học viên
      */
-    public function studentHistory($studentId)
+    public function studentHistory(Student $student)
     {
-        return $this->getStudentHistory($studentId);
+        try {
+            $enrollments = $student->enrollments()
+                ->with(['courseItem', 'payments'])
+                ->orderBy('enrollment_date', 'desc')
+                ->get();
+            
+            $payments = $student->payments()
+                ->with(['enrollment.courseItem'])
+                ->orderBy('payment_date', 'desc')
+                ->get();
+            
+            $attendances = $student->attendances()
+                ->with(['enrollment.courseItem'])
+                ->orderBy('attendance_date', 'desc')
+                ->limit(50)
+                ->get();
+            
+            $summary = [
+                'total_enrollments' => $enrollments->count(),
+                'active_enrollments' => $enrollments->where('status', 'active')->count(),
+                'completed_enrollments' => $enrollments->where('status', 'completed')->count(),
+                'total_paid' => $payments->where('status', 'confirmed')->sum('amount'),
+                'total_fee' => $enrollments->sum('final_fee'),
+                'attendance_rate' => $attendances->count() > 0 ? 
+                    round(($attendances->where('status', 'present')->count() / $attendances->count()) * 100, 2) : 0
+            ];
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'student' => $student,
+                    'enrollments' => $enrollments,
+                    'payments' => $payments,
+                    'recent_attendances' => $attendances,
+                    'summary' => $summary
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy lịch sử học viên: ' . $e->getMessage()
+            ], 500);
+        }
     }
-} 
+
+    /**
+     * API: Tìm kiếm nâng cao
+     */
+    public function advanced(Request $request)
+    {
+        try {
+            $filters = $request->validate([
+                'student_name' => 'nullable|string',
+                'student_phone' => 'nullable|string',
+                'course_name' => 'nullable|string',
+                'enrollment_status' => 'nullable|string',
+                'payment_status' => 'nullable|string',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date',
+                'province_id' => 'nullable|exists:provinces,id',
+                'education_level' => 'nullable|string'
+            ]);
+            
+            $query = Student::with(['enrollments.courseItem', 'enrollments.payments']);
+            
+            // Filter by student name
+            if (!empty($filters['student_name'])) {
+                $query->where(function ($q) use ($filters) {
+                    $q->where('first_name', 'like', "%{$filters['student_name']}%")
+                      ->orWhere('last_name', 'like', "%{$filters['student_name']}%")
+                      ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$filters['student_name']}%"]);
+                });
+            }
+            
+            // Filter by phone
+            if (!empty($filters['student_phone'])) {
+                $query->where('phone', 'like', "%{$filters['student_phone']}%");
+            }
+            
+            // Filter by province
+            if (!empty($filters['province_id'])) {
+                $query->where('province_id', $filters['province_id']);
+            }
+            
+            // Filter by education level
+            if (!empty($filters['education_level'])) {
+                $query->where('education_level', $filters['education_level']);
+            }
+            
+            // Filter by course
+            if (!empty($filters['course_name'])) {
+                $query->whereHas('enrollments.courseItem', function ($q) use ($filters) {
+                    $q->where('name', 'like', "%{$filters['course_name']}%");
+                });
+            }
+            
+            // Filter by enrollment status
+            if (!empty($filters['enrollment_status'])) {
+                $query->whereHas('enrollments', function ($q) use ($filters) {
+                    $q->where('status', $filters['enrollment_status']);
+                });
+            }
+            
+            // Filter by date range
+            if (!empty($filters['start_date'])) {
+                $query->whereHas('enrollments', function ($q) use ($filters) {
+                    $q->whereDate('enrollment_date', '>=', $filters['start_date']);
+                });
+            }
+            
+            if (!empty($filters['end_date'])) {
+                $query->whereHas('enrollments', function ($q) use ($filters) {
+                    $q->whereDate('enrollment_date', '<=', $filters['end_date']);
+                });
+            }
+            
+            $students = $query->paginate($request->input('per_page', 15));
+            
+            return response()->json([
+                'success' => true,
+                'data' => $students,
+                'filters' => $filters
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tìm kiếm nâng cao: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Tìm kiếm nhanh
+     */
+    public function quick(Request $request)
+    {
+        try {
+            $term = $request->input('term', '');
+            
+            if (empty($term)) {
+                return response()->json([
+                    'success' => true,
+                    'data' => []
+                ]);
+            }
+            
+            // Tìm kiếm học viên
+            $students = Student::search($term)->limit(5)->get();
+            
+            // Tìm kiếm khóa học
+            $courses = CourseItem::where('name', 'like', "%{$term}%")
+                ->where('status', 'active')
+                ->limit(5)
+                ->get();
+            
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'students' => $students,
+                    'courses' => $courses,
+                    'total_found' => $students->count() + $courses->count()
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tìm kiếm nhanh: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+}

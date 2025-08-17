@@ -81,14 +81,6 @@ class Enrollment extends Model
     }
     
     /**
-     * Quan hệ với bảng tiến độ học tập
-     */
-    public function learningPathProgress()
-    {
-        return $this->hasMany(LearningPathProgress::class);
-    }
-    
-    /**
      * Lấy tổng số tiền đã thanh toán
      */
     public function getTotalPaidAmount()

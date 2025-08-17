@@ -3,16 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CourseItem;
 use App\Models\Enrollment;
-use App\Models\Student;
+use App\Models\CourseItem;
 use App\Services\EnrollmentService;
 use App\Enums\EnrollmentStatus;
-use App\Rules\DateDDMMYYYY;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
+use Carbon\Carbon;
 
 class EnrollmentController extends Controller
 {
@@ -24,256 +22,423 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Tạo ghi danh mới qua API
+     * Lấy danh sách ghi danh với filter
      */
-    public function store(Request $request)
+    public function index(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'student_id' => 'required|exists:students,id',
-            'course_item_id' => 'required|exists:course_items,id',
-            'enrollment_date' => ['required', new DateDDMMYYYY],
-            'status' => 'required|in:active,waiting,completed,cancelled',
-            'discount_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount_amount' => 'nullable|numeric|min:0',
-            'notes' => 'nullable|string'
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors()->toArray()
-            ], 422);
-        }
-
-        // Kiểm tra xem học viên đã đăng ký khóa học này chưa
-        $existingEnrollment = Enrollment::where('student_id', $request->student_id)
-            ->where('course_item_id', $request->course_item_id)
-            ->first();
-
-        if ($existingEnrollment) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Học viên này đã đăng ký khóa học này rồi'
-            ], 200);
-        }
-
         try {
-            DB::beginTransaction();
-
-            // Tạo dữ liệu ghi danh mới
-            $enrollmentData = $request->only([
-                'student_id', 'course_item_id', 'enrollment_date', 'status',
-                'discount_percentage', 'discount_amount', 'notes'
+            $filters = $request->only([
+                'status', 'course_item_id', 'student_id', 'search',
+                'per_page', 'needs_contact', 'date_from', 'date_to'
             ]);
 
-            $enrollment = $this->enrollmentService->createEnrollment($enrollmentData);
-
-            DB::commit();
+            $enrollments = $this->enrollmentService->getEnrollments($filters);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đăng ký khóa học thành công',
-                'data' => $enrollment
+                'data' => $enrollments,
+                'message' => 'Lấy danh sách ghi danh thành công'
             ]);
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('API Enrollment creation error: ' . $e->getMessage());
-            logger('123');
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                'message' => 'Lỗi khi lấy danh sách ghi danh: ' . $e->getMessage()
             ], 500);
         }
     }
 
     /**
-     * Lấy danh sách ghi danh của học viên
+     * Lấy chi tiết ghi danh
      */
-    public function getStudentEnrollments($studentId)
+    public function show($id)
     {
         try {
-            $student = Student::findOrFail($studentId);
-            $enrollments = $this->enrollmentService->getStudentEnrollments($student);
+            $enrollment = $this->enrollmentService->getEnrollment($id);
 
             return response()->json([
                 'success' => true,
-                'data' => $enrollments
+                'data' => $enrollment,
+                'message' => 'Lấy chi tiết ghi danh thành công'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không tìm thấy học viên hoặc có lỗi xảy ra'
+                'message' => 'Lỗi khi lấy chi tiết ghi danh: ' . $e->getMessage()
             ], 404);
         }
     }
 
     /**
-     * Lấy thông tin chi tiết ghi danh
+     * Tạo ghi danh mới
      */
-    public function getInfo($id)
+    public function store(Request $request)
     {
         try {
-            $enrollment = Enrollment::with(['student', 'courseItem', 'payments' => function($query) {
-                $query->orderBy('payment_date', 'desc');
-            }])->findOrFail($id);
+            $validated = $request->validate([
+                'student_id' => 'required|exists:students,id',
+                'course_item_id' => 'required|exists:course_items,id',
+                'enrollment_date' => 'required|date_format:d/m/Y',
+                'status' => ['required', Rule::in(['waiting', 'active', 'completed', 'cancelled'])],
+                'discount_percentage' => 'nullable|numeric|min:0|max:100',
+                'discount_amount' => 'nullable|numeric|min:0',
+                'final_fee' => 'nullable|numeric|min:0',
+                'notes' => 'nullable|string|max:1000'
+            ]);
 
-            // Thêm thông tin bổ sung
-            $enrollment->formatted_enrollment_date = $enrollment->formatted_enrollment_date;
-            $enrollment->total_paid = $enrollment->getTotalPaidAmount();
-            $enrollment->remaining_amount = $enrollment->getRemainingAmount();
-            $enrollment->is_fully_paid = $enrollment->isFullyPaid();
+            // Convert dd/mm/yyyy to Y-m-d format for database
+            if (isset($validated['enrollment_date'])) {
+                $validated['enrollment_date'] = Carbon::createFromFormat('d/m/Y', $validated['enrollment_date'])->format('Y-m-d');
+            }
+
+            $enrollment = $this->enrollmentService->createEnrollment($validated);
 
             return response()->json([
                 'success' => true,
-                'data' => $enrollment
-            ]);
+                'data' => $enrollment,
+                'message' => 'Tạo ghi danh thành công'
+            ], 201);
         } catch (\Exception $e) {
-            Log::error('Enrollment API error: ' . $e->getMessage());
-
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Lỗi khi tạo ghi danh: ' . $e->getMessage()
+            ], 422);
         }
     }
 
     /**
-     * Cập nhật thông tin ghi danh
+     * Cập nhật ghi danh
      */
     public function update(Request $request, $id)
     {
         try {
-            $enrollment = Enrollment::findOrFail($id);
+            Log::info('Update enrollment request data:', $request->all());
 
-            $validator = Validator::make($request->all(), [
-                'enrollment_date' => ['required', new DateDDMMYYYY],
-                'status' => 'required|in:active,waiting,completed,cancelled',
+            $validated = $request->validate([
+                'enrollment_date' => 'sometimes|date_format:d/m/Y',
+                'status' => ['sometimes', Rule::in(['waiting', 'active', 'completed', 'cancelled'])],
                 'discount_percentage' => 'nullable|numeric|min:0|max:100',
                 'discount_amount' => 'nullable|numeric|min:0',
-                'final_fee' => 'required|numeric|min:0',
-                'notes' => 'nullable|string',
-                'waiting_course_id' => 'nullable|exists:course_items,id',
+                'final_fee' => 'nullable|numeric|min:0',
+                'notes' => 'nullable|string|max:1000'
             ]);
 
-            if ($validator->fails()) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Validation failed',
-                    'errors' => $validator->errors()->toArray()
-                ], 422);
+            // Convert dd/mm/yyyy to Y-m-d format for database
+            if (isset($validated['enrollment_date'])) {
+                $validated['enrollment_date'] = Carbon::createFromFormat('d/m/Y', $validated['enrollment_date'])->format('Y-m-d');
             }
 
-            // Chuẩn bị dữ liệu cập nhật
-            $updateData = $request->only([
-                'enrollment_date', 'status', 'discount_percentage',
-                'discount_amount', 'final_fee', 'notes'
-            ]);
-            
-            // Xử lý waiting_course_id khi chuyển về danh sách chờ
-            if ($request->status === 'waiting' && $request->waiting_course_id) {
-                $updateData['course_item_id'] = $request->waiting_course_id;
-                Log::info("Enrollment {$id} moved to waiting list for course {$request->waiting_course_id}");
-            }
-            
-            // Cập nhật thông tin
-            $enrollment->update($updateData);
+            Log::info('Validated data:', $validated);
+
+            $enrollment = Enrollment::findOrFail($id);
+            $enrollment = $this->enrollmentService->updateEnrollment($enrollment, $validated);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Cập nhật ghi danh thành công',
-                'data' => $enrollment->fresh(['student', 'courseItem', 'payments'])
+                'data' => $enrollment,
+                'message' => 'Cập nhật ghi danh thành công'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Lỗi khi cập nhật ghi danh: ' . $e->getMessage()
+            ], 422);
         }
     }
 
     /**
-     * Lấy tất cả thanh toán của một ghi danh
+     * Xóa ghi danh
      */
-    public function getPayments($id)
+    public function destroy($id)
     {
         try {
-            $enrollment = Enrollment::with(['payments.enrollment', 'student', 'courseItem'])->findOrFail($id);
+            $this->enrollmentService->deleteEnrollment($id);
 
             return response()->json([
                 'success' => true,
-                'data' => [
-                    'enrollment' => $enrollment,
-                    'payments' => $enrollment->payments
-                ]
+                'message' => 'Xóa ghi danh thành công'
             ]);
         } catch (\Exception $e) {
-            Log::error('Enrollment payments API error: ' . $e->getMessage());
-
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
-            ], 500);
+                'message' => 'Lỗi khi xóa ghi danh: ' . $e->getMessage()
+            ], 422);
         }
     }
 
     /**
-     * Hủy đăng ký enrollment
+     * Chuyển từ danh sách chờ sang ghi danh chính thức
      */
-    public function cancelEnrollment(Request $request, $id)
+    public function confirmFromWaiting($id)
     {
         try {
             $enrollment = Enrollment::findOrFail($id);
 
-            // Không cho phép hủy nếu đã ở trạng thái cancelled
-            if ($enrollment->status === EnrollmentStatus::CANCELLED) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Ghi danh này đã được hủy rồi!'
-                ], 422);
-            }
 
-            // Kiểm tra xem có thanh toán nào chưa
-            $confirmedPayments = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
-            if ($confirmedPayments > 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Không thể hủy ghi danh đã có thanh toán. Vui lòng hoàn tiền trước khi hủy!'
-                ], 422);
-            }
-
-            DB::beginTransaction();
-
-            // Lưu trạng thái cũ
-            $enrollment->previous_status = $enrollment->status->value;
-            $enrollment->status = EnrollmentStatus::CANCELLED;
-            $enrollment->cancelled_at = now();
-            $enrollment->last_status_change = now();
-            
-            // Thêm lý do hủy vào ghi chú
-            $reason = $request->input('reason', 'Hủy từ popup học viên');
-            $currentNotes = $enrollment->notes ? $enrollment->notes . "\n" : '';
-            $enrollment->notes = $currentNotes . '[' . now()->format('d/m/Y H:i') . '] Hủy: ' . $reason;
-
-            $enrollment->save();
-
-            // Hủy các lịch điểm danh trong tương lai (nếu có)
-            $enrollment->attendances()->where('attendance_date', '>', now())->delete();
-
-            DB::commit();
+            $confirmedEnrollment = $this->enrollmentService->moveFromWaitingToEnrolled($enrollment);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đã hủy ghi danh thành công!'
+                'data' => $confirmedEnrollment,
+                'message' => 'Xác nhận ghi danh thành công'
             ]);
-
         } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Cancel enrollment error: ' . $e->getMessage());
-
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra: ' . $e->getMessage()
+                'message' => 'Lỗi khi xác nhận ghi danh: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Hủy ghi danh
+     */
+    public function cancel($id)
+    {
+        try {
+            $enrollment = Enrollment::findOrFail($id);
+
+            $enrollment->updateStatus(EnrollmentStatus::CANCELLED->value);
+            $enrollment->cancelled_at = now();
+            $enrollment->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $enrollment->load(['student', 'courseItem']),
+                'message' => 'Hủy ghi danh thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi hủy ghi danh: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Chuyển ghi danh về danh sách chờ
+     */
+    public function moveToWaiting(Request $request, $id)
+    {
+        try {
+            $enrollment = Enrollment::findOrFail($id);
+            $reason = $request->input('reason', 'Chuyển về danh sách chờ');
+
+            $enrollment->updateStatus(EnrollmentStatus::WAITING->value);
+            $enrollment->notes = $enrollment->notes ? $enrollment->notes . "\n" . $reason : $reason;
+            $enrollment->save();
+
+            return response()->json([
+                'success' => true,
+                'data' => $enrollment->load(['student', 'courseItem']),
+                'message' => 'Chuyển về danh sách chờ thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi chuyển về danh sách chờ: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Lấy danh sách chờ theo khóa học
+     */
+    public function getWaitingListByCourse($courseId)
+    {
+        try {
+            $enrollments = Enrollment::where('course_item_id', $courseId)
+                ->where('status', EnrollmentStatus::WAITING->value)
+                ->with(['student', 'courseItem'])
+                ->orderBy('request_date', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $enrollments,
+                'message' => 'Lấy danh sách chờ thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy danh sách chờ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy cây khóa học với số lượng chờ
+     */
+    public function getWaitingListTree()
+    {
+        try {
+            $tree = $this->enrollmentService->getWaitingListTree();
+
+            return response()->json([
+                'success' => true,
+                'data' => $tree,
+                'message' => 'Lấy cây danh sách chờ thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy cây danh sách chờ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Lấy học viên đang chờ theo khóa học
+     */
+    public function getWaitingStudentsByCourse($courseId, Request $request)
+    {
+        try {
+            $courseItem = CourseItem::findOrFail($courseId);
+            $filters = $request->only(['search', 'per_page']);
+            $filters['status'] = EnrollmentStatus::WAITING->value;
+
+            // Nếu là khóa cha (có khóa con), lấy tất cả học viên từ các khóa con
+            if ($courseItem->children()->exists()) {
+                $childCourseIds = $courseItem->children()->pluck('id')->toArray();
+                $filters['course_item_ids'] = $childCourseIds; // Sử dụng array để filter nhiều khóa
+            } else {
+                // Nếu là khóa con hoặc khóa độc lập
+                $filters['course_item_id'] = $courseId;
+            }
+
+            $enrollments = $this->enrollmentService->getEnrollments($filters);
+
+            // Transform data để frontend dễ sử dụng
+            $transformedData = collect($enrollments->items())->map(function ($enrollment) {
+                return [
+                    'id' => $enrollment->id,
+                    'student_id' => $enrollment->student_id,
+                    'course_item_id' => $enrollment->course_item_id,
+                    'student_name' => $enrollment->student ?
+                        trim($enrollment->student->first_name . ' ' . $enrollment->student->last_name) : 'N/A',
+                    'student_phone' => $enrollment->student->phone ?? null,
+                    'student_email' => $enrollment->student->email ?? null,
+                    'course_name' => $enrollment->courseItem->name ?? 'N/A',
+                    'final_fee' => $enrollment->final_fee,
+                    'status' => $enrollment->status,
+                    'enrollment_date' => $enrollment->enrollment_date,
+                    'notes' => $enrollment->notes,
+                    'student' => $enrollment->student,
+                    'courseItem' => $enrollment->courseItem
+                ];
+            });
+
+            // Tạo response với pagination info
+            $response = [
+                'data' => $transformedData,
+                'current_page' => $enrollments->currentPage(),
+                'last_page' => $enrollments->lastPage(),
+                'per_page' => $enrollments->perPage(),
+                'total' => $enrollments->total(),
+                'from' => $enrollments->firstItem(),
+                'to' => $enrollments->lastItem(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $response,
+                'message' => 'Lấy danh sách học viên chờ thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy danh sách học viên chờ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Chuyển học viên sang khóa học khác
+     */
+    public function transferStudent(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'target_course_id' => 'required|exists:course_items,id',
+                'notes' => 'nullable|string|max:1000'
+            ]);
+
+            $enrollment = $this->enrollmentService->transferStudent($id, $validated);
+
+            return response()->json([
+                'success' => true,
+                'data' => $enrollment,
+                'message' => 'Chuyển học viên thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi chuyển học viên: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Thống kê ghi danh
+     */
+    public function getStats(Request $request)
+    {
+        try {
+            $stats = $this->enrollmentService->getEnrollmentStats($request->all());
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats,
+                'message' => 'Lấy thống kê ghi danh thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy thống kê: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Xuất danh sách ghi danh
+     */
+    public function export(Request $request)
+    {
+        try {
+            $request->validate([
+                'columns' => 'array',
+                'columns.*' => 'string',
+                'search' => 'nullable|string',
+                'status' => 'nullable|in:waiting,active,completed,cancelled',
+                'payment_status' => 'nullable|in:unpaid,partial,paid,no_fee',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'course_item_id' => 'nullable|integer'
+            ]);
+
+            $columns = $request->input('columns', [
+                'student_name', 'student_phone', 'course_name',
+                'enrollment_date', 'status', 'final_fee', 'payment_status'
+            ]);
+
+            $filters = [
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+                'payment_status' => $request->input('payment_status'),
+                'start_date' => $request->input('start_date'),
+                'end_date' => $request->input('end_date'),
+                'course_item_id' => $request->input('course_item_id')
+            ];
+
+            $fileName = 'danh_sach_ghi_danh_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\EnrollmentExport($columns, $filters),
+                $fileName
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xuất dữ liệu ghi danh: ' . $e->getMessage()
             ], 500);
         }
     }

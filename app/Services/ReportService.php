@@ -146,7 +146,7 @@ class ReportService
 
     public function getAttendanceReport($filters = [])
     {
-        $query = Attendance::with(['student', 'courseItem', 'schedule']);
+        $query = Attendance::with(['student', 'courseItem']);
         
         if (isset($filters['date_from'])) {
             $query->where('attendance_date', '>=', $filters['date_from']);

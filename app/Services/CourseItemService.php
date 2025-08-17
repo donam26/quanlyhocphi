@@ -18,7 +18,7 @@ class CourseItemService
     public function getRootCourseItems()
     {
         return CourseItem::whereNull('parent_id')
-            ->where('active', true)
+            ->where('status', 'active')
             ->orderBy('order_index')
             ->get();
     }
@@ -95,7 +95,7 @@ class CourseItemService
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
             'order_index' => $maxOrder + 1,
-            'active' => $data['active'] ?? true,
+            'status' => $data['status'] ?? 'active',
             'is_special' => $data['is_special'] ?? false,
             'custom_fields' => !empty($customFields) ? $customFields : null,
         ];
@@ -152,7 +152,7 @@ class CourseItemService
             'fee' => $fee,
             'level' => $level,
             'is_leaf' => $data['is_leaf'] ?? false,
-            'active' => $data['active'] ?? true,
+            'status' => $data['status'] ?? 'active',
             'is_special' => $data['is_special'] ?? false,
             'custom_fields' => !empty($customFields) ? $customFields : null,
         ];
@@ -190,7 +190,7 @@ class CourseItemService
     public function searchCourseItems($term, $rootId = null)
     {
         $query = CourseItem::where('name', 'like', "%{$term}%")
-            ->where('active', true);
+            ->where('status', 'active');
                           
         if ($rootId) {
             $rootItem = CourseItem::findOrFail($rootId);

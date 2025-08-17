@@ -23,7 +23,6 @@ class CourseItem extends Model
         'level',
         'is_leaf',
         'order_index',
-        'active',
         'status',
         'is_special',
         'learning_method',
@@ -33,7 +32,6 @@ class CourseItem extends Model
     protected $casts = [
         'fee' => 'decimal:2',
         'is_leaf' => 'boolean',
-        'active' => 'boolean',
         'status' => CourseStatus::class,
         'is_special' => 'boolean',
         'learning_method' => LearningMethod::class,
@@ -61,7 +59,7 @@ class CourseItem extends Model
      */
     public function activeChildren()
     {
-        return $this->hasMany(CourseItem::class, 'parent_id')->where('active', true)->orderBy('order_index');
+        return $this->hasMany(CourseItem::class, 'parent_id')->where('status', 'active')->orderBy('order_index');
     }
 
     /**
@@ -214,6 +212,7 @@ class CourseItem extends Model
 
     /**
      * Kết thúc khóa học và cập nhật trạng thái tất cả học viên thành completed
+     * Đồng thời kết thúc tất cả khóa học con
      */
     public function completeCourse(): bool
     {
@@ -224,7 +223,7 @@ class CourseItem extends Model
         try {
             DB::beginTransaction();
 
-            // Cập nhật trạng thái khóa học
+            // Cập nhật trạng thái khóa học hiện tại
             $this->status = CourseStatus::COMPLETED;
             $this->save();
 
@@ -236,6 +235,9 @@ class CourseItem extends Model
                     'last_status_change' => now(),
                     'previous_status' => EnrollmentStatus::ACTIVE->value
                 ]);
+
+            // Đệ quy kết thúc tất cả khóa học con
+            $this->completeAllChildren();
 
             DB::commit();
             return true;
@@ -250,6 +252,7 @@ class CourseItem extends Model
     /**
      * Mở lại khóa học (từ completed về active)
      * Đồng thời chuyển tất cả học viên từ 'completed' về 'active'
+     * Và mở lại tất cả khóa học con
      */
     public function reopenCourse(): bool
     {
@@ -260,7 +263,7 @@ class CourseItem extends Model
         try {
             DB::beginTransaction();
 
-            // Cập nhật trạng thái khóa học
+            // Cập nhật trạng thái khóa học hiện tại
             $this->status = CourseStatus::ACTIVE;
             $this->save();
 
@@ -273,6 +276,9 @@ class CourseItem extends Model
                     'previous_status' => EnrollmentStatus::COMPLETED->value
                 ]);
 
+            // Đệ quy mở lại tất cả khóa học con
+            $this->reopenAllChildren();
+
             DB::commit();
             return true;
 
@@ -280,6 +286,58 @@ class CourseItem extends Model
             DB::rollBack();
             Log::error('Error reopening course: ' . $e->getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Đệ quy kết thúc tất cả khóa học con
+     */
+    private function completeAllChildren(): void
+    {
+        foreach ($this->children as $child) {
+            if ($child->status === CourseStatus::ACTIVE) {
+                // Cập nhật trạng thái khóa học con
+                $child->status = CourseStatus::COMPLETED;
+                $child->save();
+
+                // Cập nhật tất cả enrollment của khóa học con
+                $child->enrollments()
+                    ->where('status', EnrollmentStatus::ACTIVE)
+                    ->update([
+                        'status' => EnrollmentStatus::COMPLETED,
+                        'last_status_change' => now(),
+                        'previous_status' => EnrollmentStatus::ACTIVE->value
+                    ]);
+
+                // Đệ quy cho các khóa học con của khóa học con
+                $child->completeAllChildren();
+            }
+        }
+    }
+
+    /**
+     * Đệ quy mở lại tất cả khóa học con
+     */
+    private function reopenAllChildren(): void
+    {
+        foreach ($this->children as $child) {
+            if ($child->status === CourseStatus::COMPLETED) {
+                // Cập nhật trạng thái khóa học con
+                $child->status = CourseStatus::ACTIVE;
+                $child->save();
+
+                // Cập nhật tất cả enrollment của khóa học con
+                $child->enrollments()
+                    ->where('status', EnrollmentStatus::COMPLETED)
+                    ->update([
+                        'status' => EnrollmentStatus::ACTIVE,
+                        'last_status_change' => now(),
+                        'previous_status' => EnrollmentStatus::COMPLETED->value
+                    ]);
+
+                // Đệ quy cho các khóa học con của khóa học con
+                $child->reopenAllChildren();
+            }
         }
     }
 

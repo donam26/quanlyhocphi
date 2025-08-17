@@ -3,607 +3,1075 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Models\CourseItem;
-use App\Enums\EnrollmentStatus;
-use App\Enums\CourseStatus;
-use App\Services\LearningPathService;
 use Illuminate\Http\Request;
+use App\Models\CourseItem;
+use App\Models\Enrollment;
+use App\Models\LearningPath;
+use App\Enums\CourseStatus;
 use Illuminate\Support\Facades\Validator;
-use Illuminate\Support\Facades\Log;
 
 class CourseItemController extends Controller
 {
-    protected $learningPathService;
-
-    public function __construct(LearningPathService $learningPathService)
-    {
-        $this->learningPathService = $learningPathService;
-    }
-
     /**
-     * Lấy danh sách các item cấp cao nhất
+     * Display a listing of course items
      */
     public function index(Request $request)
     {
         $query = CourseItem::query();
-        
-        // Lọc theo parent_id nếu có
-        if ($request->has('parent_id')) {
-            $query->where('parent_id', $request->parent_id);
-        } else {
-            $query->whereNull('parent_id');
+
+        // Search
+        if ($request->has('search') && $request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        // Filter by status
+        if ($request->has('status') && $request->status) {
+            $query->where('status', $request->status);
         }
         
-        // Lọc theo active
-        if ($request->has('active')) {
-            $query->where('active', $request->boolean('active'));
+        // Filter by learning method
+        if ($request->has('learning_method') && $request->learning_method) {
+            $query->where('learning_method', $request->learning_method);
         }
-        
-        $items = $query->orderBy('order_index')->get();
-        
-        return response()->json($items);
+
+        // Sort
+        $sortBy = $request->get('sort_by', 'order_index');
+        $sortOrder = $request->get('sort_order', 'asc');
+        $query->orderBy($sortBy, $sortOrder);
+
+        $courses = $query->with(['parent', 'children'])->get();
+
+        return response()->json([
+            'data' => $courses
+        ]);
     }
 
     /**
-     * Lưu item mới
+     * Get course tree structure
+     */
+    public function tree(Request $request)
+    {
+        $courses = CourseItem::with(['children' => function ($query) {
+            $query->orderBy('order_index');
+        }])
+        ->whereNull('parent_id')
+        ->orderBy('order_index')
+        ->get();
+
+        // Build tree recursively
+        $tree = $this->buildTree($courses);
+
+        return response()->json([
+            'data' => $tree
+        ]);
+    }
+
+    /**
+     * Store a newly created course item
      */
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:255',
             'parent_id' => 'nullable|exists:course_items,id',
-            'description' => 'nullable|string',
             'fee' => 'nullable|numeric|min:0',
-            'code' => 'nullable|string|max:50',
-            'active' => 'boolean',
+            'learning_method' => 'nullable|in:online,offline',
+            'status' => 'in:' . implode(',', array_column(CourseStatus::cases(), 'value')),
+            'is_special' => 'boolean',
         ]);
 
         if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
         }
-        
-        // Xác định level dựa trên parent_id
-        $level = 1; // Mặc định là cấp cao nhất
-        $isLeaf = false;
-        
-        if ($request->parent_id) {
-            $parentItem = CourseItem::findOrFail($request->parent_id);
-            $level = $parentItem->level + 1;
-            
-            // Nếu có giá tiền, đánh dấu là nút lá
-            if ($request->fee > 0) {
-                $isLeaf = true;
+
+        // Validate special course requirements
+        if ($request->boolean('is_special')) {
+            // Khóa học đặc biệt phải là leaf course (có thể có học viên)
+            if ($request->parent_id) {
+                $parent = CourseItem::find($request->parent_id);
+                if (!$parent->is_leaf) {
+                    return response()->json([
+                        'message' => 'Khóa học đặc biệt phải là khóa học cụ thể (không thể là nhóm khóa học)',
+                        'errors' => ['is_special' => ['Khóa học đặc biệt phải là khóa học cụ thể']]
+                    ], 422);
+                }
+            }
+
+            // Khóa học đặc biệt phải có học phí
+            if (!$request->fee || $request->fee <= 0) {
+                return response()->json([
+                    'message' => 'Khóa học đặc biệt phải có học phí',
+                    'errors' => ['fee' => ['Khóa học đặc biệt phải có học phí']]
+                ], 422);
             }
         }
-        
-        // Lấy order_index cao nhất trong cùng cấp và parent
-        $maxOrder = CourseItem::where('level', $level)
-                        ->when($request->parent_id, function($query) use ($request) {
-                            return $query->where('parent_id', $request->parent_id);
-                        })
-                        ->max('order_index') ?? 0;
-        
+
+        // Calculate level and is_leaf
+        $level = 1;
+        $isLeaf = true;
+
+        if ($request->parent_id) {
+            $parent = CourseItem::find($request->parent_id);
+            $level = $parent->level + 1;
+
+            // Update parent to not be a leaf
+            $parent->update(['is_leaf' => false]);
+        }
+
+        // Get next order index
+        $orderIndex = CourseItem::where('parent_id', $request->parent_id)->max('order_index') + 1;
+
         $courseItem = CourseItem::create([
             'name' => $request->name,
-            'description' => $request->description,
             'parent_id' => $request->parent_id,
-            'fee' => $request->fee,
             'level' => $level,
             'is_leaf' => $isLeaf,
-            'code' => $request->code,
-            'order_index' => $maxOrder + 1,
-            'active' => $request->active ?? true,
+            'fee' => $request->fee ?? 0,
+            'order_index' => $orderIndex,
+            'status' => $request->status ?? CourseStatus::ACTIVE,
+            'is_special' => $request->boolean('is_special'),
+            'learning_method' => $request->learning_method,
+            'custom_fields' => $request->custom_fields ?? [],
         ]);
-        
-        return response()->json($courseItem, 201);
-    }
 
-        /**
-     * Hiển thị chi tiết một item
-     */
-    public function show($id)
-    {
-        $courseItem = CourseItem::with([
-            'children' => function($query) {
-                $query->orderBy('order_index');
-            },
-            'learningPaths' => function($query) {
-                $query->orderBy('order');
-            }
-        ])->findOrFail($id);
-        
-        // Đảm bảo custom_fields được trả về
-        if (!$courseItem->is_special || empty($courseItem->custom_fields)) {
-            $courseItem->custom_fields = [];
-        }
-        
-        // Tính toán thống kê enrollment nếu là khóa học lá
-        $enrollmentCount = 0;
-        $totalRevenue = 0;
-        
-        if ($courseItem->is_leaf) {
-            $enrollmentCount = $courseItem->enrollments()
-                ->whereNotIn('status', [EnrollmentStatus::CANCELLED])
-                ->count();
-                
-            $totalRevenue = $courseItem->enrollments()
-                ->whereNotIn('status', [EnrollmentStatus::CANCELLED])
-                ->with('payments')
-                ->get()
-                ->sum(function($enrollment) {
-                    return $enrollment->payments->where('status', 'confirmed')->sum('amount');
-                });
-        }
-        
-        // Tạo đường dẫn breadcrumb
-        $path = '';
-        if ($courseItem->parent_id) {
-            $ancestors = [];
-            $current = $courseItem->parent;
-            while ($current) {
-                array_unshift($ancestors, $current->name);
-                $current = $current->parent;
-            }
-            $path = implode(' / ', $ancestors);
-        }
-        
-        // Chuẩn bị dữ liệu learning paths
-        $learningPaths = $courseItem->learningPaths->map(function($path) {
-            return [
-                'id' => $path->id,
-                'title' => $path->title,
-                'description' => $path->description,
-                'order' => $path->order,
-                'is_completed' => $path->is_completed ?? false
-            ];
-        });
-
-        // Tính số lộ trình đã hoàn thành
-        $completedPathsCount = $learningPaths->where('is_completed', true)->count();
-        $totalPathsCount = $learningPaths->count();
+        $courseItem->load(['parent', 'children']);
 
         return response()->json([
-            'success' => true,
-            'data' => [
-                'id' => $courseItem->id,
-                'name' => $courseItem->name,
-                'description' => $courseItem->description,
-                'code' => $courseItem->code,
-                'fee' => $courseItem->fee,
-                'level' => $courseItem->level,
-                'is_leaf' => $courseItem->is_leaf,
-                'is_special' => $courseItem->is_special,
-                'learning_method' => $courseItem->learning_method?->value,
-                'active' => $courseItem->active,
-                'status' => $courseItem->status,
-                'status_badge' => $courseItem->status_badge,
-                'custom_fields' => $courseItem->custom_fields,
-                'enrollment_count' => $enrollmentCount,
-                'total_revenue' => $totalRevenue,
-                'path' => $path,
-                'children' => $courseItem->children,
-                'learning_paths' => $learningPaths,
-                'learning_paths_count' => $totalPathsCount,
-                'learning_paths_completed' => $completedPathsCount,
-            ]
-        ]);
+            'message' => $courseItem->is_special ?
+                'Khóa học đặc biệt đã được tạo thành công. Khi thêm học viên, hệ thống sẽ yêu cầu thông tin bổ sung cho lớp Kế toán trưởng.' :
+                'Khóa học đã được tạo thành công',
+            'data' => $courseItem
+        ], 201);
     }
 
     /**
-     * Cập nhật item
+     * Display the specified course item
      */
-    public function update(Request $request, $id)
+    public function show(CourseItem $courseItem)
     {
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'parent_id' => 'nullable|exists:course_items,id',
-            'description' => 'nullable|string',
-            'fee' => 'nullable|numeric|min:0',
-            'code' => 'nullable|string|max:50',
-            'active' => 'boolean',
-        ]);
+        $courseItem->load(['parent', 'children', 'enrollments.student']);
+        
+        // Add student count
+        $courseItem->student_count = $courseItem->enrollments()->count();
+        $courseItem->active_student_count = $courseItem->enrollments()->where('status', 'active')->count();
 
-        if ($validator->fails()) {
-            return response()->json(['errors' => $validator->errors()], 422);
-        }
-        
-        $courseItem = CourseItem::findOrFail($id);
-        
-        // Kiểm tra không cho phép item là cha của chính nó
-        if ($request->parent_id == $id) {
-            return response()->json(['error' => 'Không thể chọn chính nó làm cha'], 422);
-        }
-        
-        // Kiểm tra không cho phép chọn con làm cha
-        $descendants = $courseItem->descendants()->pluck('id')->toArray();
-        if (in_array($request->parent_id, $descendants)) {
-            return response()->json(['error' => 'Không thể chọn con làm cha'], 422);
-        }
-        
-        // Xác định level dựa trên parent_id
-        $level = 1; // Mặc định là cấp cao nhất
-        $isLeaf = $courseItem->is_leaf; // Giữ nguyên trạng thái leaf
-        
-        if ($request->parent_id) {
-            $parentItem = CourseItem::findOrFail($request->parent_id);
-            $level = $parentItem->level + 1;
-            
-            // Nếu có giá tiền, đánh dấu là nút lá
-            if ($request->fee > 0) {
-                $isLeaf = true;
-            }
-        }
-        
-        $courseItem->update([
-            'name' => $request->name,
-            'description' => $request->description,
-            'parent_id' => $request->parent_id,
-            'fee' => $request->fee,
-            'level' => $level,
-            'is_leaf' => $isLeaf,
-            'code' => $request->code,
-            'active' => $request->active ?? $courseItem->active,
-        ]);
-        
         return response()->json($courseItem);
     }
 
     /**
-     * Xóa item
+     * Update the specified course item
      */
-    public function destroy($id)
+    public function update(Request $request, CourseItem $courseItem)
     {
-        $courseItem = CourseItem::findOrFail($id);
-        
-        // Kiểm tra xem có item con không
-        if ($courseItem->children()->count() > 0) {
-            return response()->json(['error' => 'Không thể xóa vì còn chứa khóa con'], 422);
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+            'parent_id' => 'nullable|exists:course_items,id',
+            'fee' => 'nullable|numeric|min:0',
+            'learning_method' => 'nullable|in:online,offline',
+            'status' => 'in:' . implode(',', array_column(CourseStatus::cases(), 'value')),
+            'is_special' => 'boolean',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
         }
-        
-        $courseItem->delete();
-        
-        return response()->json(['message' => 'Đã xóa thành công']);
-    }
-    
-    /**
-     * Hiển thị cấu trúc cây khóa học
-     */
-    public function tree()
-    {
-        $rootItems = CourseItem::whereNull('parent_id')
-                            ->where('active', true)
-                            ->orderBy('order_index')
-                            ->get();
-                            
-        $treeData = [];
-        foreach ($rootItems as $item) {
-            $treeData[] = $this->buildTreeNode($item);
-        }
-        
-        return response()->json($treeData);
-    }
-    
-    /**
-     * Xây dựng cây đệ quy từ một nút
-     */
-    private function buildTreeNode(CourseItem $item)
-    {
-        $node = [
-            'id' => $item->id,
-            'name' => $item->name,
-            'url' => route('course-items.tree', ['newly_added_id' => $item->id]),
-            'code' => $item->code,
-            'fee' => $item->fee,
-            'is_leaf' => $item->is_leaf,
-            'children' => []
-        ];
-        
-        // Nếu không phải là nút lá, lấy các con
-        if (!$item->is_leaf) {
-            $children = $item->activeChildren()->get();
-            foreach ($children as $child) {
-                $node['children'][] = $this->buildTreeNode($child);
+
+        // Validate special course requirements
+        if ($request->boolean('is_special')) {
+            // Khóa học đặc biệt phải là leaf course
+            if (!$courseItem->is_leaf) {
+                return response()->json([
+                    'message' => 'Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt',
+                    'errors' => ['is_special' => ['Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt']]
+                ], 422);
+            }
+
+            // Khóa học đặc biệt phải có học phí
+            if (!$request->fee || $request->fee <= 0) {
+                return response()->json([
+                    'message' => 'Khóa học đặc biệt phải có học phí',
+                    'errors' => ['fee' => ['Khóa học đặc biệt phải có học phí']]
+                ], 422);
             }
         }
-        
-        return $node;
-    }
 
-    /**
-     * Lấy danh sách các khóa học có thể đăng ký (các lớp, không phải danh mục)
-     *
-     * @return \Illuminate\Http\JsonResponse
-     */
-    public function available()
-    {
-        try {
-            $courseItems = CourseItem::where('is_leaf', true)
-                ->where('active', true)
-                ->orderBy('name')
-                ->get(['id', 'name', 'fee']);
-            
-            return response()->json([
-                'success' => true,
-                'data' => $courseItems
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => true,
-                'data' => []
-            ]);
+        // Kiểm tra nếu đang chuyển từ khóa học thường sang đặc biệt
+        $wasSpecial = $courseItem->is_special;
+        $willBeSpecial = $request->boolean('is_special');
+
+        if (!$wasSpecial && $willBeSpecial) {
+            // Kiểm tra xem có học viên nào đã ghi danh chưa
+            $enrollmentCount = $courseItem->enrollments()->count();
+            if ($enrollmentCount > 0) {
+                return response()->json([
+                    'message' => 'Không thể chuyển khóa học đã có học viên thành khóa học đặc biệt. Vui lòng tạo khóa học đặc biệt mới.',
+                    'errors' => ['is_special' => ['Không thể chuyển khóa học đã có học viên thành khóa học đặc biệt']]
+                ], 422);
+            }
         }
-    }
 
-    /**
-     * Lấy danh sách khóa học lá (có thể ghi danh) cho dropdown
-     */
-    public function getLeafCourses()
-    {
-        $courses = CourseItem::where('is_leaf', true)
-                            ->where('active', true)
-                            ->orderBy('name')
-                            ->get()
-                            ->map(function($course) {
-                                return [
-                                    'id' => $course->id,
-                                    'name' => $course->name,
-                                    'path' => $this->getCoursePath($course)
-                                ];
-                            });
+        // Handle parent change
+        if ($request->parent_id != $courseItem->parent_id) {
+            // Update old parent
+            if ($courseItem->parent_id) {
+                $oldParent = CourseItem::find($courseItem->parent_id);
+                if ($oldParent && $oldParent->children()->count() == 1) {
+                    $oldParent->update(['is_leaf' => true]);
+                }
+            }
+
+            // Update new parent
+            if ($request->parent_id) {
+                $newParent = CourseItem::find($request->parent_id);
+                $newParent->update(['is_leaf' => false]);
+                $level = $newParent->level + 1;
+            } else {
+                $level = 1;
+            }
+
+            $courseItem->level = $level;
+        }
+
+        $courseItem->update($request->only([
+            'name', 'parent_id', 'fee', 'learning_method', 'status', 'is_special', 'custom_fields'
+        ]));
+
+        $courseItem->load(['parent', 'children']);
 
         return response()->json([
-            'success' => true,
-            'courses' => $courses
+            'message' => 'Course updated successfully',
+            'data' => $courseItem
         ]);
     }
 
     /**
-     * Tìm kiếm khóa học
+     * Remove the specified course item
+     */
+    public function destroy(CourseItem $courseItem)
+    {
+        // Check if course has enrollments
+        if ($courseItem->enrollments()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete course with existing enrollments'
+            ], 422);
+        }
+
+        // Check if course has children
+        if ($courseItem->children()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete course with child courses'
+            ], 422);
+        }
+
+        // Update parent if this was the only child
+        if ($courseItem->parent_id) {
+            $parent = CourseItem::find($courseItem->parent_id);
+            if ($parent && $parent->children()->count() == 1) {
+                $parent->update(['is_leaf' => true]);
+            }
+        }
+
+        $courseItem->delete();
+
+        return response()->json([
+            'message' => 'Course deleted successfully'
+        ]);
+    }
+
+
+
+    /**
+     * Toggle course status and all child courses
+     */
+    public function toggleStatus(CourseItem $courseItem)
+    {
+        try {
+            if ($courseItem->status === CourseStatus::ACTIVE->value) {
+                // Kết thúc khóa học và tất cả khóa học con
+                $success = $courseItem->completeCourse();
+                $message = $success ? 'Khóa học và tất cả khóa học con đã được kết thúc' : 'Có lỗi xảy ra';
+            } else {
+                // Mở lại khóa học và tất cả khóa học con
+                $success = $courseItem->reopenCourse();
+                $message = $success ? 'Khóa học và tất cả khóa học con đã được mở lại' : 'Có lỗi xảy ra';
+            }
+
+            if ($success) {
+                return response()->json([
+                    'message' => $message,
+                    'data' => $courseItem->fresh(['children'])
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Có lỗi xảy ra khi thay đổi trạng thái khóa học'
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi thay đổi trạng thái khóa học',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Complete course and all child courses
+     */
+    public function complete(CourseItem $courseItem)
+    {
+        try {
+            $success = $courseItem->completeCourse();
+
+            if ($success) {
+                return response()->json([
+                    'message' => 'Khóa học và tất cả khóa học con đã được kết thúc',
+                    'data' => $courseItem->fresh(['children'])
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Có lỗi xảy ra khi kết thúc khóa học'
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi kết thúc khóa học',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reopen course and all child courses
+     */
+    public function reopen(CourseItem $courseItem)
+    {
+        try {
+            $success = $courseItem->reopenCourse();
+
+            if ($success) {
+                return response()->json([
+                    'message' => 'Khóa học và tất cả khóa học con đã được mở lại',
+                    'data' => $courseItem->fresh(['children'])
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Có lỗi xảy ra khi mở lại khóa học'
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi mở lại khóa học',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get course students
+     */
+    public function students(CourseItem $courseItem)
+    {
+        // Nếu là khóa cha (có khóa con), lấy tất cả học viên từ các khóa con
+        if ($courseItem->children()->exists()) {
+            $allEnrollments = collect();
+
+            // Lấy tất cả khóa con theo thứ tự order_index
+            $childCourses = $courseItem->children()->orderBy('order_index')->get();
+
+            foreach ($childCourses as $childCourse) {
+                $childEnrollments = $childCourse->enrollments()
+                    ->with(['student.province', 'payments', 'courseItem'])
+                    ->orderBy('enrollment_date', 'desc')
+                    ->get();
+
+                // Thêm thông tin khóa con vào mỗi enrollment
+                $childEnrollments->each(function ($enrollment) use ($childCourse) {
+                    $enrollment->child_course_name = $childCourse->name;
+                    $enrollment->child_course_id = $childCourse->id;
+                    $enrollment->child_course_order = $childCourse->order_index;
+                });
+
+                $allEnrollments = $allEnrollments->concat($childEnrollments);
+            }
+
+            $enrollments = $allEnrollments;
+        } else {
+            // Nếu là khóa con hoặc khóa độc lập, lấy học viên của chính khóa đó
+            $enrollments = $courseItem->enrollments()
+                ->with(['student.province', 'payments'])
+                ->orderBy('enrollment_date', 'desc')
+                ->get();
+        }
+
+        // Thêm thông tin tính toán cho mỗi enrollment
+        $enrollments->each(function ($enrollment) use ($courseItem) {
+            if ($enrollment->student) {
+                // Tính toán thông tin thanh toán
+                $totalPaid = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
+                $enrollment->total_paid = $totalPaid;
+                $enrollment->remaining_amount = max(0, $enrollment->final_fee - $totalPaid);
+                $enrollment->payment_status = $enrollment->remaining_amount <= 0 ? 'paid' : 'unpaid';
+
+                // Đảm bảo có đầy đủ thông tin cho khóa học đặc biệt
+                if ($courseItem->is_special) {
+                    $student = $enrollment->student;
+                    $enrollment->student->makeVisible([
+                        'current_workplace',
+                        'accounting_experience_years',
+                        'training_specialization',
+                        'education_level',
+                        'hard_copy_documents'
+                    ]);
+                }
+            }
+        });
+
+        return response()->json($enrollments);
+    }
+
+    /**
+     * Get waiting list for course
+     */
+    public function waitingList(CourseItem $courseItem)
+    {
+        $waitingList = $courseItem->enrollments()
+            ->where('status', 'waiting')
+            ->with(['student'])
+            ->orderBy('enrollment_date', 'asc')
+            ->get();
+
+        return response()->json($waitingList);
+    }
+
+    /**
+     * Get waiting count for course
+     */
+    public function waitingCount(CourseItem $courseItem)
+    {
+        $count = $courseItem->enrollments()->where('status', 'waiting')->count();
+
+        return response()->json(['count' => $count]);
+    }
+
+    /**
+     * Search courses
      */
     public function search(Request $request)
     {
-        $query = $request->get('q', '');
-        $rootId = $request->get('root_id');
-        $limit = $request->get('limit', 10);
+        $term = $request->get('term', '');
 
-        $searchQuery = CourseItem::where('active', true);
+        $courses = CourseItem::where('name', 'like', "%{$term}%")
+            ->with(['parent'])
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
 
-        // Nếu có query, tìm kiếm theo tên
-        if (!empty($query) && strlen($query) >= 2) {
-            $searchQuery->where('name', 'like', "%{$query}%");
-        } else if (empty($query)) {
-            // Nếu không có query, lấy các khóa học lá (có thể đăng ký) mặc định
-            $searchQuery->where('is_leaf', true);
-        } else {
-            // Query quá ngắn, trả về rỗng
-            return response()->json([]);
-        }
-
-        // Nếu có root_id, chỉ tìm trong phạm vi đó
-        if ($rootId) {
-            // Lấy tất cả descendants của root_id
-            $rootItem = CourseItem::find($rootId);
-            if ($rootItem) {
-                $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
-                $descendantIds[] = $rootId; // Bao gồm cả root item
-
-                $searchQuery->whereIn('id', $descendantIds);
-            }
-        }
-
-        $results = $searchQuery->orderBy('name')
-                              ->limit($limit)
-                              ->get()
-                              ->map(function($item) {
-                                  return [
-                                      'id' => $item->id,
-                                      'text' => $item->name,
-                                      'name' => $item->name,
-                                      'path' => $this->getCoursePath($item),
-                                      'is_leaf' => $item->is_leaf,
-                                      'fee' => $item->fee
-                                  ];
-                              });
-
-        return response()->json($results);
-    }
-
-    /**
-     * Tìm kiếm khóa học chỉ những khóa đang học (status = active)
-     */
-    public function searchActiveCourses(Request $request)
-    {
-        $query = $request->get('q', '');
-        $rootId = $request->get('root_id');
-        $preload = $request->get('preload', 'false');
-
-        // Nếu là preload (chưa search), trả về một số khóa học mặc định
-        if ($preload === 'true' || (empty($query) && $preload !== 'false')) {
-            $searchQuery = CourseItem::where('active', true)
-                                    ->where('status', CourseStatus::ACTIVE->value)
-                                    ->where('is_leaf', true);
-        } else if (strlen($query) < 2) {
-            return response()->json([]);
-        } else {
-            $searchQuery = CourseItem::where('active', true)
-                                    ->where('status', CourseStatus::ACTIVE->value)
-                                    ->where('is_leaf', true)
-                                    ->where('name', 'like', "%{$query}%");
-        }
-
-        // Nếu có root_id, chỉ tìm trong phạm vi đó
-        if ($rootId) {
-            // Lấy tất cả descendants của root_id
-            $rootItem = CourseItem::find($rootId);
-            if ($rootItem) {
-                $descendantIds = $rootItem->descendants()->pluck('id')->toArray();
-                $descendantIds[] = $rootId; // Bao gồm cả root item
-
-                $searchQuery->whereIn('id', $descendantIds);
-            }
-        }
-
-        // Giới hạn số lượng kết quả: preload ít hơn, search nhiều hơn
-        $limit = ($preload === 'true' || empty($query)) ? 10 : 20;
-
-        $results = $searchQuery->orderBy('name')
-                              ->limit($limit)
-                              ->get()
-                              ->map(function($item) {
-                                  return [
-                                      'id' => $item->id,
-                                      'text' => $item->name,
-                                      'name' => $item->name,
-                                      'path' => $this->getCoursePath($item),
-                                      'is_leaf' => $item->is_leaf,
-                                      'fee' => $item->fee,
-                                      'status' => $item->status->value,
-                                      'status_label' => $item->status->label(),
-                                      'status_badge' => $item->status_badge
-                                  ];
-                              });
-
-        return response()->json($results);
-    }
-
-    /**
-     * Lấy danh sách khóa học đang học (cho dropdown)
-     */
-    public function getActiveLeafCourses()
-    {
-        $courses = CourseItem::where('is_leaf', true)
-                            ->where('active', true)
-                            ->where('status', CourseStatus::ACTIVE->value) // Chỉ lấy khóa đang học
-                            ->orderBy('name')
-                            ->get()
-                            ->map(function($course) {
-                                return [
-                                    'id' => $course->id,
-                                    'name' => $course->name,
-                                    'path' => $this->getCoursePath($course),
-                                    'fee' => $course->fee,
-                                    'status' => $course->status->value,
-                                    'status_label' => $course->status->label()
-                                ];
-                            });
+        // Add path information to each course
+        $courses->each(function ($course) {
+            $course->path = $course->getPathAttribute();
+        });
 
         return response()->json([
             'success' => true,
-            'courses' => $courses
+            'data' => $courses,
+            'message' => 'Tìm kiếm thành công'
         ]);
     }
 
     /**
-     * Lấy đường dẫn đầy đủ của khóa học
+     * Search active courses
      */
-    private function getCoursePath($courseItem)
+    public function searchActive(Request $request)
     {
-        $path = [];
-        $current = $courseItem;
-        
-        while ($current) {
-            array_unshift($path, $current->name);
-            $current = $current->parent;
-        }
-        
-        return implode(' > ', $path);
+        $term = $request->get('term', '');
+
+        $courses = CourseItem::where('name', 'like', "%{$term}%")
+            ->where('status', 'active')
+            ->with(['parent'])
+            ->orderBy('name')
+            ->limit(20)
+            ->get();
+
+        // Add path information to each course
+        $courses->each(function ($course) {
+            $course->path = $course->getPathAttribute();
+        });
+
+        return response()->json([
+            'success' => true,
+            'data' => $courses,
+            'message' => 'Tìm kiếm thành công'
+        ]);
     }
 
     /**
-     * Lấy danh sách lộ trình học tập của khóa học
+     * Get available courses
+     */
+    public function available()
+    {
+        $courses = CourseItem::where('status', 'active')
+            ->orderBy('order_index')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $courses,
+            'message' => 'Khóa học khả dụng được tải thành công'
+        ]);
+    }
+
+    /**
+     * Get active leaf courses
+     */
+    public function activeLeafCourses()
+    {
+        try {
+            $courses = CourseItem::where('status', 'active')
+                ->where('is_leaf', true)
+                ->where('fee', '>', 0) // Only courses with fee > 0 can be enrolled
+                ->orderBy('order_index')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $courses,
+                'message' => 'Active leaf courses loaded successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading active leaf courses: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load courses'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get courses available for enrollment for a specific student
+     */
+    public function availableForEnrollment(Request $request)
+    {
+        try {
+            $studentId = $request->query('student_id');
+
+            if (!$studentId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student ID is required'
+                ], 400);
+            }
+
+            // Verify student exists
+            $student = \App\Models\Student::find($studentId);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found'
+                ], 404);
+            }
+
+            // Get active leaf courses with fee > 0
+            $query = CourseItem::where('status', 'active')
+                ->where('is_leaf', true)
+                ->where('fee', '>', 0);
+
+            // Exclude courses the student is already enrolled in
+            $query->whereNotExists(function ($subQuery) use ($studentId) {
+                $subQuery->select(\DB::raw(1))
+                    ->from('enrollments')
+                    ->whereColumn('enrollments.course_item_id', 'course_items.id')
+                    ->where('enrollments.student_id', $studentId)
+                    ->whereIn('enrollments.status', ['waiting', 'active', 'completed']);
+            });
+
+            $courses = $query->orderBy('order_index')->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $courses,
+                'message' => 'Courses loaded successfully'
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error loading available courses for enrollment: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Unable to load available courses'
+            ], 500);
+        }
+    }
+
+    /**
+     * Get leaf courses
+     */
+    public function leafCourses()
+    {
+        $courses = CourseItem::where('is_leaf', true)
+            ->orderBy('order_index')
+            ->get();
+
+        return response()->json($courses);
+    }
+
+    /**
+     * Update course order
+     */
+    public function updateOrder(Request $request)
+    {
+        $orderData = $request->get('order', []);
+
+        foreach ($orderData as $item) {
+            CourseItem::where('id', $item['id'])
+                ->update(['order_index' => $item['order']]);
+        }
+
+        return response()->json([
+            'message' => 'Order updated successfully'
+        ]);
+    }
+
+    /**
+     * Export students of a course to Excel
+     */
+    public function exportStudents(Request $request, CourseItem $courseItem)
+    {
+        try {
+            $request->validate([
+                'columns' => 'array',
+                'columns.*' => 'string',
+                'status' => 'nullable|string',
+                'payment_status' => 'nullable|string|in:paid,partial,unpaid',
+                'from_date' => 'nullable|date',
+                'to_date' => 'nullable|date|after_or_equal:from_date',
+                'include_summary' => 'boolean'
+            ]);
+
+            $columns = $request->input('columns', [
+                'student_name', 'student_phone', 'student_email', 'enrollment_date',
+                'enrollment_status', 'final_fee', 'total_paid', 'remaining_amount', 'payment_status'
+            ]);
+
+            $filters = [
+                'status' => $request->input('status'),
+                'payment_status' => $request->input('payment_status'),
+                'from_date' => $request->input('from_date'),
+                'to_date' => $request->input('to_date'),
+                'include_summary' => $request->boolean('include_summary', false)
+            ];
+
+            $fileName = 'hoc_vien_khoa_' . $courseItem->id . '_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\CourseStudentsExport($courseItem, $columns, $filters),
+                $fileName
+            );
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xuất file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import students to course
+     */
+    public function importStudents(Request $request, CourseItem $courseItem)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+            'enrollment_status' => 'in:active,waiting',
+            'discount_percentage' => 'numeric|min:0|max:100'
+        ]);
+
+        try {
+            $enrollmentStatus = $request->input('enrollment_status', 'active');
+            $discountPercentage = $request->input('discount_percentage', 0);
+
+            $import = new \App\Imports\CourseStudentsImport($courseItem, $enrollmentStatus, $discountPercentage);
+            \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Import thành công!',
+                'data' => [
+                    'imported_count' => $import->getImportedCount(),
+                    'skipped_count' => $import->getSkippedCount(),
+                    'errors' => $import->getErrors()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi import file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Import students to waiting list
+     */
+    public function importStudentsToWaiting(Request $request, CourseItem $courseItem)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv',
+            'notes' => 'nullable|string'
+        ]);
+
+        try {
+            $notes = $request->input('notes', 'Thêm vào danh sách chờ qua import Excel');
+
+            $import = new \App\Imports\CourseStudentsImport($courseItem, 'waiting', 0);
+            \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Import vào danh sách chờ thành công!',
+                'data' => [
+                    'imported_count' => $import->getImportedCount(),
+                    'skipped_count' => $import->getSkippedCount(),
+                    'errors' => $import->getErrors()
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi import file: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Add student to course
+     */
+    public function addStudent(Request $request, CourseItem $courseItem)
+    {
+        $request->validate([
+            'student_id' => 'required|exists:students,id',
+            'enrollment_status' => 'in:active,waiting',
+            'discount_percentage' => 'numeric|min:0|max:100',
+            'notes' => 'nullable|string'
+        ]);
+
+        try {
+            // Check if student already enrolled
+            $existingEnrollment = \App\Models\Enrollment::where('student_id', $request->student_id)
+                ->where('course_item_id', $courseItem->id)
+                ->first();
+
+            if ($existingEnrollment) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Học viên đã được ghi danh vào khóa học này'
+                ], 422);
+            }
+
+            // Kiểm tra thông tin bổ sung cho khóa học đặc biệt
+            if ($courseItem->is_special) {
+                $student = \App\Models\Student::find($request->student_id);
+                $missingFields = [];
+
+                if (empty($student->current_workplace)) {
+                    $missingFields[] = 'Nơi công tác hiện tại';
+                }
+                if (is_null($student->accounting_experience_years)) {
+                    $missingFields[] = 'Số năm kinh nghiệm kế toán';
+                }
+                if (empty($student->training_specialization)) {
+                    $missingFields[] = 'Chuyên môn đào tạo';
+                }
+                if (empty($student->education_level)) {
+                    $missingFields[] = 'Trình độ học vấn';
+                }
+                if (empty($student->hard_copy_documents)) {
+                    $missingFields[] = 'Tình trạng hồ sơ bản cứng';
+                }
+
+                if (!empty($missingFields)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Học viên chưa đủ thông tin bổ sung cho khóa học đặc biệt',
+                        'missing_fields' => $missingFields,
+                        'errors' => [
+                            'student_info' => 'Vui lòng cập nhật đầy đủ thông tin: ' . implode(', ', $missingFields)
+                        ]
+                    ], 422);
+                }
+            }
+
+            // Calculate fees
+            $originalFee = $courseItem->fee;
+            $discountPercentage = $request->input('discount_percentage', 0);
+            $discountAmount = ($originalFee * $discountPercentage) / 100;
+            $finalFee = $originalFee - $discountAmount;
+
+            $enrollment = \App\Models\Enrollment::create([
+                'student_id' => $request->student_id,
+                'course_item_id' => $courseItem->id,
+                'enrollment_date' => now(),
+                'status' => $request->input('enrollment_status', 'active'),
+                'discount_percentage' => $discountPercentage,
+                'discount_amount' => $discountAmount,
+                'final_fee' => $finalFee,
+                'notes' => $request->input('notes', '')
+            ]);
+
+            $enrollment->load(['student', 'courseItem']);
+
+            return response()->json([
+                'success' => true,
+                'message' => $courseItem->is_special ?
+                    'Đã thêm học viên vào khóa học đặc biệt' :
+                    'Đã thêm học viên vào khóa học',
+                'data' => $enrollment
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi thêm học viên: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Build tree structure recursively
+     */
+    private function buildTree($courses)
+    {
+        return $courses->map(function ($course) {
+            if ($course->children->count() > 0) {
+                $course->children = $this->buildTree($course->children);
+            }
+            return $course;
+        });
+    }
+
+    /**
+     * Get learning paths for a course
      */
     public function getLearningPaths($id)
     {
         try {
-            $courseItem = CourseItem::findOrFail($id);
-            $paths = $this->learningPathService->getLearningPathsByCourse($courseItem);
-            
+            $course = CourseItem::findOrFail($id);
+
+            if (!$course->is_leaf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể thiết lập lộ trình cho khóa học cụ thể'
+                ], 400);
+            }
+
+            $learningPaths = LearningPath::where('course_item_id', $id)
+                ->orderBy('order')
+                ->get();
+
             return response()->json([
                 'success' => true,
-                'course_name' => $courseItem->name,
-                'paths' => $paths->map(function($path) {
-                    return [
-                        'id' => $path->id,
-                        'title' => $path->title,
-                        'description' => $path->description,
-                        'order' => $path->order,
-                        'is_required' => $path->is_required,
-                        'is_completed' => $path->is_completed
-                    ];
-                })
+                'data' => $learningPaths
             ]);
         } catch (\Exception $e) {
-            Log::error('Learning paths get error: ' . $e->getMessage());
-            
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra khi tải lộ trình: ' . $e->getMessage()
+                'message' => 'Có lỗi xảy ra khi tải lộ trình học tập'
             ], 500);
         }
     }
 
     /**
-     * Lưu lộ trình học tập cho khóa học
+     * Save learning paths for a course
      */
     public function saveLearningPaths(Request $request, $id)
     {
         try {
-            $validated = $request->validate([
+            $course = CourseItem::findOrFail($id);
+
+            if (!$course->is_leaf) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể thiết lập lộ trình cho khóa học cụ thể'
+                ], 400);
+            }
+
+            $validator = Validator::make($request->all(), [
                 'paths' => 'required|array',
-                'paths.*.id' => 'nullable|exists:learning_paths,id',
                 'paths.*.title' => 'required|string|max:255',
                 'paths.*.description' => 'nullable|string',
-                'paths.*.order' => 'required|integer|min:1',
-                'paths.*.is_required' => 'required|boolean'
+                'paths.*.order' => 'nullable|integer',
+                'paths.*.is_completed' => 'nullable|boolean'
             ]);
 
-            $courseItem = CourseItem::findOrFail($id);
-            
-            // Xóa các lộ trình không còn trong danh sách
-            $existingPathIds = collect($validated['paths'])->pluck('id')->filter()->toArray();
-            $currentPaths = $this->learningPathService->getLearningPathsByCourse($courseItem);
-            
-            foreach ($currentPaths as $path) {
-                if (!in_array($path->id, $existingPathIds)) {
-                    $this->learningPathService->deleteLearningPath($path);
-                }
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu không hợp lệ',
+                    'errors' => $validator->errors()
+                ], 422);
             }
-                
-            // Cập nhật hoặc tạo mới lộ trình
-            foreach ($validated['paths'] as $pathData) {
-                if (!empty($pathData['id'])) {
-                    // Cập nhật lộ trình hiện có
-                    $learningPath = $this->learningPathService->getLearningPath($pathData['id']);
-                    $this->learningPathService->updateLearningPath($learningPath, [
-                        'title' => $pathData['title'],
-                        'description' => $pathData['description'] ?? null,
-                        'order' => $pathData['order'],
-                        'is_required' => $pathData['is_required']
-                    ]);
-                } else {
-                    // Tạo mới lộ trình
-                    $this->learningPathService->createLearningPath([
-                        'course_item_id' => $courseItem->id,
-                        'title' => $pathData['title'],
-                        'description' => $pathData['description'] ?? null,
-                        'order' => $pathData['order'],
-                        'is_required' => $pathData['is_required']
-                    ]);
-                }
+
+            // Xóa tất cả learning paths cũ
+            LearningPath::where('course_item_id', $id)->delete();
+
+            // Tạo learning paths mới
+            $paths = $request->input('paths');
+            foreach ($paths as $index => $pathData) {
+                LearningPath::create([
+                    'course_item_id' => $id,
+                    'title' => $pathData['title'],
+                    'description' => $pathData['description'] ?? '',
+                    'order' => $pathData['order'] ?? ($index + 1),
+                    'is_completed' => $pathData['is_completed'] ?? false
+                ]);
             }
-            
+
             return response()->json([
                 'success' => true,
-                'message' => 'Đã lưu lộ trình học tập thành công!'
+                'message' => 'Đã lưu lộ trình học tập thành công'
             ]);
-            
         } catch (\Exception $e) {
-            Log::error('Learning paths save error: ' . $e->getMessage());
-            
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra khi lưu lộ trình: ' . $e->getMessage()
+                'message' => 'Có lỗi xảy ra khi lưu lộ trình học tập'
             ], 500);
         }
     }
-} 
+
+    /**
+     * Complete course and all active enrollments
+     * Also complete all child courses
+     */
+    public function completeCourse(CourseItem $courseItem)
+    {
+        try {
+            $success = $courseItem->completeCourse();
+
+            if ($success) {
+                return response()->json([
+                    'message' => 'Khóa học và tất cả khóa học con đã được kết thúc',
+                    'data' => $courseItem->fresh(['enrollments', 'children'])
+                ]);
+            } else {
+                return response()->json([
+                    'message' => 'Có lỗi xảy ra khi kết thúc khóa học'
+                ], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi kết thúc khóa học',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Reopen course with student status options
+     */
+    public function reopenCourse(CourseItem $courseItem, Request $request)
+    {
+        $request->validate([
+            'student_action' => 'required|in:keep_completed,set_active,set_waiting',
+            'selected_students' => 'array', // Optional: specific students to update
+            'selected_students.*' => 'exists:enrollments,id'
+        ]);
+
+        \DB::beginTransaction();
+
+        try {
+            // Sử dụng method từ model để mở lại khóa học và tất cả khóa học con
+            $success = $courseItem->reopenCourse();
+
+            if (!$success) {
+                return response()->json([
+                    'message' => 'Có lỗi xảy ra khi mở lại khóa học'
+                ], 500);
+            }
+
+            // Xử lý trạng thái học viên nếu có yêu cầu cụ thể
+            $studentAction = $request->input('student_action');
+            $selectedStudents = $request->input('selected_students', []);
+
+            if ($studentAction !== 'keep_completed') {
+                $newStatus = $studentAction === 'set_active' ? 'active' : 'waiting';
+
+                // Cập nhật cho khóa học chính
+                $this->updateStudentStatusForCourse($courseItem, $newStatus, $selectedStudents);
+
+                // Cập nhật cho tất cả khóa học con
+                $this->updateStudentStatusForAllChildren($courseItem, $newStatus, $selectedStudents);
+            }
+
+            \DB::commit();
+
+            $message = $this->getSuccessMessage($studentAction, count($selectedStudents));
+
+            return response()->json([
+                'message' => 'Khóa học và tất cả khóa học con đã được mở lại. ' . $message,
+                'data' => $courseItem->fresh(['enrollments', 'children'])
+            ]);
+        } catch (\Exception $e) {
+            \DB::rollback();
+            return response()->json([
+                'message' => 'Có lỗi xảy ra khi mở lại khóa học',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cập nhật trạng thái học viên cho một khóa học
+     */
+    private function updateStudentStatusForCourse(CourseItem $courseItem, string $newStatus, array $selectedStudents = [])
+    {
+        $query = $courseItem->enrollments()->where('status', 'completed');
+
+        // If specific students selected, only update those
+        if (!empty($selectedStudents)) {
+            $query->whereIn('id', $selectedStudents);
+        }
+
+        $query->update([
+            'status' => $newStatus,
+            'completion_date' => null
+        ]);
+    }
+
+    /**
+     * Đệ quy cập nhật trạng thái học viên cho tất cả khóa học con
+     */
+    private function updateStudentStatusForAllChildren(CourseItem $courseItem, string $newStatus, array $selectedStudents = [])
+    {
+        foreach ($courseItem->children as $child) {
+            $this->updateStudentStatusForCourse($child, $newStatus, $selectedStudents);
+
+            // Đệ quy cho các khóa học con của khóa học con
+            $this->updateStudentStatusForAllChildren($child, $newStatus, $selectedStudents);
+        }
+    }
+
+    /**
+     * Get success message based on student action
+     */
+    private function getSuccessMessage($studentAction, $selectedCount)
+    {
+        switch ($studentAction) {
+            case 'keep_completed':
+                return 'Khóa học đã được mở lại. Trạng thái học viên được giữ nguyên.';
+            case 'set_active':
+                $studentText = $selectedCount > 0 ? "{$selectedCount} học viên được chọn" : "Tất cả học viên";
+                return "Khóa học đã được mở lại. {$studentText} đã chuyển về trạng thái đang học.";
+            case 'set_waiting':
+                $studentText = $selectedCount > 0 ? "{$selectedCount} học viên được chọn" : "Tất cả học viên";
+                return "Khóa học đã được mở lại. {$studentText} đã chuyển về trạng thái chờ xác nhận.";
+            default:
+                return 'Khóa học đã được mở lại thành công.';
+        }
+    }
+}

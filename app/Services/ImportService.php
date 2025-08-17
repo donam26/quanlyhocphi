@@ -186,11 +186,13 @@ class ImportService
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Đặt tiêu đề cột (chuẩn hóa theo yêu cầu mới với đầy đủ fields)
+        // Đặt tiêu đề cột theo cấu trúc database hiện tại
         $headings = [
-            'Họ', 'Tên', 'Số điện thoại', 'Email', 'Ngày sinh', 'Nơi sinh', 'Dân tộc', 
-            'Giới tính', 'Tỉnh/Thành phố', 'Địa chỉ cụ thể', 'Nơi công tác', 
-            'Kinh nghiệm kế toán (năm)', 'Hồ sơ bản cứng', 'Bằng cấp', 'Ghi chú'
+            'Họ *', 'Tên *', 'Số điện thoại *', 'Email', 'Ngày sinh (DD/MM/YYYY)',
+            'Giới tính (Nam/Nữ)', 'Tỉnh/Thành phố hiện tại', 'Tỉnh/TP nơi sinh',
+            'Dân tộc', 'Quốc tịch', 'Nơi công tác hiện tại', 'Kinh nghiệm kế toán (năm)',
+            'Chuyên môn đào tạo', 'Hồ sơ bản cứng (Đã nộp/Chưa nộp)', 'Trình độ học vấn',
+            'Tên công ty', 'Mã số thuế', 'Email hóa đơn', 'Địa chỉ công ty', 'Nguồn', 'Ghi chú'
         ];
         $sheet->fromArray($headings, NULL, 'A1');
         

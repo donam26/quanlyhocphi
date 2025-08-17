@@ -213,30 +213,8 @@ class StudentService
      */
     public function downloadImportTemplate()
     {
-        $templateData = [
-            [
-                'first_name' => 'Nguyễn Văn',
-                'last_name' => 'A',
-                'email' => 'nguyenvana@example.com',
-                'phone' => '0901234567',
-                'date_of_birth' => '01/01/1990',
-                'gender' => 'male',
-                'address' => '123 Đường ABC, Quận 1',
-                'province_name' => 'Hồ Chí Minh',
-                'current_workplace' => 'Công ty ABC',
-                'accounting_experience_years' => '5',
-                'place_of_birth' => 'Hồ Chí Minh',
-                'nation' => 'Kinh',
-                'hard_copy_documents' => 'submitted',
-                'education_level' => 'bachelor',
-                'training_specialization' => 'Kế toán',
-                'company_name' => 'Công ty TNHH ABC',
-                'tax_code' => '0123456789',
-                'invoice_email' => 'ketoan@abc.com',
-                'company_address' => '456 Đường XYZ, Quận 2',
-                'notes' => 'Ghi chú mẫu'
-            ]
-        ];
+        // Sử dụng template mới với cấu trúc database hiện tại
+        $templateData = [];
 
         $fileName = 'mau_import_hoc_vien_' . date('Y_m_d_H_i_s') . '.xlsx';
 

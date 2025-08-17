@@ -4,15 +4,17 @@ namespace App\Imports;
 
 use App\Models\Student;
 use App\Models\Province;
+use App\Models\Ethnicity;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\SkipsErrors;
-use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsOnError;
+use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
 class StudentsImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnError, SkipsOnFailure
@@ -25,295 +27,276 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
     protected $skippedCount = 0;
     protected $errors = [];
 
-    public function __construct($importMode = 'update_only')
+    public function __construct($importMode = 'create_and_update')
     {
-        $this->importMode = $importMode;
+        $this->importMode = $importMode; // 'create_only', 'update_only', 'create_and_update'
     }
 
-    /**
-     * @param array $row
-     *
-     * @return \Illuminate\Database\Eloquent\Model|null
-     */
     public function model(array $row)
     {
-        try {
-            // Debug: Log raw Excel data
-            Log::info("Import row data - Raw Excel keys: " . implode(', ', array_keys($row)));
-
-            // Chuẩn hóa dữ liệu
-            $data = $this->normalizeData($row);
-
-            // Debug: Log company fields specifically
-            Log::info("Import row data - Company fields: ", [
-                'company_name' => $data['company_name'] ?? 'MISSING',
-                'tax_code' => $data['tax_code'] ?? 'MISSING',
-                'invoice_email' => $data['invoice_email'] ?? 'MISSING',
-                'company_address' => $data['company_address'] ?? 'MISSING'
-            ]);
-
-            // Kiểm tra email
-            if (empty($data['email'])) {
+        // Chuẩn hóa dữ liệu
+        $data = $this->normalizeData($row);
+        
+        // Tìm học viên theo số điện thoại
+        $existingStudent = Student::where('phone', $data['phone'])->first();
+        
+        if ($existingStudent) {
+            // Nếu đã tồn tại
+            if ($this->importMode === 'create_only') {
                 $this->skippedCount++;
-                $this->errors[] = "Dòng " . ($this->getRowNumber()) . ": Email không được để trống";
                 return null;
             }
-
-            // Tìm học viên theo email
-            $student = Student::where('email', $data['email'])->first();
-
-            if ($student) {
-                // Cập nhật học viên đã có
-                $student->update($data);
-                $this->updatedCount++;
-                Log::info("Updated student: " . $student->email);
-                return $student;
-            } else {
-                // Tạo mới nếu chế độ cho phép
-                if ($this->importMode === 'create_and_update') {
-                    $student = Student::create($data);
-                    $this->createdCount++;
-                    Log::info("Created student: " . $student->email);
-                    return $student;
-                } else {
-                    $this->skippedCount++;
-                    $this->errors[] = "Dòng " . ($this->getRowNumber()) . ": Email {$data['email']} chưa tồn tại trong hệ thống";
-                    return null;
-                }
+            
+            // Cập nhật thông tin
+            $existingStudent->update($data);
+            $this->updatedCount++;
+            return $existingStudent;
+        } else {
+            // Tạo mới
+            if ($this->importMode === 'update_only') {
+                $this->skippedCount++;
+                return null;
             }
-
-        } catch (\Exception $e) {
-            $this->skippedCount++;
-            $this->errors[] = "Dòng " . ($this->getRowNumber()) . ": " . $e->getMessage();
-            Log::error("Import error: " . $e->getMessage());
-            return null;
+            
+            $student = new Student($data);
+            $this->createdCount++;
+            return $student;
         }
     }
 
-    /**
-     * Chuẩn hóa dữ liệu từ Excel
-     */
     protected function normalizeData(array $row)
     {
+        // Skip empty rows
+        if (empty(array_filter($row))) {
+            return [];
+        }
+
         $data = [];
-
-        // Mapping với Excel headers đã được normalize (snake_case, không dấu)
-        $exactMapping = [
-            'ho' => 'first_name',
-            'ten' => 'last_name',
-            'email' => 'email',
-            'so_dien_thoai' => 'phone',
-            'ngay_sinh_ddmmyyyy' => 'date_of_birth',
-            'gioi_tinh_namnukhac' => 'gender',
-            'dia_chi' => 'address',
-            'tinh_thanh' => 'province_name',
-            'noi_cong_tac_hien_tai' => 'current_workplace',
-            'kinh_nghiem_ke_toan_nam' => 'accounting_experience_years',
-            'noi_sinh' => 'place_of_birth',
-            'dan_toc' => 'nation',
-            'ho_so_ban_cung_da_nopchua_nop' => 'hard_copy_documents',
-            'bang_cap_vb2trung_capcao_dangdai_hocthac_si' => 'education_level',
-            'chuyen_mon_dao_tao' => 'training_specialization',
-            'ten_don_vi_cho_hoa_don' => 'company_name',
-            'ma_so_thue' => 'tax_code',
-            'email_nhan_hoa_don' => 'invoice_email',
-            'dia_chi_don_vi' => 'company_address',
-            'ghi_chu' => 'notes'
-        ];
-
-        // Fallback mapping cho các tên cột khác
-        $fallbackMapping = [
-            'first_name' => ['ho', 'họ', 'first_name'],
-            'last_name' => ['ten', 'tên', 'last_name'],
-            'email' => ['email'],
-            'phone' => ['sdt', 'phone'],
-            'date_of_birth' => ['ngay_sinh', 'ngày sinh', 'date_of_birth'],
-            'gender' => ['gioi_tinh', 'giới tính', 'gender'],
-            'address' => ['dia_chi', 'địa chỉ', 'address'],
-            'current_workplace' => ['noi_cong_tac', 'nơi công tác', 'current_workplace'],
-            'accounting_experience_years' => ['kinh_nghiem', 'kinh nghiệm', 'accounting_experience_years'],
-            'place_of_birth' => ['noi_sinh', 'nơi sinh', 'place_of_birth'],
-            'nation' => ['dan_toc', 'dân tộc', 'nation'],
-            'hard_copy_documents' => ['ho_so', 'hồ sơ', 'hard_copy_documents'],
-            'education_level' => ['bang_cap', 'bằng cấp', 'education_level'],
-            'training_specialization' => ['chuyen_mon', 'chuyên môn', 'training_specialization'],
-            'company_name' => ['ten_cong_ty', 'tên công ty', 'company_name'],
-            'tax_code' => ['ma_so_thue', 'mã số thuế', 'tax_code'],
-            'invoice_email' => ['email_hoa_don', 'email hóa đơn', 'invoice_email'],
-            'company_address' => ['dia_chi_cong_ty', 'địa chỉ công ty', 'company_address'],
-            'notes' => ['ghi_chu', 'ghi chú', 'notes']
-        ];
-
-        // Bước 1: Exact mapping trước
-        foreach ($exactMapping as $excelHeader => $dbField) {
-            if (isset($row[$excelHeader]) && !empty($row[$excelHeader])) {
-                $data[$dbField] = $this->cleanValue($row[$excelHeader]);
+        
+        // Xử lý họ tên - header đơn giản
+        $data['first_name'] = $row['ho'] ?? '';
+        $data['last_name'] = $row['ten'] ?? '';
+        
+        // Thông tin cơ bản - header đơn giản
+        $data['phone'] = $this->normalizePhone($row['so_dien_thoai'] ?? '');
+        $data['email'] = $row['email'] ?? null;
+        
+        // Ngày sinh - header đơn giản
+        if (isset($row['ngay_sinh']) && !empty($row['ngay_sinh'])) {
+            $data['date_of_birth'] = $this->parseDate($row['ngay_sinh']);
+        }
+        
+        // Tỉnh nơi sinh - header đơn giản
+        if (isset($row['tinh_noi_sinh']) && !empty($row['tinh_noi_sinh'])) {
+            $placeOfBirthProvinceName = trim($row['tinh_noi_sinh']);
+            $placeOfBirthProvince = Province::where('name', $placeOfBirthProvinceName)->first();
+            if (!$placeOfBirthProvince) {
+                $placeOfBirthProvince = Province::where('name', 'like', '%' . $placeOfBirthProvinceName . '%')->first();
             }
+            $data['place_of_birth_province_id'] = $placeOfBirthProvince ? $placeOfBirthProvince->id : null;
         }
 
-        // Bước 2: Fallback mapping cho các cột chưa được map
-        foreach ($fallbackMapping as $field => $possibleKeys) {
-            if (isset($data[$field])) continue; // Đã được map ở bước 1
-
-            foreach ($possibleKeys as $key) {
-                // Tìm key chính xác hoặc key có chứa pattern
-                $foundKey = null;
-                foreach (array_keys($row) as $rowKey) {
-                    $normalizedRowKey = strtolower(trim($rowKey));
-                    $normalizedSearchKey = strtolower(trim($key));
-
-                    if ($normalizedRowKey === $normalizedSearchKey ||
-                        strpos($normalizedRowKey, $normalizedSearchKey) !== false) {
-                        $foundKey = $rowKey;
-                        break;
-                    }
-                }
-
-                if ($foundKey && isset($row[$foundKey]) && !empty($row[$foundKey])) {
-                    $data[$field] = $this->cleanValue($row[$foundKey]);
-                    break;
-                }
+        // Dân tộc - header đơn giản
+        if (isset($row['dan_toc']) && !empty($row['dan_toc'])) {
+            $ethnicityName = trim($row['dan_toc']);
+            $ethnicity = Ethnicity::where('name', $ethnicityName)->first();
+            if (!$ethnicity) {
+                $ethnicity = Ethnicity::where('name', 'like', '%' . $ethnicityName . '%')->first();
             }
+            $data['ethnicity_id'] = $ethnicity ? $ethnicity->id : null;
         }
 
-        // Xử lý đặc biệt cho một số trường
-        if (isset($data['date_of_birth'])) {
-            $data['date_of_birth'] = $this->parseDate($data['date_of_birth']);
-        }
+        // Quốc tịch - header đơn giản
+        $data['nation'] = $row['quoc_tich'] ?? 'Việt Nam';
 
-        if (isset($data['gender'])) {
-            $data['gender'] = $this->normalizeGender($data['gender']);
-        }
+        // Giới tính - header đơn giản
+        $data['gender'] = $this->normalizeGender($row['gioi_tinh'] ?? null);
 
-        if (isset($data['hard_copy_documents'])) {
-            $data['hard_copy_documents'] = $this->normalizeDocumentStatus($data['hard_copy_documents']);
-        }
-
-        if (isset($data['education_level'])) {
-            $data['education_level'] = $this->normalizeEducationLevel($data['education_level']);
-        }
-
-        // Xử lý province_id từ province_name
-        if (isset($row['province_name']) || isset($row['tinh_thanh']) || isset($row['tỉnh thành'])) {
-            $provinceName = $row['province_name'] ?? $row['tinh_thanh'] ?? $row['tỉnh thành'] ?? null;
-            if ($provinceName) {
-                $province = Province::where('name', 'like', '%' . trim($provinceName) . '%')->first();
-                if ($province) {
-                    $data['province_id'] = $province->id;
-                }
+        // Tỉnh thành hiện tại - header đơn giản
+        if (isset($row['tinh_hien_tai']) && !empty($row['tinh_hien_tai'])) {
+            $provinceName = trim($row['tinh_hien_tai']);
+            $province = Province::where('name', $provinceName)->first();
+            if (!$province) {
+                $province = Province::where('name', 'like', '%' . $provinceName . '%')->first();
             }
+            $data['province_id'] = $province ? $province->id : null;
         }
+        
+        // Thông tin bổ sung cho kế toán - header đơn giản
+        $data['current_workplace'] = $row['noi_cong_tac'] ?? null;
+        $data['accounting_experience_years'] = isset($row['kinh_nghiem_ke_toan']) && is_numeric($row['kinh_nghiem_ke_toan'])
+            ? (int)$row['kinh_nghiem_ke_toan'] : null;
+        $data['education_level'] = $this->normalizeEducationLevel($row['trinh_do_hoc_van'] ?? null);
+        $data['hard_copy_documents'] = $this->normalizeHardCopyDocuments($row['ho_so_ban_cung'] ?? null);
+        $data['training_specialization'] = $row['chuyen_mon_dao_tao'] ?? null;
 
-        return $data;
+        // Thông tin công ty - header đơn giản
+        $data['company_name'] = $row['ten_cong_ty'] ?? null;
+        $data['tax_code'] = $row['ma_so_thue'] ?? null;
+        $data['invoice_email'] = $row['email_hoa_don'] ?? null;
+        $data['company_address'] = $row['dia_chi_cong_ty'] ?? null;
+
+        // Ghi chú và nguồn
+        $data['notes'] = $row['ghi_chu'] ?? null;
+        $data['source'] = $this->normalizeSource($row['nguon'] ?? null);
+
+        return array_filter($data, function($value) {
+            return $value !== null && $value !== '';
+        });
     }
 
-    /**
-     * Làm sạch giá trị
-     */
-    protected function cleanValue($value)
+    protected function normalizePhone($phone)
     {
-        return is_string($value) ? trim($value) : $value;
+        // Loại bỏ ký tự không phải số
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Chuẩn hóa số điện thoại Việt Nam
+        if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
+            return $phone;
+        } elseif (strlen($phone) === 9) {
+            return '0' . $phone;
+        } elseif (strlen($phone) === 12 && substr($phone, 0, 2) === '84') {
+            return '0' . substr($phone, 2);
+        }
+        
+        return $phone;
     }
 
-    /**
-     * Parse ngày tháng
-     */
-    protected function parseDate($date)
+    protected function parseDate($dateStr)
     {
-        if (empty($date)) return null;
+        if (empty($dateStr)) return null;
+
+        // Chuẩn hóa chuỗi ngày
+        $dateStr = trim($dateStr);
 
         try {
-            // Thử các định dạng khác nhau
-            $formats = ['d/m/Y', 'Y-m-d', 'd-m-Y', 'm/d/Y'];
-            
+            // Nếu là số (Excel date serial), chuyển đổi
+            if (is_numeric($dateStr)) {
+                $date = Carbon::createFromFormat('Y-m-d', '1900-01-01')->addDays($dateStr - 2);
+                return $date->format('Y-m-d');
+            }
+
+            // Thử các format khác nhau
+            $formats = [
+                'd/m/Y', 'Y-m-d', 'd-m-Y', 'm/d/Y',
+                'd/m/y', 'y-m-d', 'd-m-y', 'm/d/y',
+                'Y/m/d', 'y/m/d'
+            ];
+
             foreach ($formats as $format) {
-                $parsed = Carbon::createFromFormat($format, $date);
-                if ($parsed) {
-                    return $parsed->format('Y-m-d');
+                try {
+                    $date = Carbon::createFromFormat($format, $dateStr);
+                    if ($date && $date->year >= 1900 && $date->year <= 2100) {
+                        return $date->format('Y-m-d');
+                    }
+                } catch (\Exception $e) {
+                    continue;
                 }
             }
-            
-            // Nếu không parse được, thử Carbon::parse
-            return Carbon::parse($date)->format('Y-m-d');
+
+            // Thử parse tự động
+            $date = Carbon::parse($dateStr);
+            if ($date && $date->year >= 1900 && $date->year <= 2100) {
+                return $date->format('Y-m-d');
+            }
+
+            return null;
         } catch (\Exception $e) {
             return null;
         }
     }
 
-    /**
-     * Chuẩn hóa giới tính
-     */
     protected function normalizeGender($gender)
     {
-        $gender = mb_strtolower(trim($gender), 'UTF-8');
-
+        if (empty($gender)) return null;
+        
+        $gender = strtolower(trim($gender));
+        
         if (in_array($gender, ['nam', 'male', 'm'])) {
             return 'male';
         } elseif (in_array($gender, ['nữ', 'nu', 'female', 'f'])) {
             return 'female';
-        } else {
+        } elseif (in_array($gender, ['khác', 'khac', 'other'])) {
             return 'other';
         }
+        
+        return null;
     }
 
-    /**
-     * Chuẩn hóa trạng thái hồ sơ
-     */
-    protected function normalizeDocumentStatus($status)
-    {
-        $status = mb_strtolower(trim($status), 'UTF-8');
-
-        if (in_array($status, ['đã nộp', 'da nop', 'submitted', 'yes', 'có', 'đã nop'])) {
-            return 'submitted';
-        } else {
-            return 'not_submitted';
-        }
-    }
-
-    /**
-     * Chuẩn hóa trình độ học vấn
-     */
     protected function normalizeEducationLevel($level)
     {
-        $level = mb_strtolower(trim($level), 'UTF-8');
-
-        $mapping = [
-            'vb2' => 'secondary',
-            'trung cấp' => 'vocational',
-            'trung cap' => 'vocational',
-            'cao đẳng' => 'associate',
-            'cao dang' => 'associate',
-            'đại học' => 'bachelor',
-            'dai hoc' => 'bachelor',
-            'thạc sĩ' => 'master',
-            'thac si' => 'master'
-        ];
-
-        return $mapping[$level] ?? $level;
+        if (empty($level)) return null;
+        
+        $level = strtolower(trim($level));
+        
+        if (in_array($level, ['đại học', 'dai hoc', 'bachelor'])) {
+            return 'bachelor';
+        } elseif (in_array($level, ['cao đẳng', 'cao dang', 'associate'])) {
+            return 'associate';
+        } elseif (in_array($level, ['trung cấp', 'trung cap', 'vocational'])) {
+            return 'vocational';
+        } elseif (in_array($level, ['thạc sĩ', 'thac si', 'master'])) {
+            return 'master';
+        } elseif (in_array($level, ['vb2', 'secondary'])) {
+            return 'secondary';
+        }
+        
+        return null;
     }
 
-    /**
-     * Validation rules - sử dụng header Excel
-     */
+    protected function normalizeHardCopyDocuments($status)
+    {
+        if (empty($status)) return null;
+        
+        $status = strtolower(trim($status));
+        
+        if (in_array($status, ['đã nộp', 'da nop', 'submitted'])) {
+            return 'submitted';
+        } elseif (in_array($status, ['chưa nộp', 'chua nop', 'not_submitted'])) {
+            return 'not_submitted';
+        }
+        
+        return null;
+    }
+
+    protected function normalizeSource($source)
+    {
+        if (empty($source)) return null;
+
+        $source = strtolower(trim($source));
+
+        // Map các giá trị tiếng Việt và tiếng Anh theo enum StudentSource
+        $sourceMap = [
+            'facebook' => 'facebook',
+            'fb' => 'facebook',
+            'zalo' => 'zalo',
+            'website' => 'website',
+            'web' => 'website',
+            'trang web' => 'website',
+            'linkedin' => 'linkedin',
+            'tiktok' => 'tiktok',
+            'tik tok' => 'tiktok',
+            'bạn bè' => 'friend_referral',
+            'ban be' => 'friend_referral',
+            'bạn bè giới thiệu' => 'friend_referral',
+            'ban be gioi thieu' => 'friend_referral',
+            'friend_referral' => 'friend_referral',
+            'giới thiệu' => 'friend_referral',
+            'gioi thieu' => 'friend_referral'
+        ];
+
+        return $sourceMap[$source] ?? null;
+    }
+
     public function rules(): array
     {
         return [
-            'email_*' => 'required|email',
-            'ho_*' => 'required|string',
-            'ten_*' => 'required|string',
-            'so_dien_thoai_*' => 'nullable|string',
+            'so_dien_thoai' => 'required|string',
+            'phone' => 'required_without:so_dien_thoai|string',
+            'email' => 'nullable|email',
         ];
     }
 
-    /**
-     * Get row number for error reporting
-     */
-    protected function getRowNumber()
-    {
-        return $this->createdCount + $this->updatedCount + $this->skippedCount + 2; // +2 for header row
-    }
-
-    // Getter methods
     public function getCreatedCount()
     {
         return $this->createdCount;

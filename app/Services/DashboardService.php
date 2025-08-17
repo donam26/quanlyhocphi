@@ -6,7 +6,6 @@ use App\Models\Attendance;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Payment;
-use App\Models\Schedule;
 use App\Models\Student;
 use App\Enums\EnrollmentStatus;
 use Carbon\Carbon;
@@ -154,9 +153,12 @@ class DashboardService
         $totalRevenue = array_sum($data);
         
         return [
-            'labels' => array_values($labels),
-            'data' => array_values($data),
-            'keys' => array_keys($labels),
+            'data' => collect($labels)->map(function($label, $key) use ($data) {
+                return [
+                    'label' => $label,
+                    'value' => $data[$key] ?? 0
+                ];
+            })->values()->toArray(),
             'total' => $totalRevenue
         ];
     }
@@ -214,9 +216,7 @@ class DashboardService
         });
         
         return [
-            'labels' => $courseData->pluck('name')->toArray(),
-            'data' => $courseData->pluck('revenue')->toArray(),
-            'ratio' => $courseData->pluck('ratio')->toArray(),
+            'data' => $courseData->toArray(),
             'total' => $totalRevenue
         ];
     }
@@ -335,9 +335,11 @@ class DashboardService
         }
         
         return [
-            'labels' => ['Nam', 'Nữ', 'Khác'],
-            'data' => array_values($genderData),
-            'ratio' => array_values($genderRatio),
+            'data' => [
+                ['name' => 'Nam', 'count' => $genderData['male']],
+                ['name' => 'Nữ', 'count' => $genderData['female']],
+                ['name' => 'Khác', 'count' => $genderData['other']]
+            ],
             'total' => $total
         ];
     }
@@ -494,9 +496,11 @@ class DashboardService
         }
 
         return [
-            'labels' => ['Trực tuyến', 'Trực tiếp', 'Không xác định'],
-            'data' => array_values($learningModeData),
-            'ratio' => array_values($learningModeRatio),
+            'data' => [
+                ['name' => 'Trực tuyến', 'count' => $learningModeData['online']],
+                ['name' => 'Trực tiếp', 'count' => $learningModeData['offline']],
+                ['name' => 'Không xác định', 'count' => $learningModeData['unknown']]
+            ],
             'total' => $total
         ];
     }
@@ -575,9 +579,12 @@ class DashboardService
         }
         
         return [
-            'labels' => array_values($regions),
-            'data' => array_values($regionData),
-            'ratio' => array_values($regionRatio),
+            'data' => collect($regions)->map(function($name, $key) use ($regionData) {
+                return [
+                    'name' => $name,
+                    'count' => $regionData[$key]
+                ];
+            })->values()->toArray(),
             'total' => $totalStudents
         ];
     }
@@ -608,10 +615,7 @@ class DashboardService
             
         return [
             'total' => $totalWaiting,
-            'by_course' => $waitingByCourse,
-            'labels' => $waitingByCourse->pluck('name')->toArray(),
-            'data' => $waitingByCourse->pluck('count')->toArray(),
-            'ratio' => $waitingByCourse->pluck('ratio')->toArray()
+            'data' => $waitingByCourse->toArray()
         ];
     }
     
@@ -620,11 +624,25 @@ class DashboardService
      */
     public function getRecentPayments($limit = 10)
     {
-        return Payment::with(['enrollment.student', 'enrollment.courseItem'])
+        $payments = Payment::with(['enrollment.student', 'enrollment.courseItem'])
             ->where('status', 'confirmed')
             ->orderBy('payment_date', 'desc')
             ->limit($limit)
             ->get();
+
+        return [
+            'data' => $payments->map(function($payment) {
+                return [
+                    'id' => $payment->id,
+                    'student_name' => $payment->enrollment->student->full_name ?? 'N/A',
+                    'course_name' => $payment->enrollment->courseItem->name ?? 'N/A',
+                    'amount' => $payment->amount,
+                    'payment_date' => $payment->payment_date->format('d/m/Y'),
+                    'payment_method' => $payment->payment_method
+                ];
+            }),
+            'total' => $payments->count()
+        ];
     }
     
     public function getRecentActivities($limit = 10)
@@ -747,35 +765,106 @@ class DashboardService
             });
     }
     
+    /**
+     * Lấy thông tin thanh toán chưa hoàn thành
+     */
     public function getPendingPayments()
     {
-        // Lấy số lượng ghi danh chưa thanh toán đủ
-        $pendingEnrollments = Enrollment::where('status', EnrollmentStatus::ACTIVE)
-            ->whereDoesntHave('payments', function ($query) {
-                $query->where('status', 'confirmed');
-            })
-            ->orWhereHas('payments', function($query) {
-                $query->select(DB::raw('SUM(amount) as total_paid'))
-                    ->where('status', 'confirmed')
-                    ->groupBy('enrollment_id')
-                    ->havingRaw('total_paid < enrollments.final_fee');
-            })
-            ->with(['student', 'courseItem'])
-            ->limit(10)
-            ->get();
-            
-        $totalPending = $pendingEnrollments->sum(function($enrollment) {
-            $paid = $enrollment->getTotalPaidAmount();
-            return $enrollment->final_fee - $paid;
+        // Lấy các ghi danh chưa thanh toán đủ
+        $unpaidEnrollments = Enrollment::with(['student', 'courseItem'])
+            ->where('status', EnrollmentStatus::ACTIVE)
+            ->get()
+            ->filter(function($enrollment) {
+                return $enrollment->getRemainingAmount() > 0;
+            });
+
+        $totalPending = $unpaidEnrollments->sum(function($enrollment) {
+            return $enrollment->getRemainingAmount();
         });
-        
+
         return [
-            'count' => $pendingEnrollments->count(),
+            'count' => $unpaidEnrollments->count(),
             'total_pending' => $totalPending,
-            'enrollments' => $pendingEnrollments
+            'enrollments' => $unpaidEnrollments->take(10)->map(function($enrollment) {
+                return [
+                    'id' => $enrollment->id,
+                    'student_name' => $enrollment->student->full_name,
+                    'course_name' => $enrollment->courseItem->name,
+                    'remaining_amount' => $enrollment->getRemainingAmount(),
+                    'final_fee' => $enrollment->final_fee,
+                    'paid_amount' => $enrollment->getTotalPaidAmount()
+                ];
+            })
         ];
     }
-    
+
+    /**
+     * Lấy thống kê học viên theo nguồn
+     */
+    public function getStudentsBySource($timeRange = 'day', $courseItemId = null)
+    {
+        $query = DB::table('students')
+            ->select('source', DB::raw('COUNT(*) as count'))
+            ->whereNotNull('source');
+
+        // Lọc theo khoảng thời gian nếu cần
+        if ($timeRange !== 'total') {
+            $today = now();
+
+            switch($timeRange) {
+                case 'day':
+                    $query->whereDate('created_at', $today);
+                    break;
+                case 'month':
+                    $query->whereYear('created_at', $today->year)
+                        ->whereMonth('created_at', $today->month);
+                    break;
+                case 'quarter':
+                    $startQuarter = $today->copy()->startOfQuarter();
+                    $endQuarter = $today->copy()->endOfQuarter();
+                    $query->whereBetween('created_at', [$startQuarter, $endQuarter]);
+                    break;
+                case 'year':
+                    $query->whereYear('created_at', $today->year);
+                    break;
+            }
+        }
+
+        // Lọc theo khóa học nếu có
+        if ($courseItemId) {
+            $query->whereExists(function ($q) use ($courseItemId) {
+                $q->select(DB::raw(1))
+                  ->from('enrollments')
+                  ->whereColumn('enrollments.student_id', 'students.id')
+                  ->where('enrollments.course_item_id', $courseItemId);
+            });
+        }
+
+        $results = $query->groupBy('source')
+            ->orderBy('count', 'desc')
+            ->get();
+
+        $total = $results->sum('count');
+
+        $data = $results->map(function ($item) use ($total) {
+            $sourceEnum = \App\Enums\StudentSource::fromString($item->source);
+            return [
+                'source' => $item->source,
+                'label' => $sourceEnum ? $sourceEnum->label() : $item->source,
+                'icon' => $sourceEnum ? $sourceEnum->icon() : 'fas fa-question',
+                'color' => $sourceEnum ? $sourceEnum->color() : 'secondary',
+                'count' => $item->count,
+                'percentage' => $total > 0 ? round(($item->count / $total) * 100, 1) : 0
+            ];
+        });
+
+        return [
+            'data' => $data,
+            'total' => $total,
+            'time_range' => $timeRange
+        ];
+    }
+
     /**
      * Lấy dữ liệu tổng hợp cho dashboard mới
      */
@@ -790,9 +879,10 @@ class DashboardService
             'students_by_age' => $this->getStudentsByAgeGroup($timeRange),
             'students_by_learning_mode' => $this->getStudentsByLearningMode($timeRange),
             'students_by_region' => $this->getStudentsByRegion($timeRange),
+            'students_by_source' => $this->getStudentsBySource($timeRange),
             'waiting_list' => $this->getWaitingListSummary(),
             'recent_payments' => $this->getRecentPayments(5),
             'pending_payments' => $this->getPendingPayments()
         ];
     }
-} 
+}
