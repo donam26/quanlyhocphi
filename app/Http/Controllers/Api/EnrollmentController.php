@@ -352,27 +352,63 @@ class EnrollmentController extends Controller
     }
 
     /**
-     * Chuyển học viên sang khóa học khác
+     * Chuyển học viên sang khóa học khác với xử lý thanh toán
      */
     public function transferStudent(Request $request, $id)
     {
         try {
             $validated = $request->validate([
                 'target_course_id' => 'required|exists:course_items,id',
-                'notes' => 'nullable|string|max:1000'
+                'reason' => 'nullable|string|max:1000',
+                'notes' => 'nullable|string|max:1000',
+                'refund_policy' => 'nullable|in:full,partial,none,credit',
+                'additional_discount_percentage' => 'nullable|numeric|min:0|max:100',
+                'additional_discount_amount' => 'nullable|numeric|min:0',
+                'new_status' => 'nullable|in:active,waiting',
+                'create_pending_payment' => 'nullable|boolean',
+                'payment_method' => 'nullable|in:cash,bank_transfer,card,qr_code,sepay',
+                'payment_date' => 'nullable|date'
             ]);
 
-            $enrollment = $this->enrollmentService->transferStudent($id, $validated);
+            $result = $this->enrollmentService->transferStudent($id, $validated);
 
             return response()->json([
                 'success' => true,
-                'data' => $enrollment,
+                'data' => $result,
                 'message' => 'Chuyển học viên thành công'
             ]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi chuyển học viên: ' . $e->getMessage()
+            ], 422);
+        }
+    }
+
+    /**
+     * Xem trước chi phí chuyển khóa học
+     */
+    public function previewTransfer(Request $request, $id)
+    {
+        try {
+            $validated = $request->validate([
+                'target_course_id' => 'required|exists:course_items,id',
+                'additional_discount_percentage' => 'nullable|numeric|min:0|max:100',
+                'additional_discount_amount' => 'nullable|numeric|min:0',
+                'refund_policy' => 'nullable|in:full,partial,none,credit'
+            ]);
+
+            $preview = $this->enrollmentService->previewTransferCost($id, $validated['target_course_id'], $validated);
+
+            return response()->json([
+                'success' => true,
+                'data' => $preview,
+                'message' => 'Tính toán chi phí chuyển khóa thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tính toán chi phí: ' . $e->getMessage()
             ], 422);
         }
     }

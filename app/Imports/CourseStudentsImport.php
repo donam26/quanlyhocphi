@@ -6,6 +6,7 @@ use App\Models\Student;
 use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\Province;
+use App\Models\Ethnicity;
 use App\Enums\EnrollmentStatus;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;

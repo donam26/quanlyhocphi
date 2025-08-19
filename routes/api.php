@@ -136,6 +136,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{enrollment}/cancel', [EnrollmentController::class, 'cancel']);
         Route::post('/{enrollment}/move-to-waiting', [EnrollmentController::class, 'moveToWaiting']);
         Route::post('/{enrollment}/transfer', [EnrollmentController::class, 'transferStudent']);
+        Route::post('/{enrollment}/transfer-preview', [EnrollmentController::class, 'previewTransfer']);
 
         // Export
         Route::post('/export', [EnrollmentController::class, 'export']);

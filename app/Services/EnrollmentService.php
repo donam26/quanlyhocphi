@@ -552,7 +552,7 @@ class EnrollmentService
     }
 
     /**
-     * Transfer student to another course
+     * Transfer student to another course with payment handling
      */
     public function transferStudent($enrollmentId, $data)
     {
@@ -562,39 +562,423 @@ class EnrollmentService
             $enrollment = Enrollment::findOrFail($enrollmentId);
             $targetCourse = CourseItem::findOrFail($data['target_course_id']);
 
-            // Check if student already enrolled in target course
-            $existingEnrollment = Enrollment::where('student_id', $enrollment->student_id)
-                ->where('course_item_id', $data['target_course_id'])
-                ->first();
+            // Validate transfer conditions
+            $this->validateTransferConditions($enrollment, $targetCourse, $data);
 
-            if ($existingEnrollment) {
-                throw new \Exception('Học viên đã được ghi danh vào khóa học này');
-            }
+            // Calculate payment adjustments
+            $paymentCalculation = $this->calculateTransferPayments($enrollment, $targetCourse, $data);
 
-            // Create new enrollment in target course
-            $newEnrollment = Enrollment::create([
-                'student_id' => $enrollment->student_id,
-                'course_item_id' => $data['target_course_id'],
-                'enrollment_date' => now(),
-                'status' => $enrollment->status,
-                'discount_percentage' => $enrollment->discount_percentage,
-                'discount_amount' => $enrollment->discount_amount,
-                'final_fee' => $targetCourse->fee * (1 - $enrollment->discount_percentage / 100),
-                'notes' => $data['notes'] ?? 'Chuyển từ khóa học: ' . $enrollment->courseItem->name
-            ]);
+            // Create new enrollment
+            $newEnrollment = $this->createTransferEnrollment($enrollment, $targetCourse, $paymentCalculation, $data);
 
-            // Cancel old enrollment
-            $enrollment->updateStatus(EnrollmentStatus::CANCELLED->value);
-            $enrollment->cancelled_at = now();
-            $enrollment->notes = 'Đã chuyển sang khóa học: ' . $targetCourse->name;
-            $enrollment->save();
+            // Handle payment transfers and adjustments
+            $this->handleTransferPayments($enrollment, $newEnrollment, $paymentCalculation, $data);
+
+            // Update old enrollment status
+            $this->finalizeOldEnrollment($enrollment, $targetCourse, $data);
 
             DB::commit();
-            return $newEnrollment->load(['student', 'courseItem']);
+            return [
+                'new_enrollment' => $newEnrollment->load(['student', 'courseItem', 'payments']),
+                'payment_summary' => $paymentCalculation,
+                'transfer_type' => $paymentCalculation['transfer_type']
+            ];
         } catch (\Exception $e) {
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Validate conditions for course transfer
+     */
+    private function validateTransferConditions($enrollment, $targetCourse, $data)
+    {
+        // Check if student already enrolled in target course
+        $existingEnrollment = Enrollment::where('student_id', $enrollment->student_id)
+            ->where('course_item_id', $targetCourse->id)
+            ->whereIn('status', ['active', 'waiting'])
+            ->first();
+
+        if ($existingEnrollment) {
+            throw new \Exception('Học viên đã được ghi danh vào khóa học này');
+        }
+
+        // Check if enrollment can be transferred
+        if ($enrollment->status === EnrollmentStatus::COMPLETED->value) {
+            throw new \Exception('Không thể chuyển khóa học đã hoàn thành');
+        }
+
+        if ($enrollment->status === EnrollmentStatus::CANCELLED->value) {
+            throw new \Exception('Không thể chuyển khóa học đã hủy');
+        }
+
+        // Check if target course is active
+        if (!$targetCourse->isActive()) {
+            throw new \Exception('Khóa học đích không còn hoạt động');
+        }
+
+        // Validate refund policy if applicable
+        if (isset($data['refund_policy']) && !in_array($data['refund_policy'], ['full', 'partial', 'none', 'credit'])) {
+            throw new \Exception('Chính sách hoàn tiền không hợp lệ');
+        }
+    }
+
+    /**
+     * Calculate payment adjustments for course transfer
+     */
+    private function calculateTransferPayments($enrollment, $targetCourse, $data)
+    {
+        // Get current payment information
+        $totalPaid = $enrollment->getTotalPaidAmount();
+        $oldFinalFee = $enrollment->final_fee;
+
+        // Calculate new fee with same discount percentage
+        $newBaseFee = $targetCourse->fee;
+        $discountPercentage = $enrollment->discount_percentage ?? 0;
+        $discountAmount = ($newBaseFee * $discountPercentage) / 100;
+        $newFinalFee = $newBaseFee - $discountAmount;
+
+        // Apply additional discount if provided
+        if (isset($data['additional_discount_percentage'])) {
+            $additionalDiscount = ($newFinalFee * $data['additional_discount_percentage']) / 100;
+            $newFinalFee -= $additionalDiscount;
+            $discountPercentage += $data['additional_discount_percentage'];
+            $discountAmount += $additionalDiscount;
+        }
+
+        if (isset($data['additional_discount_amount'])) {
+            $newFinalFee -= $data['additional_discount_amount'];
+            $discountAmount += $data['additional_discount_amount'];
+        }
+
+        // Calculate difference
+        $feeDifference = $newFinalFee - $totalPaid;
+
+        // Determine transfer type and actions needed
+        $transferType = $this->determineTransferType($totalPaid, $newFinalFee, $feeDifference);
+
+        return [
+            'old_fee' => $oldFinalFee,
+            'new_base_fee' => $newBaseFee,
+            'new_final_fee' => $newFinalFee,
+            'total_paid' => $totalPaid,
+            'fee_difference' => $feeDifference,
+            'discount_percentage' => $discountPercentage,
+            'discount_amount' => $discountAmount,
+            'transfer_type' => $transferType,
+            'refund_policy' => $data['refund_policy'] ?? 'credit',
+            'actions_needed' => $this->getRequiredActions($transferType, $feeDifference, $data)
+        ];
+    }
+
+    /**
+     * Determine the type of transfer based on payment comparison
+     */
+    private function determineTransferType($totalPaid, $newFinalFee, $feeDifference)
+    {
+        if ($feeDifference > 0) {
+            return 'additional_payment_required'; // Cần đóng thêm
+        } elseif ($feeDifference < 0) {
+            return 'refund_required'; // Cần hoàn tiền
+        } else {
+            return 'equal_transfer'; // Chuyển đổi trực tiếp
+        }
+    }
+
+    /**
+     * Get required actions based on transfer type
+     */
+    private function getRequiredActions($transferType, $feeDifference, $data)
+    {
+        $actions = [];
+
+        switch ($transferType) {
+            case 'additional_payment_required':
+                $actions[] = [
+                    'type' => 'additional_payment',
+                    'amount' => abs($feeDifference),
+                    'description' => 'Học viên cần đóng thêm ' . number_format(abs($feeDifference)) . ' VND'
+                ];
+                break;
+
+            case 'refund_required':
+                $refundPolicy = $data['refund_policy'] ?? 'credit';
+                if ($refundPolicy === 'full') {
+                    $actions[] = [
+                        'type' => 'cash_refund',
+                        'amount' => abs($feeDifference),
+                        'description' => 'Hoàn tiền mặt ' . number_format(abs($feeDifference)) . ' VND'
+                    ];
+                } elseif ($refundPolicy === 'credit') {
+                    $actions[] = [
+                        'type' => 'credit_balance',
+                        'amount' => abs($feeDifference),
+                        'description' => 'Tạo credit balance ' . number_format(abs($feeDifference)) . ' VND'
+                    ];
+                } elseif ($refundPolicy === 'none') {
+                    $actions[] = [
+                        'type' => 'no_refund',
+                        'amount' => abs($feeDifference),
+                        'description' => 'Không hoàn tiền, số tiền thừa sẽ được ghi nhận'
+                    ];
+                }
+                break;
+
+            case 'equal_transfer':
+                $actions[] = [
+                    'type' => 'direct_transfer',
+                    'amount' => 0,
+                    'description' => 'Chuyển khóa học trực tiếp, không cần điều chỉnh thanh toán'
+                ];
+                break;
+        }
+
+        return $actions;
+    }
+
+    /**
+     * Create new enrollment for transfer
+     */
+    private function createTransferEnrollment($oldEnrollment, $targetCourse, $paymentCalculation, $data)
+    {
+        $newEnrollment = Enrollment::create([
+            'student_id' => $oldEnrollment->student_id,
+            'course_item_id' => $targetCourse->id,
+            'enrollment_date' => now(),
+            'status' => $data['new_status'] ?? $oldEnrollment->status,
+            'discount_percentage' => $paymentCalculation['discount_percentage'],
+            'discount_amount' => $paymentCalculation['discount_amount'],
+            'final_fee' => $paymentCalculation['new_final_fee'],
+            'notes' => $this->buildTransferNotes($oldEnrollment, $targetCourse, $paymentCalculation, $data),
+            'custom_fields' => [
+                'transfer_from_enrollment_id' => $oldEnrollment->id,
+                'transfer_date' => now()->toDateString(),
+                'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học',
+                'payment_calculation' => $paymentCalculation
+            ]
+        ]);
+
+        return $newEnrollment;
+    }
+
+    /**
+     * Handle payment transfers and adjustments
+     */
+    private function handleTransferPayments($oldEnrollment, $newEnrollment, $paymentCalculation, $data)
+    {
+        $actions = $paymentCalculation['actions_needed'];
+
+        foreach ($actions as $action) {
+            switch ($action['type']) {
+                case 'additional_payment':
+                    $this->handleAdditionalPayment($newEnrollment, $action, $data);
+                    break;
+
+                case 'cash_refund':
+                    $this->handleCashRefund($oldEnrollment, $newEnrollment, $action, $data);
+                    break;
+
+                case 'credit_balance':
+                    $this->handleCreditBalance($newEnrollment, $action, $data);
+                    break;
+
+                case 'no_refund':
+                    $this->handleNoRefund($oldEnrollment, $newEnrollment, $action, $data);
+                    break;
+
+                case 'direct_transfer':
+                    $this->handleDirectTransfer($oldEnrollment, $newEnrollment, $data);
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Handle additional payment required
+     */
+    private function handleAdditionalPayment($newEnrollment, $action, $data)
+    {
+        // Create a pending payment record for the additional amount
+        if (isset($data['create_pending_payment']) && $data['create_pending_payment']) {
+            Payment::create([
+                'enrollment_id' => $newEnrollment->id,
+                'amount' => $action['amount'],
+                'payment_method' => $data['payment_method'] ?? 'cash',
+                'payment_date' => $data['payment_date'] ?? now(),
+                'status' => 'pending',
+                'notes' => 'Thanh toán bổ sung do chuyển khóa học - ' . $action['description']
+            ]);
+        }
+    }
+
+    /**
+     * Handle cash refund
+     */
+    private function handleCashRefund($oldEnrollment, $newEnrollment, $action, $data)
+    {
+        // Create a refund payment record (negative amount)
+        Payment::create([
+            'enrollment_id' => $newEnrollment->id,
+            'amount' => -$action['amount'], // Negative for refund
+            'payment_method' => 'refund',
+            'payment_date' => now(),
+            'status' => 'confirmed',
+            'notes' => 'Hoàn tiền do chuyển khóa học - ' . $action['description'],
+            'transaction_reference' => 'REFUND-' . $oldEnrollment->id . '-' . time()
+        ]);
+    }
+
+    /**
+     * Handle credit balance
+     */
+    private function handleCreditBalance($newEnrollment, $action, $data)
+    {
+        // Create a credit payment record
+        Payment::create([
+            'enrollment_id' => $newEnrollment->id,
+            'amount' => $action['amount'],
+            'payment_method' => 'credit',
+            'payment_date' => now(),
+            'status' => 'confirmed',
+            'notes' => 'Credit balance do chuyển khóa học - ' . $action['description'],
+            'transaction_reference' => 'CREDIT-' . time()
+        ]);
+    }
+
+    /**
+     * Handle no refund case
+     */
+    private function handleNoRefund($oldEnrollment, $newEnrollment, $action, $data)
+    {
+        // Just record the overpayment in notes
+        $newEnrollment->update([
+            'notes' => $newEnrollment->notes . "\n\nGhi chú: " . $action['description']
+        ]);
+    }
+
+    /**
+     * Handle direct transfer (equal amounts)
+     */
+    private function handleDirectTransfer($oldEnrollment, $newEnrollment, $data)
+    {
+        // Transfer all confirmed payments from old to new enrollment
+        $confirmedPayments = $oldEnrollment->payments()->where('status', 'confirmed')->get();
+
+        foreach ($confirmedPayments as $payment) {
+            Payment::create([
+                'enrollment_id' => $newEnrollment->id,
+                'amount' => $payment->amount,
+                'payment_method' => $payment->payment_method,
+                'payment_date' => $payment->payment_date,
+                'status' => 'confirmed',
+                'notes' => 'Chuyển từ enrollment #' . $oldEnrollment->id . ' - ' . $payment->notes,
+                'transaction_reference' => $payment->transaction_reference
+            ]);
+        }
+    }
+
+    /**
+     * Build transfer notes
+     */
+    private function buildTransferNotes($oldEnrollment, $targetCourse, $paymentCalculation, $data)
+    {
+        $notes = "CHUYỂN KHÓA HỌC\n";
+        $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
+        $notes .= "Sang: " . $targetCourse->name . "\n";
+        $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
+
+        if (isset($data['reason'])) {
+            $notes .= "Lý do: " . $data['reason'] . "\n";
+        }
+
+        $notes .= "\nTHÔNG TIN THANH TOÁN:\n";
+        $notes .= "Học phí cũ: " . number_format($paymentCalculation['old_fee']) . " VND\n";
+        $notes .= "Học phí mới: " . number_format($paymentCalculation['new_final_fee']) . " VND\n";
+        $notes .= "Đã thanh toán: " . number_format($paymentCalculation['total_paid']) . " VND\n";
+
+        if ($paymentCalculation['fee_difference'] > 0) {
+            $notes .= "Cần đóng thêm: " . number_format($paymentCalculation['fee_difference']) . " VND\n";
+        } elseif ($paymentCalculation['fee_difference'] < 0) {
+            $notes .= "Thừa thanh toán: " . number_format(abs($paymentCalculation['fee_difference'])) . " VND\n";
+        }
+
+        if (isset($data['notes'])) {
+            $notes .= "\nGhi chú thêm: " . $data['notes'];
+        }
+
+        return $notes;
+    }
+
+    /**
+     * Finalize old enrollment
+     */
+    private function finalizeOldEnrollment($enrollment, $targetCourse, $data)
+    {
+        // Update old enrollment status
+        $enrollment->update([
+            'status' => EnrollmentStatus::CANCELLED->value,
+            'cancelled_at' => now(),
+            'notes' => ($enrollment->notes ?? '') . "\n\nĐã chuyển sang khóa học: " . $targetCourse->name . " vào " . now()->format('d/m/Y H:i'),
+            'custom_fields' => array_merge($enrollment->custom_fields ?? [], [
+                'transferred_to_course_id' => $targetCourse->id,
+                'transfer_date' => now()->toDateString(),
+                'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học'
+            ])
+        ]);
+
+        // Cancel any pending payments for old enrollment
+        $enrollment->payments()
+            ->where('status', 'pending')
+            ->update([
+                'status' => 'cancelled',
+                'notes' => 'Hủy do chuyển khóa học'
+            ]);
+    }
+
+    /**
+     * Get transfer history for a student
+     */
+    public function getTransferHistory($studentId)
+    {
+        return Enrollment::where('student_id', $studentId)
+            ->whereJsonContains('custom_fields->transfer_from_enrollment_id', '!=', null)
+            ->orWhereJsonContains('custom_fields->transferred_to_course_id', '!=', null)
+            ->with(['courseItem', 'payments'])
+            ->orderBy('created_at', 'desc')
+            ->get();
+    }
+
+    /**
+     * Calculate transfer cost preview (without actually transferring)
+     */
+    public function previewTransferCost($enrollmentId, $targetCourseId, $options = [])
+    {
+        $enrollment = Enrollment::findOrFail($enrollmentId);
+        $targetCourse = CourseItem::findOrFail($targetCourseId);
+
+        // Validate basic conditions
+        $this->validateTransferConditions($enrollment, $targetCourse, $options);
+
+        // Calculate payment adjustments
+        $paymentCalculation = $this->calculateTransferPayments($enrollment, $targetCourse, $options);
+
+        return [
+            'current_course' => [
+                'id' => $enrollment->courseItem->id,
+                'name' => $enrollment->courseItem->name,
+                'fee' => $enrollment->final_fee,
+                'paid_amount' => $enrollment->getTotalPaidAmount()
+            ],
+            'target_course' => [
+                'id' => $targetCourse->id,
+                'name' => $targetCourse->name,
+                'base_fee' => $targetCourse->fee,
+                'final_fee' => $paymentCalculation['new_final_fee']
+            ],
+            'payment_calculation' => $paymentCalculation,
+            'preview_only' => true
+        ];
     }
 
     /**
