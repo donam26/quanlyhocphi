@@ -18,15 +18,10 @@ class StudentController extends Controller
     {
         $query = Student::query();
 
-        // Search
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            });
+        // Search - xử lý cả 'search' và 'q' parameter
+        $searchTerm = $request->get('search') ?: $request->get('q');
+        if ($searchTerm) {
+            $query->search($searchTerm); // Sử dụng scope search đã có trong model
         }
 
         // Filter by province
@@ -44,14 +39,25 @@ class StudentController extends Controller
             $query->where('source', $request->source);
         }
 
-        // Sort
+        // Sort - xử lý sắp xếp từ frontend
         $sortBy = $request->get('sort_by', 'created_at');
         $sortOrder = $request->get('sort_order', 'desc');
-        $query->orderBy($sortBy, $sortOrder);
+
+        // Validate sort fields để tránh SQL injection
+        $allowedSortFields = [
+            'id', 'first_name', 'last_name', 'email', 'phone',
+            'date_of_birth', 'created_at', 'updated_at'
+        ];
+
+        if (in_array($sortBy, $allowedSortFields)) {
+            $query->orderBy($sortBy, $sortOrder);
+        } else {
+            $query->orderBy('created_at', 'desc');
+        }
 
         // Paginate
         $perPage = $request->get('per_page', 15);
-        $students = $query->with(['province'])->paginate($perPage);
+        $students = $query->with(['province', 'ethnicity'])->paginate($perPage);
 
         // Add computed fields
         $students->getCollection()->transform(function ($student) {
@@ -337,20 +343,128 @@ class StudentController extends Controller
     /**
      * Remove the specified student
      */
-    public function destroy(Student $student)
+    public function destroy(Student $student, Request $request)
     {
-        // Check if student has enrollments
-        if ($student->enrollments()->count() > 0) {
+        try {
+            $deleteEnrollments = $request->boolean('delete_enrollments', false);
+            $deletePayments = $request->boolean('delete_payments', false);
+
+            // Check if student has enrollments and user doesn't want to delete them
+            if (!$deleteEnrollments && $student->enrollments()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể xóa học viên có ghi danh. Vui lòng chọn xóa cả ghi danh hoặc xóa ghi danh trước.'
+                ], 422);
+            }
+
+            // Check if student has payments and user doesn't want to delete them
+            if (!$deletePayments && $student->payments()->count() > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Không thể xóa học viên có thanh toán. Vui lòng chọn xóa cả thanh toán hoặc xóa thanh toán trước.'
+                ], 422);
+            }
+
+            // Delete related data if requested
+            if ($deleteEnrollments) {
+                $student->enrollments()->delete();
+            }
+
+            if ($deletePayments) {
+                $student->payments()->delete();
+            }
+
+            $student->delete();
+
             return response()->json([
-                'message' => 'Cannot delete student with existing enrollments'
-            ], 422);
+                'success' => true,
+                'message' => 'Đã xóa học viên thành công'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error deleting student', [
+                'student_id' => $student->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi xóa học viên: ' . $e->getMessage()
+            ], 500);
         }
+    }
 
-        $student->delete();
-
-        return response()->json([
-            'message' => 'Student deleted successfully'
+    /**
+     * Bulk delete students
+     */
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:students,id',
+            'delete_enrollments' => 'boolean',
+            'delete_payments' => 'boolean'
         ]);
+
+        try {
+            $studentIds = $request->input('student_ids');
+            $deleteEnrollments = $request->boolean('delete_enrollments', false);
+            $deletePayments = $request->boolean('delete_payments', false);
+
+            $students = Student::whereIn('id', $studentIds)->get();
+            $deletedCount = 0;
+            $errors = [];
+
+            foreach ($students as $student) {
+                try {
+                    // Check constraints
+                    if (!$deleteEnrollments && $student->enrollments()->count() > 0) {
+                        $errors[] = "Học viên {$student->full_name} có ghi danh, không thể xóa";
+                        continue;
+                    }
+
+                    if (!$deletePayments && $student->payments()->count() > 0) {
+                        $errors[] = "Học viên {$student->full_name} có thanh toán, không thể xóa";
+                        continue;
+                    }
+
+                    // Delete related data if requested
+                    if ($deleteEnrollments) {
+                        $student->enrollments()->delete();
+                    }
+
+                    if ($deletePayments) {
+                        $student->payments()->delete();
+                    }
+
+                    $student->delete();
+                    $deletedCount++;
+
+                } catch (\Exception $e) {
+                    $errors[] = "Lỗi khi xóa học viên {$student->full_name}: " . $e->getMessage();
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => "Đã xóa {$deletedCount} học viên thành công",
+                'deleted_count' => $deletedCount,
+                'errors' => $errors
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error bulk deleting students', [
+                'student_ids' => $request->input('student_ids'),
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi xóa học viên: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

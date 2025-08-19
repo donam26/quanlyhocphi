@@ -206,8 +206,8 @@ class EnrollmentService
             // Xóa các điểm danh liên quan
             $enrollment->attendances()->delete();
             
-            // Xóa tiến độ lộ trình liên quan
-            $enrollment->learningPathProgress()->delete();
+            // Xóa tiến độ lộ trình liên quan trực tiếp từ bảng
+            LearningPathProgress::where('enrollment_id', $enrollment->id)->delete();
             
             // Xóa ghi danh
             $enrollment->delete();

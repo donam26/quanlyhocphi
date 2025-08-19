@@ -61,6 +61,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Bulk operations
         Route::post('/import', [StudentController::class, 'import']);
+        Route::post('/bulk-delete', [StudentController::class, 'bulkDelete']);
 
         // Search and filter
         Route::get('/province/{province}', [StudentController::class, 'byProvince']);
@@ -87,6 +88,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Tree structure
         Route::post('/update-order', [CourseItemController::class, 'updateOrder']);
+        Route::post('/reorder', [CourseItemController::class, 'reorder']);
 
         // Course status
         Route::post('/{courseItem}/toggle-status', [CourseItemController::class, 'toggleStatus']);
@@ -97,6 +99,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Course students
         Route::get('/{courseItem}/students', [CourseItemController::class, 'students']);
+        Route::get('/{courseItem}/students-recursive', [CourseItemController::class, 'studentsRecursive']);
         Route::post('/{courseItem}/add-student', [CourseItemController::class, 'addStudent']);
         Route::post('/{courseItem}/import-students', [CourseItemController::class, 'importStudents']);
         Route::post('/{courseItem}/import-students-to-waiting', [CourseItemController::class, 'importStudentsToWaiting']);
@@ -118,6 +121,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/waiting-list-tree', [EnrollmentController::class, 'getWaitingListTree']);
         Route::get('/course/{courseId}/waiting-students', [EnrollmentController::class, 'getWaitingStudentsByCourse']);
         Route::get('/course/{courseId}/waiting-list', [EnrollmentController::class, 'getWaitingListByCourse']);
+        Route::get('/course/{courseId}/all-students', [EnrollmentController::class, 'getAllStudentsByCourse']);
+        Route::post('/{enrollmentId}/generate-payment-link', [EnrollmentController::class, 'generatePaymentLink']);
 
         // CRUD operations
         Route::get('/', [EnrollmentController::class, 'index']);

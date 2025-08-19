@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Traits\Date;
 use App\Enums\EnrollmentStatus;
+use App\Models\LearningPathProgress;
 
 class Enrollment extends Model
 {
@@ -78,6 +79,14 @@ class Enrollment extends Model
     public function attendances()
     {
         return $this->hasMany(Attendance::class);
+    }
+
+    /**
+     * Quan hệ với tiến độ lộ trình học tập
+     */
+    public function learningPathProgress()
+    {
+        return $this->hasMany(LearningPathProgress::class);
     }
     
     /**

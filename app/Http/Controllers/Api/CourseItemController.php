@@ -8,10 +8,18 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\LearningPath;
 use App\Enums\CourseStatus;
+use App\Services\CourseItemService;
 use Illuminate\Support\Facades\Validator;
 
 class CourseItemController extends Controller
 {
+    protected $courseItemService;
+
+    public function __construct(CourseItemService $courseItemService)
+    {
+        $this->courseItemService = $courseItemService;
+    }
+
     /**
      * Display a listing of course items
      */
@@ -255,33 +263,18 @@ class CourseItemController extends Controller
      */
     public function destroy(CourseItem $courseItem)
     {
-        // Check if course has enrollments
-        if ($courseItem->enrollments()->count() > 0) {
+        try {
+            // Luôn luôn xóa đệ quy tất cả khóa học con và dữ liệu liên quan
+            $this->courseItemService->deleteCourseItem($courseItem);
+
             return response()->json([
-                'message' => 'Cannot delete course with existing enrollments'
-            ], 422);
-        }
-
-        // Check if course has children
-        if ($courseItem->children()->count() > 0) {
+                'message' => 'Khóa học đã được xóa thành công'
+            ]);
+        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Cannot delete course with child courses'
-            ], 422);
+                'message' => 'Có lỗi xảy ra khi xóa khóa học: ' . $e->getMessage()
+            ], 500);
         }
-
-        // Update parent if this was the only child
-        if ($courseItem->parent_id) {
-            $parent = CourseItem::find($courseItem->parent_id);
-            if ($parent && $parent->children()->count() == 1) {
-                $parent->update(['is_leaf' => true]);
-            }
-        }
-
-        $courseItem->delete();
-
-        return response()->json([
-            'message' => 'Course deleted successfully'
-        ]);
     }
 
 
@@ -433,6 +426,70 @@ class CourseItemController extends Controller
         });
 
         return response()->json($enrollments);
+    }
+
+    /**
+     * Get course students recursively (for folder courses)
+     */
+    public function studentsRecursive(CourseItem $courseItem)
+    {
+        $allEnrollments = collect();
+
+        // Lấy học viên từ khóa hiện tại (nếu là khóa lá)
+        if ($courseItem->is_leaf) {
+            $enrollments = $courseItem->enrollments()
+                ->with(['student.province', 'student.ethnicity', 'courseItem'])
+                ->where('status', 'active')
+                ->get();
+
+            $allEnrollments = $allEnrollments->merge($enrollments);
+        }
+
+        // Lấy học viên từ tất cả khóa con đệ quy
+        $this->collectEnrollmentsRecursive($courseItem, $allEnrollments);
+
+        // Thêm thông tin tính toán cho mỗi enrollment
+        $allEnrollments->each(function ($enrollment) {
+            if ($enrollment->student) {
+                // Tính toán thông tin thanh toán
+                $totalPaid = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
+                $enrollment->total_paid = $totalPaid;
+                $enrollment->remaining_amount = max(0, $enrollment->final_fee - $totalPaid);
+                $enrollment->payment_status = $enrollment->remaining_amount <= 0 ? 'paid' : 'unpaid';
+            }
+        });
+
+        return response()->json($allEnrollments->values());
+    }
+
+    /**
+     * Collect enrollments recursively from all children
+     */
+    private function collectEnrollmentsRecursive(CourseItem $courseItem, &$allEnrollments)
+    {
+        $childCourses = $courseItem->children()->orderBy('order_index')->get();
+
+        foreach ($childCourses as $childCourse) {
+            if ($childCourse->is_leaf) {
+                // Nếu là khóa lá, lấy học viên
+                $childEnrollments = $childCourse->enrollments()
+                    ->with(['student.province', 'student.ethnicity', 'courseItem'])
+                    ->where('status', 'active')
+                    ->get();
+
+                // Thêm thông tin khóa con vào mỗi enrollment
+                $childEnrollments->each(function ($enrollment) use ($childCourse) {
+                    $enrollment->child_course_name = $childCourse->name;
+                    $enrollment->child_course_id = $childCourse->id;
+                    $enrollment->child_course_order = $childCourse->order_index;
+                });
+
+                $allEnrollments = $allEnrollments->merge($childEnrollments);
+            } else {
+                // Nếu là thư mục, đệ quy tiếp
+                $this->collectEnrollmentsRecursive($childCourse, $allEnrollments);
+            }
+        }
     }
 
     /**
@@ -633,6 +690,72 @@ class CourseItemController extends Controller
         return response()->json([
             'message' => 'Order updated successfully'
         ]);
+    }
+
+    /**
+     * Reorder courses via drag and drop
+     */
+    public function reorder(Request $request)
+    {
+        $request->validate([
+            'courseId' => 'required|integer|exists:course_items,id',
+            'sourceParentId' => 'nullable|integer|exists:course_items,id',
+            'destParentId' => 'nullable|integer|exists:course_items,id',
+            'sourceIndex' => 'required|integer|min:0',
+            'destIndex' => 'required|integer|min:0'
+        ]);
+
+        try {
+            $courseId = $request->input('courseId');
+            $sourceParentId = $request->input('sourceParentId');
+            $destParentId = $request->input('destParentId');
+            $sourceIndex = $request->input('sourceIndex');
+            $destIndex = $request->input('destIndex');
+
+            // Get the course being moved
+            $course = CourseItem::findOrFail($courseId);
+
+            // If moving to a different parent
+            if ($sourceParentId !== $destParentId) {
+                $course->parent_id = $destParentId;
+                $course->save();
+            }
+
+            // Get all siblings in the destination parent
+            $siblings = CourseItem::where('parent_id', $destParentId)
+                ->orderBy('order_index')
+                ->get();
+
+            // Remove the moved course from the list temporarily
+            $siblings = $siblings->reject(function ($item) use ($courseId) {
+                return $item->id === $courseId;
+            })->values();
+
+            // Insert the moved course at the new position
+            $siblings->splice($destIndex, 0, [$course]);
+
+            // Update order_index for all siblings
+            foreach ($siblings as $index => $sibling) {
+                $sibling->order_index = $index;
+                $sibling->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã cập nhật thứ tự khóa học thành công'
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error reordering courses', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi cập nhật thứ tự: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
@@ -901,15 +1024,27 @@ class CourseItemController extends Controller
                 ], 400);
             }
 
+            // Debug: Log request data
+            \Log::info('Learning paths save request:', [
+                'course_id' => $course->id,
+                'request_all' => $request->all(),
+                'has_paths' => $request->has('paths'),
+                'paths_value' => $request->input('paths')
+            ]);
+
             $validator = Validator::make($request->all(), [
-                'paths' => 'required|array',
-                'paths.*.title' => 'required|string|max:255',
+                'paths' => 'present|array', // present cho phép mảng rỗng
+                'paths.*.title' => 'required_with:paths.*|string|max:255',
                 'paths.*.description' => 'nullable|string',
                 'paths.*.order' => 'nullable|integer',
                 'paths.*.is_completed' => 'nullable|boolean'
             ]);
 
             if ($validator->fails()) {
+                \Log::error('Learning paths validation failed:', [
+                    'errors' => $validator->errors(),
+                    'request_data' => $request->all()
+                ]);
                 return response()->json([
                     'success' => false,
                     'message' => 'Dữ liệu không hợp lệ',
@@ -922,6 +1057,12 @@ class CourseItemController extends Controller
 
             // Tạo learning paths mới
             $paths = $request->input('paths');
+            \Log::info('Saving learning paths', [
+                'course_id' => $id,
+                'paths_count' => count($paths),
+                'paths_data' => $paths
+            ]);
+
             foreach ($paths as $index => $pathData) {
                 LearningPath::create([
                     'course_item_id' => $id,
@@ -937,9 +1078,16 @@ class CourseItemController extends Controller
                 'message' => 'Đã lưu lộ trình học tập thành công'
             ]);
         } catch (\Exception $e) {
+            \Log::error('Learning paths save error:', [
+                'course_id' => $courseItem->id,
+                'error_message' => $e->getMessage(),
+                'error_trace' => $e->getTraceAsString(),
+                'request_data' => $request->all()
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Có lỗi xảy ra khi lưu lộ trình học tập'
+                'message' => 'Có lỗi xảy ra khi lưu lộ trình học tập: ' . $e->getMessage()
             ], 500);
         }
     }

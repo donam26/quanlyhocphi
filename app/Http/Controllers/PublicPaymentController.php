@@ -238,6 +238,92 @@ class PublicPaymentController extends Controller
     }
 
     /**
+     * Lấy thông tin thanh toán public (không cần auth)
+     */
+    public function getPaymentInfo($paymentId)
+    {
+        try {
+            $payment = Payment::with([
+                'enrollment.student',
+                'enrollment.courseItem'
+            ])->findOrFail($paymentId);
+
+            Log::info('Getting payment info', [
+                'payment_id' => $paymentId,
+                'status' => $payment->status,
+                'method' => $payment->payment_method
+            ]);
+
+            // Tạo QR data nếu payment chưa hoàn thành
+            $qrData = null;
+            if ($payment->status === 'pending') {
+                try {
+                    $qrResult = $this->sePayService->generateQR($payment);
+                    Log::info('QR generation result', $qrResult);
+
+                    if ($qrResult['success']) {
+                        $qrData = $qrResult['data'];
+                    } else {
+                        Log::warning('QR generation failed', $qrResult);
+                    }
+                } catch (\Exception $qrError) {
+                    Log::error('QR generation error: ' . $qrError->getMessage());
+
+                    // Fallback: tạo QR đơn giản
+                    $transactionId = 'HP' . $payment->id . '_' . $payment->enrollment->student->id . '_' . $payment->enrollment->courseItem->id;
+                    $bankAccount = config('sepay.bank_account', '1234567890');
+                    $bankCode = config('sepay.bank_code', 'VCB');
+
+                    $qrData = [
+                        'transaction_id' => $transactionId,
+                        'qr_url' => "https://qr.sepay.vn/img?acc={$bankAccount}&bank={$bankCode}&amount={$payment->amount}&des=" . urlencode($transactionId) . "&template=compact",
+                        'amount' => $payment->amount,
+                        'bank_account' => $bankAccount,
+                        'bank_code' => $bankCode
+                    ];
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment' => [
+                        'id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'status' => $payment->status,
+                        'payment_method' => $payment->payment_method,
+                        'created_at' => $payment->created_at,
+                        'updated_at' => $payment->updated_at,
+                        'notes' => $payment->notes
+                    ],
+                    'enrollment' => [
+                        'id' => $payment->enrollment->id,
+                        'student' => [
+                            'id' => $payment->enrollment->student->id,
+                            'full_name' => $payment->enrollment->student->full_name,
+                            'phone' => $payment->enrollment->student->phone,
+                            'email' => $payment->enrollment->student->email
+                        ],
+                        'course_item' => [
+                            'id' => $payment->enrollment->courseItem->id,
+                            'name' => $payment->enrollment->courseItem->name,
+                            'code' => $payment->enrollment->courseItem->code
+                        ]
+                    ],
+                    'qr_data' => $qrData
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            Log::error('Error getting public payment info: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể tải thông tin thanh toán'
+            ], 404);
+        }
+    }
+
+    /**
      * Tạo token cho enrollment
      */
     public static function generatePaymentToken($enrollmentId)

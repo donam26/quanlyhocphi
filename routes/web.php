@@ -32,6 +32,11 @@ Route::prefix('pay')->name('public.payment.')->group(function () {
     Route::get('/{token}/status/{paymentId}', [PublicPaymentController::class, 'checkPaymentStatus'])->name('status');
 });
 
+// Public API Routes (không cần auth)
+Route::prefix('api/public')->name('api.public.')->group(function () {
+    Route::get('/payment/{paymentId}', [PublicPaymentController::class, 'getPaymentInfo'])->name('payment.info');
+});
+
 // Các routes yêu cầu đăng nhập và quyền admin
 Route::middleware(['auth', 'admin'])->group(function () {
     // Dashboard

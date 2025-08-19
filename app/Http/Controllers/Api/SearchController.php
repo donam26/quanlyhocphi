@@ -31,7 +31,10 @@ class SearchController extends Controller
             $results = [];
             
             if ($type === 'all' || $type === 'students') {
-                $students = Student::search($term)->limit(10)->get();
+                $students = Student::search($term)
+                    ->select('id', 'first_name', 'last_name', 'phone', 'email')
+                    ->limit(10)
+                    ->get();
                 $results['students'] = $students->map(function ($student) {
                     return [
                         'id' => $student->id,

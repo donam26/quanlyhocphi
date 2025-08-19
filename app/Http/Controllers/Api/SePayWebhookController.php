@@ -128,12 +128,60 @@ class SePayWebhookController extends Controller
     private function findPaymentByContent($content)
     {
         try {
-            // Pattern 1: SE{student_id}_{course_id} (cho enrollment payments)
+            // Pattern 1a: HP{payment_id}_{student_id}_{course_id} (cho enrollment payments - new format)
+            if (preg_match('/HP(\d+)_(\d+)_(\d+)/', $content, $matches)) {
+                $paymentId = $matches[1];
+                $studentId = $matches[2];
+                $courseId = $matches[3];
+
+                Log::info('Searching payment by new HP enrollment pattern', [
+                    'payment_id' => $paymentId,
+                    'student_id' => $studentId,
+                    'course_id' => $courseId
+                ]);
+
+                // Tìm payment trực tiếp theo ID và verify enrollment
+                $payment = Payment::where('id', $paymentId)
+                    ->where('status', 'pending')
+                    ->where('payment_method', 'sepay')
+                    ->whereHas('enrollment', function($q) use ($studentId, $courseId) {
+                        $q->where('student_id', $studentId)
+                          ->where('course_item_id', $courseId);
+                    })
+                    ->first();
+
+                if ($payment) {
+                    Log::info('Found payment by new HP enrollment pattern', ['payment_id' => $payment->id]);
+                    return $payment;
+                }
+            }
+
+            // Pattern 1b: SE{student_id}_{course_id} (cho enrollment payments - old format)
             if (preg_match('/SE(\d+)_(\d+)/', $content, $matches)) {
                 $studentId = $matches[1];
                 $courseId = $matches[2];
-                
-                Log::info('Searching payment by enrollment pattern', [
+
+                Log::info('Searching payment by SE enrollment pattern', [
+                    'student_id' => $studentId,
+                    'course_id' => $courseId
+                ]);
+
+                return Payment::whereHas('enrollment', function($query) use ($studentId, $courseId) {
+                    $query->where('student_id', $studentId)
+                          ->where('course_item_id', $courseId);
+                })
+                ->where('status', 'pending')
+                ->where('payment_method', 'sepay')
+                ->orderBy('created_at', 'desc')
+                ->first();
+            }
+
+            // Pattern 1c: HP{student_id}_{course_id} (cho backward compatibility)
+            if (preg_match('/HP(\d+)_(\d+)$/', $content, $matches)) {
+                $studentId = $matches[1];
+                $courseId = $matches[2];
+
+                Log::info('Searching payment by old HP enrollment pattern', [
                     'student_id' => $studentId,
                     'course_id' => $courseId
                 ]);

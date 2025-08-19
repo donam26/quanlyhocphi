@@ -54,7 +54,7 @@ class SearchController extends Controller
         }
         
         $students = \App\Models\Student::search($term)
-            ->select('id', 'full_name', 'phone', 'email')
+            ->select('id', 'first_name', 'last_name', 'phone', 'email')
             ->limit(10)
             ->get();
         

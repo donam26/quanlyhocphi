@@ -442,4 +442,110 @@ class EnrollmentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Lấy tất cả học viên của một lớp học với thông tin thanh toán
+     */
+    public function getAllStudentsByCourse(Request $request, $courseId)
+    {
+        try {
+            $course = CourseItem::with(['enrollments.student', 'enrollments.payments'])
+                ->findOrFail($courseId);
+
+            // Lấy tất cả enrollments active của lớp học
+            $enrollments = $course->enrollments->where('status', EnrollmentStatus::ACTIVE);
+
+            // Transform data với thông tin thanh toán
+            $studentsData = $enrollments->map(function ($enrollment) {
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                $remaining = $enrollment->final_fee - $totalPaid;
+
+                return [
+                    'id' => $enrollment->id,
+                    'student' => [
+                        'id' => $enrollment->student->id,
+                        'full_name' => $enrollment->student->full_name,
+                        'phone' => $enrollment->student->phone,
+                        'email' => $enrollment->student->email,
+                    ],
+                    'enrollment_date' => $enrollment->enrollment_date->format('d/m/Y'),
+                    'final_fee' => $enrollment->final_fee,
+                    'total_paid' => $totalPaid,
+                    'remaining_amount' => $remaining,
+                    'payment_status' => $remaining > 0 ? 'unpaid' : 'paid',
+                    'payment_percentage' => $enrollment->final_fee > 0 ? round(($totalPaid / $enrollment->final_fee) * 100, 2) : 0,
+                    'status' => $enrollment->status,
+                    'last_payment_date' => $enrollment->payments->where('status', 'confirmed')->sortByDesc('payment_date')->first()?->payment_date?->format('d/m/Y'),
+                    'days_since_enrollment' => $enrollment->enrollment_date->diffInDays(now()),
+                    'course_fee' => $enrollment->final_fee, // Alias for compatibility
+                ];
+            })->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'course' => [
+                        'id' => $course->id,
+                        'name' => $course->name,
+                        'code' => $course->code,
+                        'fee' => $course->fee,
+                    ],
+                    'students' => $studentsData,
+                    'summary' => [
+                        'total_students' => $studentsData->count(),
+                        'paid_students' => $studentsData->where('payment_status', 'paid')->count(),
+                        'unpaid_students' => $studentsData->where('payment_status', 'unpaid')->count(),
+                        'total_revenue' => $studentsData->sum('total_paid'),
+                        'expected_revenue' => $studentsData->sum('final_fee'),
+                        'remaining_revenue' => $studentsData->sum('remaining_amount'),
+                    ]
+                ],
+                'message' => 'Lấy danh sách học viên thành công'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error getting all students by course: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy danh sách học viên: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Tạo public payment link cho enrollment
+     */
+    public function generatePaymentLink($enrollmentId)
+    {
+        try {
+            $enrollment = Enrollment::with(['student', 'courseItem'])->findOrFail($enrollmentId);
+
+            // Tạo token
+            $token = \App\Http\Controllers\PublicPaymentController::generatePaymentToken($enrollmentId);
+
+            // Tạo URL
+            $baseUrl = config('app.url');
+            $paymentUrl = $baseUrl . '/public/payment/' . $token;
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'payment_url' => $paymentUrl,
+                    'token' => $token,
+                    'enrollment' => [
+                        'id' => $enrollment->id,
+                        'student_name' => $enrollment->student->full_name,
+                        'course_name' => $enrollment->courseItem->name,
+                        'remaining_amount' => $enrollment->final_fee - $enrollment->payments->where('status', 'confirmed')->sum('amount')
+                    ]
+                ],
+                'message' => 'Tạo link thanh toán thành công'
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Error generating payment link: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tạo link thanh toán: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }
