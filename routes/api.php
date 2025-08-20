@@ -149,6 +149,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Statistics and overview (phải đặt trước routes có parameter)
         Route::get('/stats', [PaymentController::class, 'stats']);
+        Route::get('/metrics', [PaymentController::class, 'getPaymentMetrics']);
         Route::get('/unpaid-enrollments', [PaymentController::class, 'getUnpaidEnrollments']);
         Route::get('/payment-overview', [PaymentController::class, 'getPaymentOverview']);
         Route::get('/courses-with-unpaid', [PaymentController::class, 'getCoursesWithUnpaidStudents']);
@@ -174,12 +175,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{payment}', [PaymentController::class, 'destroy']);
 
         // Payment actions
-        Route::post('/{payment}/confirm', [PaymentController::class, 'confirm']);
-        Route::post('/{payment}/cancel', [PaymentController::class, 'cancel']);
+        Route::post('/{payment}/confirm', [PaymentController::class, 'confirmPayment']);
+        Route::post('/{payment}/cancel', [PaymentController::class, 'cancelPayment']);
         Route::post('/{payment}/refund', [PaymentController::class, 'refund']);
 
-        // SePay integration
-        Route::post('/sepay/initiate', [PaymentController::class, 'initiateSePayPayment']);
+        // SePay integration (with rate limiting)
+        Route::middleware(['throttle:10,1'])->group(function () {
+            Route::post('/sepay/initiate', [PaymentController::class, 'initiateSePayPayment']);
+        });
         Route::get('/sepay/status/{paymentId}', [PaymentController::class, 'checkSePayPaymentStatus']);
 
         // Reports and exports
@@ -188,6 +191,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/monthly-report', [PaymentController::class, 'monthlyReport']);
         Route::get('/batches', [PaymentController::class, 'getUserBatches']);
         Route::get('/batches/{batchId}/stats', [PaymentController::class, 'getBatchStats']);
+
+        // Reconciliation
+        Route::post('/reconcile', [PaymentController::class, 'reconcilePayments']);
+        Route::post('/auto-reconcile-sepay', [PaymentController::class, 'autoReconcileSePayTransactions']);
+        Route::get('/reconciliation-report', [PaymentController::class, 'getReconciliationReport']);
+        Route::get('/suspicious-patterns', [PaymentController::class, 'detectSuspiciousPatterns']);
     });
 
     // Attendance API
@@ -282,10 +291,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/course/{courseId}/complete', [LearningPathController::class, 'completeCoursePathProgress']);
         Route::post('/course/{courseId}/reset', [LearningPathController::class, 'resetCoursePathProgress']);
     });
-});
-
-// Public routes (không cần authentication) - SePay webhook
-Route::prefix('api')->group(function () {
-    Route::post('/sepay/webhook', [\App\Http\Controllers\Api\SePayWebhookController::class, 'handleWebhook']);
-    Route::post('/sepay/test', [\App\Http\Controllers\Api\SePayWebhookController::class, 'test']);
 });

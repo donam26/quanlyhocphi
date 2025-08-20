@@ -8,7 +8,11 @@ use App\Models\Enrollment;
 use App\Models\Student;
 use App\Models\CourseItem;
 use App\Services\PaymentService;
+use App\Services\PaymentMetricsService;
+use App\Services\PaymentReconciliationService;
 use App\Enums\EnrollmentStatus;
+use App\Rules\ValidPaymentAmount;
+use App\Rules\WhitelistedDomain;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Carbon\Carbon;
@@ -708,70 +712,86 @@ class PaymentController extends Controller
     public function initiateSePayPayment(Request $request)
     {
         try {
+            // Get enrollment first for validation
+            $enrollment = Enrollment::with(['student', 'courseItem'])->findOrFail($request->input('enrollment_id'));
+
             $validated = $request->validate([
                 'enrollment_id' => 'required|exists:enrollments,id',
-                'amount' => 'required|numeric|min:1000', // Tối thiểu 1,000 VND
-                'redirect_url' => 'nullable|url'
-            ]);
-
-            $enrollment = Enrollment::with(['student', 'courseItem'])->findOrFail($validated['enrollment_id']);
-
-            // Kiểm tra số tiền còn thiếu
-            $totalPaid = $enrollment->getTotalPaidAmount();
-            $remaining = $enrollment->final_fee - $totalPaid;
-
-            if ($remaining <= 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Học viên đã thanh toán đủ học phí'
-                ], 400);
-            }
-
-            if ($validated['amount'] > $remaining) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Số tiền thanh toán không được vượt quá số tiền còn thiếu: ' . number_format($remaining) . ' VND'
-                ], 400);
-            }
-
-            // Tạo payment record
-            $payment = Payment::create([
-                'enrollment_id' => $enrollment->id,
-                'amount' => $validated['amount'],
-                'payment_method' => 'sepay',
-                'payment_date' => now(),
-                'status' => 'pending',
-                'notes' => 'Thanh toán qua SePay - Đang chờ xác nhận'
-            ]);
-
-            // Tạo QR code thông qua SePay service
-            $sePayService = app(\App\Services\SePayService::class);
-            $qrResult = $sePayService->generateQR($payment);
-
-            if (!$qrResult['success']) {
-                $payment->delete();
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Không thể tạo mã QR thanh toán'
-                ], 500);
-            }
-
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'payment_id' => $payment->id,
-                    'qr_data' => $qrResult['data'],
-                    'enrollment' => [
-                        'id' => $enrollment->id,
-                        'student_name' => $enrollment->student->full_name,
-                        'course_name' => $enrollment->courseItem->name,
-                        'final_fee' => $enrollment->final_fee,
-                        'total_paid' => $totalPaid,
-                        'remaining_amount' => $remaining,
-                    ]
+                'amount' => [
+                    'required',
+                    'numeric',
+                    new ValidPaymentAmount($enrollment)
                 ],
-                'message' => 'Đã tạo mã QR thanh toán thành công'
+                'redirect_url' => [
+                    'nullable',
+                    'url',
+                    new WhitelistedDomain()
+                ]
             ]);
+
+            // Use database transaction for consistency
+            return DB::transaction(function () use ($validated, $enrollment) {
+                // Lock enrollment for update to prevent race conditions
+                $enrollment = Enrollment::with(['student', 'courseItem'])
+                    ->lockForUpdate()
+                    ->findOrFail($validated['enrollment_id']);
+
+                // Double-check remaining amount after lock
+                $remaining = $enrollment->getRemainingAmount();
+
+                if ($remaining <= 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Học viên đã thanh toán đủ học phí'
+                    ], 400);
+                }
+
+                if ($validated['amount'] > $remaining) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Số tiền thanh toán không được vượt quá số tiền còn thiếu: ' . number_format($remaining, 0, ',', '.') . ' VND'
+                    ], 400);
+                }
+
+                // Generate idempotency key
+                $idempotencyKey = 'sepay_' . $enrollment->id . '_' . time() . '_' . rand(1000, 9999);
+
+                // Tạo payment record
+                $payment = Payment::create([
+                    'enrollment_id' => $enrollment->id,
+                    'amount' => $validated['amount'],
+                    'payment_method' => 'sepay',
+                    'payment_date' => now(),
+                    'status' => 'pending',
+                    'transaction_reference' => $idempotencyKey,
+                    'notes' => 'Thanh toán qua SePay - Đang chờ xác nhận'
+                ]);
+
+                // Tạo QR code thông qua SePay service
+                $sePayService = app(\App\Services\SePayService::class);
+                $qrResult = $sePayService->generateQR($payment);
+
+                if (!$qrResult['success']) {
+                    throw new \Exception('Không thể tạo mã QR thanh toán');
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'payment_id' => $payment->id,
+                        'qr_data' => $qrResult['data'],
+                        'enrollment' => [
+                            'id' => $enrollment->id,
+                            'student_name' => $enrollment->student->full_name,
+                            'course_name' => $enrollment->courseItem->name,
+                            'final_fee' => $enrollment->final_fee,
+                            'total_paid' => $enrollment->getTotalPaidAmount(),
+                            'remaining_amount' => $remaining,
+                        ]
+                    ],
+                    'message' => 'Đã tạo mã QR thanh toán thành công'
+                ]);
+            });
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -1045,6 +1065,223 @@ class PaymentController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi gửi nhắc nhở khóa học: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Lấy payment metrics cho dashboard
+     */
+    public function getPaymentMetrics(Request $request)
+    {
+        try {
+            $metrics = PaymentMetricsService::getDashboardMetrics();
+
+            return response()->json([
+                'success' => true,
+                'data' => $metrics
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy payment metrics: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Confirm payment manually với audit logging
+     */
+    public function confirmPayment(Request $request, Payment $payment)
+    {
+        try {
+            if ($payment->status === 'confirmed') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Thanh toán đã được xác nhận trước đó'
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'notes' => 'nullable|string|max:1000'
+            ]);
+
+            DB::transaction(function () use ($payment, $validated) {
+                $payment->confirm(auth()->id(), [
+                    'manual_confirmation' => true,
+                    'notes' => $validated['notes'] ?? null
+                ]);
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã xác nhận thanh toán thành công',
+                'data' => $payment->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xác nhận thanh toán: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Cancel payment manually với audit logging
+     */
+    public function cancelPayment(Request $request, Payment $payment)
+    {
+        try {
+            if ($payment->status === 'cancelled') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Thanh toán đã được hủy trước đó'
+                ], 400);
+            }
+
+            $validated = $request->validate([
+                'reason' => 'required|string|max:500'
+            ]);
+
+            DB::transaction(function () use ($payment, $validated) {
+                $payment->cancel($validated['reason'], auth()->id());
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã hủy thanh toán thành công',
+                'data' => $payment->fresh()
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi hủy thanh toán: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Reconcile payments với bank statements
+     */
+    public function reconcilePayments(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'date' => 'required|date',
+                'bank_statements' => 'required|array',
+                'bank_statements.*.amount' => 'required|numeric',
+                'bank_statements.*.date' => 'required|date',
+                'bank_statements.*.reference' => 'nullable|string'
+            ]);
+
+            $reconciliationService = app(PaymentReconciliationService::class);
+            $results = $reconciliationService->reconcilePayments(
+                $validated['bank_statements'],
+                Carbon::parse($validated['date'])
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Đối soát thanh toán hoàn tất'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi đối soát thanh toán: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Auto reconcile SePay transactions
+     */
+    public function autoReconcileSePayTransactions(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'date' => 'nullable|date'
+            ]);
+
+            $reconciliationService = app(PaymentReconciliationService::class);
+            $results = $reconciliationService->autoReconcileSePayTransactions(
+                $validated['date'] ? Carbon::parse($validated['date']) : null
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $results,
+                'message' => 'Tự động đối soát SePay hoàn tất'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tự động đối soát SePay: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Generate reconciliation report
+     */
+    public function getReconciliationReport(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date'
+            ]);
+
+            $reconciliationService = app(PaymentReconciliationService::class);
+            $report = $reconciliationService->generateReconciliationReport(
+                Carbon::parse($validated['start_date']),
+                Carbon::parse($validated['end_date'])
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $report,
+                'message' => 'Báo cáo đối soát đã được tạo'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi tạo báo cáo đối soát: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Detect suspicious payment patterns
+     */
+    public function detectSuspiciousPatterns(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'date' => 'nullable|date'
+            ]);
+
+            $reconciliationService = app(PaymentReconciliationService::class);
+            $patterns = $reconciliationService->detectSuspiciousPatterns(
+                $validated['date'] ? Carbon::parse($validated['date']) : null
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => $patterns,
+                'message' => 'Phân tích pattern hoàn tất'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi phân tích pattern: ' . $e->getMessage()
             ], 500);
         }
     }

@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
-use App\Models\Enrollment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class SePayWebhookController extends Controller
 {
@@ -17,6 +17,22 @@ class SePayWebhookController extends Controller
     public function handleWebhook(Request $request)
     {
         try {
+            // Verify webhook signature first
+            if (!$this->verifyWebhookSignature($request)) {
+                Log::warning('SePay Webhook: Invalid signature', [
+                    'ip' => $request->ip(),
+                    'user_agent' => $request->userAgent()
+                ]);
+                return response()->json(['status' => 'error', 'message' => 'Invalid signature'], 401);
+            }
+
+            // Check for idempotency
+            $webhookId = $request->input('id');
+            if ($this->isWebhookProcessed($webhookId)) {
+                Log::info('SePay Webhook: Already processed', ['webhook_id' => $webhookId]);
+                return response()->json(['status' => 'success', 'message' => 'Already processed']);
+            }
+
             // Log toàn bộ request để debug
             Log::info('SePay Webhook received', [
                 'headers' => $request->headers->all(),
@@ -26,7 +42,7 @@ class SePayWebhookController extends Controller
 
             // Validate webhook data theo docs SePay
             $data = $request->all();
-            
+
             if (!isset($data['id']) || !isset($data['transaction_content']) || !isset($data['amount_in'])) {
                 Log::warning('SePay Webhook: Missing required fields', $data);
                 return response()->json(['status' => 'error', 'message' => 'Missing required fields'], 400);
@@ -73,13 +89,30 @@ class SePayWebhookController extends Controller
                 return response()->json(['status' => 'success', 'message' => 'Payment already confirmed']);
             }
 
-            // Cập nhật payment
+            // Cập nhật payment với audit logging
             DB::beginTransaction();
             try {
                 $payment->update([
                     'status' => 'confirmed',
                     'transaction_reference' => $referenceNumber,
-                    'notes' => 'Thanh toán qua SePay - Đã xác nhận tự động. Transaction ID: ' . $transactionId
+                    'webhook_id' => $webhookId,
+                    'webhook_data' => [
+                        'transaction_id' => $transactionId,
+                        'amount_received' => $amountIn,
+                        'processed_at' => now()->toISOString(),
+                        'reference_number' => $referenceNumber
+                    ],
+                    'confirmed_at' => now(),
+                    'notes' => "Thanh toán qua SePay - Đã xác nhận tự động. Transaction ID: {$transactionId}"
+                ]);
+
+                // Log audit action
+                $payment->auditAction('webhook_confirmed', [
+                    'webhook_id' => $webhookId,
+                    'transaction_id' => $transactionId,
+                    'amount_received' => $amountIn,
+                    'reference_number' => $referenceNumber,
+                    'source' => 'sepay_webhook'
                 ]);
 
                 // Log thành công
@@ -87,7 +120,8 @@ class SePayWebhookController extends Controller
                     'payment_id' => $payment->id,
                     'enrollment_id' => $payment->enrollment_id,
                     'amount' => $payment->amount,
-                    'transaction_id' => $transactionId
+                    'transaction_id' => $transactionId,
+                    'webhook_id' => $webhookId
                 ]);
 
                 DB::commit();
@@ -128,13 +162,13 @@ class SePayWebhookController extends Controller
     private function findPaymentByContent($content)
     {
         try {
-            // Pattern 1a: HP{payment_id}_{student_id}_{course_id} (cho enrollment payments - new format)
-            if (preg_match('/HP(\d+)_(\d+)_(\d+)/', $content, $matches)) {
+            // Pattern 1a: SEVQR{payment_id}_{student_id}_{course_id} (cho enrollment payments - new format)
+            if (preg_match('/SEVQR(\d+)_(\d+)_(\d+)/', $content, $matches)) {
                 $paymentId = $matches[1];
                 $studentId = $matches[2];
                 $courseId = $matches[3];
 
-                Log::info('Searching payment by new HP enrollment pattern', [
+                Log::info('Searching payment by new SEVQR enrollment pattern', [
                     'payment_id' => $paymentId,
                     'student_id' => $studentId,
                     'course_id' => $courseId
@@ -151,7 +185,7 @@ class SePayWebhookController extends Controller
                     ->first();
 
                 if ($payment) {
-                    Log::info('Found payment by new HP enrollment pattern', ['payment_id' => $payment->id]);
+                    Log::info('Found payment by new SEVQR enrollment pattern', ['payment_id' => $payment->id]);
                     return $payment;
                 }
             }
@@ -176,12 +210,12 @@ class SePayWebhookController extends Controller
                 ->first();
             }
 
-            // Pattern 1c: HP{student_id}_{course_id} (cho backward compatibility)
-            if (preg_match('/HP(\d+)_(\d+)$/', $content, $matches)) {
+            // Pattern 1c: SEVQR{student_id}_{course_id} (cho backward compatibility)
+            if (preg_match('/SEVQR(\d+)_(\d+)$/', $content, $matches)) {
                 $studentId = $matches[1];
                 $courseId = $matches[2];
 
-                Log::info('Searching payment by old HP enrollment pattern', [
+                Log::info('Searching payment by old SEVQR enrollment pattern', [
                     'student_id' => $studentId,
                     'course_id' => $courseId
                 ]);
@@ -232,12 +266,75 @@ class SePayWebhookController extends Controller
     }
 
     /**
+     * Verify webhook signature để đảm bảo request từ SePay
+     */
+    private function verifyWebhookSignature(Request $request): bool
+    {
+        try {
+            // Get signature from header
+            $signature = $request->header('X-SePay-Signature') ?? $request->header('X-Signature');
+
+            if (!$signature) {
+                Log::warning('SePay Webhook: No signature provided');
+                return false;
+            }
+
+            // Get webhook secret from config
+            $webhookSecret = config('services.sepay.webhook_secret');
+
+            if (!$webhookSecret) {
+                Log::error('SePay Webhook: No webhook secret configured');
+                return false;
+            }
+
+            // Calculate expected signature
+            $payload = $request->getContent();
+            $expectedSignature = hash_hmac('sha256', $payload, $webhookSecret);
+
+            // Compare signatures
+            $isValid = hash_equals($expectedSignature, $signature);
+
+            if (!$isValid) {
+                Log::warning('SePay Webhook: Signature mismatch', [
+                    'expected' => $expectedSignature,
+                    'received' => $signature
+                ]);
+            }
+
+            return $isValid;
+
+        } catch (\Exception $e) {
+            Log::error('SePay Webhook: Error verifying signature', [
+                'error' => $e->getMessage()
+            ]);
+            return false;
+        }
+    }
+
+    /**
+     * Check if webhook has been processed (idempotency)
+     */
+    private function isWebhookProcessed(string $webhookId): bool
+    {
+        $cacheKey = "sepay_webhook_processed_{$webhookId}";
+
+        if (Cache::has($cacheKey)) {
+            return true;
+        }
+
+        // Mark as processed for 24 hours
+        Cache::put($cacheKey, true, 86400);
+
+        return false;
+    }
+
+    /**
      * Test endpoint để kiểm tra webhook
      */
     public function test(Request $request)
     {
         Log::info('SePay Webhook Test', $request->all());
-        
+
         return response()->json([
             'status' => 'success',
             'message' => 'Webhook test successful',

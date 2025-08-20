@@ -12,7 +12,17 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Auto reconcile SePay transactions daily at 6 AM
+        $schedule->command('payments:reconcile --auto-sepay')
+            ->dailyAt('06:00')
+            ->withoutOverlapping()
+            ->runInBackground();
+
+        // Detect suspicious patterns daily at 7 AM
+        $schedule->command('payments:reconcile --detect-suspicious')
+            ->dailyAt('07:00')
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 
     /**

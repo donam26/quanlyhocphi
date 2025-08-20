@@ -43,7 +43,7 @@ class SePayService
             // Xác định transaction ID dựa trên loại payment
             $transactionId = null;
             if ($payment->enrollment && $payment->enrollment->student && $payment->enrollment->courseItem) {
-                // Nếu payment có enrollment, dùng pattern HP{payment_id}_{student_id}_{course_id}
+                // Nếu payment có enrollment, dùng pattern SEVQR{payment_id}_{student_id}_{course_id}
                 // Điều này đảm bảo unique vì payment_id là unique
                 $transactionId = $this->pattern . $payment->id . '_' . $payment->enrollment->student->id . '_' . $payment->enrollment->courseItem->id;
             } else {
@@ -62,12 +62,14 @@ class SePayService
                 'bank_number' => $this->bankNumber
             ]);
             
-            // Sử dụng URL trực tiếp của SePay
-            $qrImageUrl = 'https://qr.sepay.vn/img?acc=' . $this->bankNumber 
-                . '&bank=' . $this->bankCode 
-                . '&amount=' . $amount 
-                . '&des=' . urlencode($transactionId)
-                . '&template=compact';
+            // Sử dụng URL trực tiếp của SePay với format đúng
+            $qrImageUrl = 'https://qr.sepay.vn/img?' . http_build_query([
+                'acc' => $this->bankNumber,
+                'bank' => $this->bankCode,
+                'amount' => $amount,
+                'des' => $transactionId,
+                'template' => 'compact'
+            ]);
             
             Log::info('Generated SePay QR URL', ['url' => $qrImageUrl]);
             
@@ -451,7 +453,16 @@ class SePayService
      */
     public function parseTransactionContent($content)
     {
-        // Tìm định dạng HPXXX_YYY trong nội dung chuyển khoản
+        // Tìm định dạng SEVQRXXX_YYY_ZZZ trong nội dung chuyển khoản
+        if (preg_match('/' . $this->pattern . '(\d+)_(\d+)_(\d+)/', $content, $matches)) {
+            return [
+                'payment_id' => $matches[1],
+                'student_id' => $matches[2],
+                'course_id' => $matches[3],
+            ];
+        }
+
+        // Fallback: Tìm định dạng cũ SEVQRXXX_YYY
         if (preg_match('/' . $this->pattern . '(\d+)_(\d+)/', $content, $matches)) {
             return [
                 'student_id' => $matches[1],

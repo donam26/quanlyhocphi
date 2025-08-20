@@ -87,6 +87,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Allowed Redirect Domains
+    |--------------------------------------------------------------------------
+    |
+    | This array contains the domains that are allowed for redirect URLs
+    | in payment and other sensitive operations.
+    |
+    */
+
+    'allowed_redirect_domains' => [
+        'localhost',
+        '127.0.0.1',
+        'neube.winhouse.id.vn',
+        env('APP_DOMAIN', 'localhost'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Locale Configuration
     |--------------------------------------------------------------------------
     |

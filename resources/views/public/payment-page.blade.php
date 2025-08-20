@@ -95,7 +95,7 @@
         <div class="payment-card">
             <!-- Header -->
             <div class="payment-header">
-                <h2><i class="fas fa-graduation-cap me-2"></i>Thanh toán học phí</h2>
+                <h2><i class="fas fa-graduation-cap me-2"></i>Thanh2 toán học phí</h2>
                 <p class="mb-0">{{ $enrollment->courseItem->name }}</p>
             </div>
 

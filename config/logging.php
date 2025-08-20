@@ -124,6 +124,27 @@ return [
             'level' => env('LOG_LEVEL', 'debug'),
             'days' => 14,
         ],
+
+        'metrics' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/metrics.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 30,
+        ],
+
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 90, // Keep audit logs longer
+        ],
+
+        'payments' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/payments.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'days' => 60,
+        ],
     ],
 
 ];

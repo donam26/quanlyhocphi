@@ -121,78 +121,8 @@ class PaymentGatewayController extends Controller
         }
     }
 
-    /**
-     * Webhook từ SePay (public, không cần auth)
-     */
-    public function webhook(Request $request)
-    {
-        try {
-            Log::info('SePay webhook received', $request->all());
-
-            // Validate webhook signature nếu cần
-            // $this->validateWebhookSignature($request);
-
-            $data = $request->all();
-            
-            // Tìm payment dựa trên transaction content
-            $content = $data['content'] ?? '';
-            
-            // Parse content để lấy thông tin payment
-            // Format: SE{student_id}_{course_id} hoặc PAY{payment_id}
-            $paymentId = $this->parsePaymentIdFromContent($content);
-            
-            if (!$paymentId) {
-                Log::warning('Cannot parse payment ID from webhook content', ['content' => $content]);
-                return response()->json(['status' => 'ignored'], 200);
-            }
-
-            $payment = Payment::find($paymentId);
-            
-            if (!$payment) {
-                Log::warning('Payment not found for webhook', ['payment_id' => $paymentId]);
-                return response()->json(['status' => 'payment_not_found'], 404);
-            }
-
-            // Kiểm tra số tiền
-            $webhookAmount = $data['amount'] ?? 0;
-            if ($webhookAmount != $payment->amount) {
-                Log::warning('Amount mismatch in webhook', [
-                    'payment_id' => $paymentId,
-                    'expected' => $payment->amount,
-                    'received' => $webhookAmount
-                ]);
-                return response()->json(['status' => 'amount_mismatch'], 400);
-            }
-
-            // Cập nhật payment status
-            DB::beginTransaction();
-            try {
-                $payment->update([
-                    'status' => 'confirmed',
-                    'transaction_reference' => $data['transaction_id'] ?? null,
-                    'notes' => 'Thanh toán qua SePay - Đã xác nhận tự động'
-                ]);
-
-                // Log thành công
-                Log::info('Payment confirmed via webhook', [
-                    'payment_id' => $payment->id,
-                    'enrollment_id' => $payment->enrollment_id,
-                    'amount' => $payment->amount
-                ]);
-
-                DB::commit();
-                
-                return response()->json(['status' => 'success'], 200);
-            } catch (\Exception $e) {
-                DB::rollBack();
-                throw $e;
-            }
-
-        } catch (\Exception $e) {
-            Log::error('Webhook processing error: ' . $e->getMessage(), $request->all());
-            return response()->json(['status' => 'error'], 500);
-        }
-    }
+    // Webhook method đã chuyển sang SePayWebhookController để tập trung xử lý
+    // Xóa method này để tránh nhầm lẫn
 
     /**
      * Kiểm tra trạng thái thanh toán (public)
@@ -225,35 +155,7 @@ class PaymentGatewayController extends Controller
         }
     }
 
-    /**
-     * Parse payment ID từ webhook content
-     */
-    private function parsePaymentIdFromContent($content)
-    {
-        // Format 1: SE{student_id}_{course_id} - tìm payment pending tương ứng
-        if (preg_match('/^SE(\d+)_(\d+)$/', $content, $matches)) {
-            $studentId = $matches[1];
-            $courseId = $matches[2];
-            
-            $payment = Payment::whereHas('enrollment', function($q) use ($studentId, $courseId) {
-                $q->where('student_id', $studentId)
-                  ->where('course_item_id', $courseId);
-            })
-            ->where('status', 'pending')
-            ->where('payment_method', 'sepay')
-            ->orderBy('created_at', 'desc')
-            ->first();
-            
-            return $payment ? $payment->id : null;
-        }
-        
-        // Format 2: PAY{payment_id}
-        if (preg_match('/^PAY(\d+)$/', $content, $matches)) {
-            return (int) $matches[1];
-        }
-        
-        return null;
-    }
+    // parsePaymentIdFromContent method đã chuyển sang SePayWebhookController
 
     /**
      * Trang kết quả thanh toán
