@@ -33,30 +33,54 @@ class PaymentController extends Controller
     {
         try {
             $query = Payment::with(['enrollment.student', 'enrollment.courseItem']);
-            
+
+            // Search functionality
+            if ($request->has('search') && !empty($request->search)) {
+                $searchTerm = $request->search;
+                $query->whereHas('enrollment.student', function($q) use ($searchTerm) {
+                    $q->where('full_name', 'like', "%{$searchTerm}%")
+                      ->orWhere('student_code', 'like', "%{$searchTerm}%")
+                      ->orWhere('phone', 'like', "%{$searchTerm}%");
+                })->orWhereHas('enrollment.courseItem', function($q) use ($searchTerm) {
+                    $q->where('name', 'like', "%{$searchTerm}%");
+                })->orWhere('transaction_reference', 'like', "%{$searchTerm}%");
+            }
+
             // Filters
             if ($request->has('status')) {
                 $query->where('status', $request->status);
             }
-            
+
             if ($request->has('payment_method')) {
                 $query->where('payment_method', $request->payment_method);
             }
-            
+
             if ($request->has('start_date')) {
                 $query->whereDate('payment_date', '>=', $request->start_date);
             }
-            
+
             if ($request->has('end_date')) {
                 $query->whereDate('payment_date', '<=', $request->end_date);
             }
-            
+
+            // Pagination parameters
+            $page = $request->input('page', 1);
+            $limit = $request->input('limit', 10);
+
             $payments = $query->orderBy('payment_date', 'desc')
-                ->paginate($request->input('per_page', 15));
-            
+                ->paginate($limit, ['*'], 'page', $page);
+
             return response()->json([
                 'success' => true,
-                'data' => $payments
+                'data' => [
+                    'data' => $payments->items(),
+                    'pagination' => [
+                        'page' => $payments->currentPage(),
+                        'limit' => $payments->perPage(),
+                        'total' => $payments->total(),
+                        'totalPages' => $payments->lastPage()
+                    ]
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -910,10 +934,14 @@ class PaymentController extends Controller
                 });
             }
 
-            $courses = $query->get();
+            // Pagination parameters
+            $page = $request->input('page', 1);
+            $limit = $request->input('limit', 10);
+
+            $courses = $query->paginate($limit, ['*'], 'page', $page);
 
             // Transform data để thêm thống kê
-            $coursesData = $courses->map(function ($course) {
+            $coursesData = $courses->getCollection()->map(function ($course) {
                 $unpaidEnrollments = $course->enrollments->filter(function($enrollment) {
                     if ($enrollment->status !== EnrollmentStatus::ACTIVE) return false;
 
@@ -942,9 +970,20 @@ class PaymentController extends Controller
                 return $course['unpaid_students_count'] > 0;
             })->values();
 
+            // Update the collection with filtered data
+            $courses->setCollection($coursesData);
+
             return response()->json([
                 'success' => true,
-                'data' => $coursesData
+                'data' => [
+                    'data' => $coursesData,
+                    'pagination' => [
+                        'page' => $courses->currentPage(),
+                        'limit' => $courses->perPage(),
+                        'total' => $courses->total(),
+                        'totalPages' => $courses->lastPage()
+                    ]
+                ]
             ]);
         } catch (\Exception $e) {
             return response()->json([
