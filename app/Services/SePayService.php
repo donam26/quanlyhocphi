@@ -40,16 +40,8 @@ class SePayService
                 $payment->load('enrollment.student', 'enrollment.courseItem');
             }
             
-            // Xác định transaction ID dựa trên loại payment
-            $transactionId = null;
-            if ($payment->enrollment && $payment->enrollment->student && $payment->enrollment->courseItem) {
-                // Nếu payment có enrollment, dùng pattern SEVQR{payment_id}_{student_id}_{course_id}
-                // Điều này đảm bảo unique vì payment_id là unique
-                $transactionId = $this->pattern . $payment->id . '_' . $payment->enrollment->student->id . '_' . $payment->enrollment->courseItem->id;
-            } else {
-                // Nếu là payment thông thường, dùng PAY{payment_id}
-                $transactionId = 'PAY' . str_pad($payment->id, 6, '0', STR_PAD_LEFT);
-            }
+            // Tạo transaction ID đơn giản: SEVQR{payment_id}
+            $transactionId = $this->pattern . $payment->id;
             
             $amount = $payment->amount;
             
