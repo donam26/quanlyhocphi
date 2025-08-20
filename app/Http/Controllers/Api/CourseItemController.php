@@ -118,15 +118,26 @@ class CourseItemController extends Controller
             }
         }
 
+        // Validate parent course: Khóa đích không thể có con
+        if ($request->parent_id) {
+            $parent = CourseItem::find($request->parent_id);
+            if ($parent->is_leaf) {
+                return response()->json([
+                    'message' => 'Không thể tạo khóa học con cho khóa đích',
+                    'errors' => ['parent_id' => ['Khóa đích không thể có khóa học con']]
+                ], 422);
+            }
+        }
+
         // Calculate level and is_leaf
         $level = 1;
-        $isLeaf = true;
+        $isLeaf = $request->boolean('is_leaf', false); // Sử dụng giá trị từ request, mặc định false
 
         if ($request->parent_id) {
             $parent = CourseItem::find($request->parent_id);
             $level = $parent->level + 1;
 
-            // Update parent to not be a leaf
+            // Update parent to not be a leaf (already validated above)
             $parent->update(['is_leaf' => false]);
         }
 
@@ -191,10 +202,22 @@ class CourseItemController extends Controller
             ], 422);
         }
 
+        // Validate is_leaf: Khóa học có con không thể là khóa đích
+        if ($request->has('is_leaf') && $request->boolean('is_leaf')) {
+            // Kiểm tra xem có khóa học con nào không
+            $hasChildren = $courseItem->children()->exists();
+            if ($hasChildren) {
+                return response()->json([
+                    'message' => 'Không thể đánh dấu khóa học có con là khóa đích',
+                    'errors' => ['is_leaf' => ['Khóa học có con không thể là khóa đích']]
+                ], 422);
+            }
+        }
+
         // Validate special course requirements
         if ($request->boolean('is_special')) {
             // Khóa học đặc biệt phải là leaf course
-            if (!$courseItem->is_leaf) {
+            if (!$courseItem->is_leaf && !$request->boolean('is_leaf')) {
                 return response()->json([
                     'message' => 'Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt',
                     'errors' => ['is_special' => ['Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt']]
@@ -227,6 +250,17 @@ class CourseItemController extends Controller
 
         // Handle parent change
         if ($request->parent_id != $courseItem->parent_id) {
+            // Validate new parent: Khóa đích không thể có con
+            if ($request->parent_id) {
+                $newParent = CourseItem::find($request->parent_id);
+                if ($newParent->is_leaf) {
+                    return response()->json([
+                        'message' => 'Không thể chuyển khóa học vào khóa đích',
+                        'errors' => ['parent_id' => ['Khóa đích không thể có khóa học con']]
+                    ], 422);
+                }
+            }
+
             // Update old parent
             if ($courseItem->parent_id) {
                 $oldParent = CourseItem::find($courseItem->parent_id);
@@ -248,7 +282,7 @@ class CourseItemController extends Controller
         }
 
         $courseItem->update($request->only([
-            'name', 'parent_id', 'fee', 'learning_method', 'status', 'is_special', 'custom_fields'
+            'name', 'parent_id', 'fee', 'learning_method', 'status', 'is_special', 'is_leaf', 'custom_fields'
         ]));
 
         $courseItem->load(['parent', 'children']);

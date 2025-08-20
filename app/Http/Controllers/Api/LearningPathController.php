@@ -21,7 +21,7 @@ class LearningPathController extends Controller
             $courses = CourseItem::with(['learningPaths' => function($query) {
                 $query->orderBy('order');
             }])
-            ->where('is_leaf', true)
+            // Loại bỏ điều kiện is_leaf để hiển thị cả khóa học cha và con
             ->where('status', 'active')
             ->whereHas('learningPaths')
             ->get()
