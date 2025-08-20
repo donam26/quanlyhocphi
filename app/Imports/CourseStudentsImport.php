@@ -41,37 +41,39 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
 
     public function model(array $row)
     {
+        $this->totalRowsProcessed++;
+
         try {
             DB::beginTransaction();
-            
+
             // Chuẩn hóa dữ liệu học viên
             $studentData = $this->normalizeStudentData($row);
-            
+
             // Tìm hoặc tạo học viên
             $student = $this->findOrCreateStudent($studentData);
-            
+
             // Kiểm tra đã ghi danh chưa
             $existingEnrollment = Enrollment::where('student_id', $student->id)
                 ->where('course_item_id', $this->courseItem->id)
                 ->first();
-            
+
             if ($existingEnrollment) {
                 $this->skippedCount++;
                 DB::rollBack();
                 return null;
             }
-            
+
             // Tạo ghi danh mới
             $enrollment = $this->createEnrollment($student, $row);
-            
+
             $this->importedCount++;
             DB::commit();
-            
+
             return $enrollment;
-            
+
         } catch (\Exception $e) {
             DB::rollBack();
-            $this->errors[] = "Dòng {$this->getRowNumber()}: " . $e->getMessage();
+            $this->errors[] = "Dòng {$this->totalRowsProcessed}: " . $e->getMessage();
             return null;
         }
     }

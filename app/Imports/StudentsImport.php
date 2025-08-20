@@ -434,18 +434,7 @@ class StudentsImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
         return $this->totalRowsProcessed;
     }
 
-    /**
-     * Handle validation failures
-     */
-    public function onError(\Throwable $e)
-    {
-        Log::error('StudentsImport: Validation error', [
-            'error' => $e->getMessage(),
-            'row' => $this->totalRowsProcessed
-        ]);
 
-        $this->errors[] = "Dòng {$this->totalRowsProcessed}: " . $e->getMessage();
-    }
 
     /**
      * Handle import failures
