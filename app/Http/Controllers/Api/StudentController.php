@@ -163,7 +163,6 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         try {
-            \Log::info('Creating new student', ['request_data' => $request->all()]);
 
             // Validation cơ bản
             $rules = [
@@ -197,7 +196,6 @@ class StudentController extends Controller
             if ($courseId) {
                 $course = \App\Models\CourseItem::find($courseId);
                 if ($course && $course->is_special) {
-                    \Log::info('Creating student for special course', ['course_id' => $courseId, 'course_name' => $course->name]);
                     // Bắt buộc các trường cho khóa học đặc biệt
                     $rules['current_workplace'] = 'required|string|max:255';
                     $rules['accounting_experience_years'] = 'required|integer|min:0';
@@ -226,7 +224,6 @@ class StudentController extends Controller
             $student->load('province');
             $student->full_name = $student->first_name . ' ' . $student->last_name;
 
-            \Log::info('Student created successfully', ['student_id' => $student->id, 'student_name' => $student->full_name]);
 
             return response()->json([
                 'success' => true,
@@ -235,11 +232,7 @@ class StudentController extends Controller
             ], 201);
 
         } catch (\Exception $e) {
-            \Log::error('Error creating student', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all()
-            ]);
+        
 
             return response()->json([
                 'success' => false,
@@ -268,7 +261,6 @@ class StudentController extends Controller
     public function update(Request $request, Student $student)
     {
         try {
-            \Log::info('Updating student', ['student_id' => $student->id, 'request_data' => $request->all()]);
 
             $rules = [
                 'first_name' => 'required|string|max:255',
@@ -299,12 +291,7 @@ class StudentController extends Controller
             $validator = Validator::make($request->all(), $rules);
 
             if ($validator->fails()) {
-                \Log::warning('Student update validation failed', [
-                    'student_id' => $student->id,
-                    'errors' => $validator->errors()->toArray(),
-                    'request_data' => $request->all()
-                ]);
-
+              
                 return response()->json([
                     'success' => false,
                     'message' => 'Dữ liệu không hợp lệ',
@@ -316,8 +303,6 @@ class StudentController extends Controller
             $student->load('province');
             $student->full_name = "{$student->first_name} {$student->last_name}";
 
-            \Log::info('Student updated successfully', ['student_id' => $student->id, 'student_name' => $student->full_name]);
-
             return response()->json([
                 'success' => true,
                 'message' => 'Cập nhật học viên thành công',
@@ -325,13 +310,6 @@ class StudentController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error updating student', [
-                'student_id' => $student->id,
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-                'request_data' => $request->all()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => 'Có lỗi xảy ra khi cập nhật học viên: ' . $e->getMessage(),
@@ -398,13 +376,6 @@ class StudentController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error deleting student', [
-                'student_id' => $student->id,
-                'student_name' => $student->full_name ?? 'Unknown',
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
             return response()->json([
                 'success' => false,
                 'message' => "Có lỗi xảy ra khi xóa học viên \"{$student->full_name}\": " . $e->getMessage(),
@@ -509,10 +480,6 @@ class StudentController extends Controller
             ]);
 
         } catch (\Exception $e) {
-            \Log::error('Error getting available courses for student', [
-                'student_id' => $student->id,
-                'error' => $e->getMessage()
-            ]);
 
             return response()->json([
                 'success' => false,
@@ -572,6 +539,8 @@ class StudentController extends Controller
      */
     public function import(Request $request)
     {
+
+
         $request->validate([
             'file' => 'required|file|mimes:xlsx,xls,csv',
             'import_mode' => 'in:create_only,update_only,create_and_update'
@@ -581,18 +550,22 @@ class StudentController extends Controller
             $import = new \App\Imports\StudentsImport($request->import_mode ?? 'create_and_update');
             \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
 
-            return response()->json([
+            $result = [
                 'success' => true,
                 'message' => 'Import thành công!',
                 'data' => [
                     'created_count' => $import->getCreatedCount(),
                     'updated_count' => $import->getUpdatedCount(),
                     'skipped_count' => $import->getSkippedCount(),
+                    'total_rows_processed' => $import->getTotalRowsProcessed(),
                     'errors' => $import->getErrors()
                 ]
-            ]);
+            ];
+
+            return response()->json($result);
 
         } catch (\Exception $e) {
+
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi import file: ' . $e->getMessage()
@@ -707,5 +680,43 @@ class StudentController extends Controller
         if ($paidAmount >= $totalFee) return 'paid';
         if ($paidAmount > 0) return 'partial';
         return 'unpaid';
+    }
+
+    /**
+     * Đếm tổng số dòng trong file Excel
+     */
+    private function countExcelRows($file)
+    {
+        try {
+            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReader('Xlsx');
+            $reader->setReadDataOnly(true);
+            $spreadsheet = $reader->load($file->getPathname());
+            $worksheet = $spreadsheet->getActiveSheet();
+
+            $highestRow = $worksheet->getHighestRow();
+            $highestColumn = $worksheet->getHighestColumn();
+
+            // Đếm số dòng có dữ liệu thực tế
+            $dataRowCount = 0;
+            for ($row = 2; $row <= $highestRow; $row++) { // Bắt đầu từ row 2 (sau header)
+                $hasData = false;
+                for ($col = 'A'; $col <= $highestColumn; $col++) {
+                    $cellValue = $worksheet->getCell($col . $row)->getValue();
+                    if (!empty($cellValue)) {
+                        $hasData = true;
+                        break;
+                    }
+                }
+                if ($hasData) {
+                    $dataRowCount++;
+                }
+            }
+
+            return $dataRowCount;
+
+        } catch (\Exception $e) {
+            \Log::error('Error counting Excel rows', ['error' => $e->getMessage()]);
+            return 0;
+        }
     }
 }

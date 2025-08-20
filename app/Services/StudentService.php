@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Student;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\StudentsExport;
 
@@ -190,11 +191,17 @@ class StudentService
      */
     public function importStudents($file, $importMode = 'update_only')
     {
+        Log::info('StudentService: Starting import', [
+            'file_name' => $file->getClientOriginalName(),
+            'file_size' => $file->getSize(),
+            'import_mode' => $importMode
+        ]);
+
         try {
             $import = new \App\Imports\StudentsImport($importMode);
             Excel::import($import, $file);
 
-            return [
+            $result = [
                 'success' => true,
                 'message' => 'Import thành công!',
                 'created_count' => $import->getCreatedCount(),
@@ -203,7 +210,15 @@ class StudentService
                 'errors' => $import->getErrors()
             ];
 
+            Log::info('StudentService: Import completed', $result);
+
+            return $result;
+
         } catch (\Exception $e) {
+            Log::error('StudentService: Import failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             throw new \Exception('Lỗi khi import file: ' . $e->getMessage());
         }
     }

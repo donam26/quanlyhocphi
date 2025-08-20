@@ -9,12 +9,14 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
 use Maatwebsite\Excel\Concerns\SkipsOnError;
 use Maatwebsite\Excel\Concerns\SkipsErrors;
+use Maatwebsite\Excel\Concerns\SkipsFailures;
+use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
-class StudentUpdateImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnError
+class StudentUpdateImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnError, SkipsOnFailure
 {
-    use SkipsErrors;
+    use SkipsErrors, SkipsFailures;
 
     protected $updateMode;
     protected $updatedCount = 0;
@@ -242,5 +244,19 @@ class StudentUpdateImport implements ToModel, WithHeadingRow, WithValidation, Sk
             'skipped_count' => $this->skippedCount,
             'errors' => $this->errors
         ];
+    }
+
+    /**
+     * Handle import failures
+     */
+    public function onFailure(\Maatwebsite\Excel\Validators\Failure ...$failures)
+    {
+        foreach ($failures as $failure) {
+            $values = $failure->values();
+            $phone = $values['so_dien_thoai'] ?? 'N/A';
+
+            $errorDetail = "Dòng {$failure->row()}: SĐT {$phone} - " . implode(', ', $failure->errors());
+            $this->errors[] = $errorDetail;
+        }
     }
 }

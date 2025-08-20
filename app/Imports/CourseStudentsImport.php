@@ -17,6 +17,7 @@ use Maatwebsite\Excel\Concerns\SkipsOnError;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, SkipsOnError, SkipsOnFailure
@@ -29,6 +30,7 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
     protected $importedCount = 0;
     protected $skippedCount = 0;
     protected $errors = [];
+    protected $totalRowsProcessed = 0;
 
     public function __construct(CourseItem $courseItem, $enrollmentStatus = 'active', $discountPercentage = 0)
     {
@@ -194,8 +196,28 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
     // Các helper methods giống như StudentsImport
     protected function normalizePhone($phone)
     {
+        if (empty($phone)) {
+            return '';
+        }
+
+        // Xử lý tất cả kiểu dữ liệu từ Excel
+        if (is_object($phone)) {
+            $phone = method_exists($phone, '__toString') ? (string) $phone : '';
+        } elseif (is_numeric($phone)) {
+            $phone = (string) $phone;
+            if (strlen($phone) === 9) {
+                $phone = '0' . $phone;
+            }
+        } else {
+            $phone = trim((string) $phone);
+        }
+
+        // Loại bỏ dấu ' ở đầu
+        $phone = ltrim($phone, "'\"");
+
+        // Loại bỏ tất cả ký tự không phải số
         $phone = preg_replace('/[^0-9]/', '', $phone);
-        
+
         if (strlen($phone) === 10 && substr($phone, 0, 1) === '0') {
             return $phone;
         } elseif (strlen($phone) === 9) {
@@ -203,7 +225,7 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
         } elseif (strlen($phone) === 12 && substr($phone, 0, 2) === '84') {
             return '0' . substr($phone, 2);
         }
-        
+
         return $phone;
     }
 
@@ -312,8 +334,10 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
     public function rules(): array
     {
         return [
-            'so_dien_thoai' => 'required|string',
-            'phone' => 'required_without:so_dien_thoai|string',
+            'so_dien_thoai' => 'required', // Chấp nhận cả string và number
+            'phone' => 'required_without:so_dien_thoai',
+            'ho' => 'required',
+            'ten' => 'required',
         ];
     }
 
@@ -330,5 +354,34 @@ class CourseStudentsImport implements ToModel, WithHeadingRow, WithValidation, S
     public function getErrors()
     {
         return $this->errors;
+    }
+
+    public function getTotalRowsProcessed()
+    {
+        return $this->totalRowsProcessed;
+    }
+
+    /**
+     * Handle import failures
+     */
+    public function onFailure(\Maatwebsite\Excel\Validators\Failure ...$failures)
+    {
+        foreach ($failures as $failure) {
+            $values = $failure->values();
+            $studentName = ($values['ho'] ?? '') . ' ' . ($values['ten'] ?? '');
+            $phone = $values['so_dien_thoai'] ?? 'N/A';
+
+            Log::error('CourseStudentsImport: Import failure', [
+                'row' => $failure->row(),
+                'student_name' => trim($studentName),
+                'phone' => $phone,
+                'attribute' => $failure->attribute(),
+                'errors' => $failure->errors(),
+                'values' => $values
+            ]);
+
+            $errorDetail = "Dòng {$failure->row()}: " . trim($studentName) . " (SĐT: {$phone}) - " . implode(', ', $failure->errors());
+            $this->errors[] = $errorDetail;
+        }
     }
 }
