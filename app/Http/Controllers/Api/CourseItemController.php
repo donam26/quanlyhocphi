@@ -8,6 +8,7 @@ use App\Models\CourseItem;
 use App\Models\Enrollment;
 use App\Models\LearningPath;
 use App\Enums\CourseStatus;
+use App\Enums\EnrollmentStatus;
 use App\Services\CourseItemService;
 use Illuminate\Support\Facades\Validator;
 
@@ -380,6 +381,7 @@ class CourseItemController extends Controller
             foreach ($childCourses as $childCourse) {
                 $childEnrollments = $childCourse->enrollments()
                     ->with(['student.province', 'payments', 'courseItem'])
+                    ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
                     ->orderBy('enrollment_date', 'desc')
                     ->get();
 
@@ -398,6 +400,7 @@ class CourseItemController extends Controller
             // Nếu là khóa con hoặc khóa độc lập, lấy học viên của chính khóa đó
             $enrollments = $courseItem->enrollments()
                 ->with(['student.province', 'payments'])
+                ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
                 ->orderBy('enrollment_date', 'desc')
                 ->get();
         }
@@ -430,6 +433,7 @@ class CourseItemController extends Controller
 
     /**
      * Get course students recursively (for folder courses)
+     * Returns same format as students() method for consistency
      */
     public function studentsRecursive(CourseItem $courseItem)
     {
@@ -438,28 +442,40 @@ class CourseItemController extends Controller
         // Lấy học viên từ khóa hiện tại (nếu là khóa lá)
         if ($courseItem->is_leaf) {
             $enrollments = $courseItem->enrollments()
-                ->with(['student.province', 'student.ethnicity', 'courseItem'])
-                ->where('status', 'active')
+                ->with(['student.province', 'student.ethnicity', 'courseItem', 'payments'])
+                ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
+                ->orderBy('enrollment_date', 'desc')
                 ->get();
 
-            $allEnrollments = $allEnrollments->merge($enrollments);
+            $allEnrollments = $allEnrollments->concat($enrollments);
         }
 
-        // Lấy học viên từ tất cả khóa con đệ quy
+        // Lấy học viên từ tất cả khóa con
         $this->collectEnrollmentsRecursive($courseItem, $allEnrollments);
 
         // Thêm thông tin tính toán cho mỗi enrollment
-        $allEnrollments->each(function ($enrollment) {
+        $allEnrollments->each(function ($enrollment) use ($courseItem) {
             if ($enrollment->student) {
                 // Tính toán thông tin thanh toán
                 $totalPaid = $enrollment->payments()->where('status', 'confirmed')->sum('amount');
                 $enrollment->total_paid = $totalPaid;
                 $enrollment->remaining_amount = max(0, $enrollment->final_fee - $totalPaid);
                 $enrollment->payment_status = $enrollment->remaining_amount <= 0 ? 'paid' : 'unpaid';
+
+                // Đảm bảo có đầy đủ thông tin cho khóa học đặc biệt
+                if ($courseItem->is_special) {
+                    $enrollment->student->makeVisible([
+                        'current_workplace',
+                        'accounting_experience_years',
+                        'training_specialization',
+                        'education_level',
+                        'hard_copy_documents'
+                    ]);
+                }
             }
         });
 
-        return response()->json($allEnrollments->values());
+        return response()->json($allEnrollments);
     }
 
     /**
@@ -473,8 +489,9 @@ class CourseItemController extends Controller
             if ($childCourse->is_leaf) {
                 // Nếu là khóa lá, lấy học viên
                 $childEnrollments = $childCourse->enrollments()
-                    ->with(['student.province', 'student.ethnicity', 'courseItem'])
-                    ->where('status', 'active')
+                    ->with(['student.province', 'student.ethnicity', 'courseItem', 'payments'])
+                    ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
+                    ->orderBy('enrollment_date', 'desc')
                     ->get();
 
                 // Thêm thông tin khóa con vào mỗi enrollment
@@ -488,6 +505,31 @@ class CourseItemController extends Controller
             } else {
                 // Nếu là thư mục, đệ quy tiếp
                 $this->collectEnrollmentsRecursive($childCourse, $allEnrollments);
+            }
+        }
+    }
+
+    /**
+     * Collect enrollments grouped by course from all children
+     */
+    private function collectEnrollmentsGrouped(CourseItem $courseItem, &$groupedEnrollments)
+    {
+        $childCourses = $courseItem->children()->orderBy('order_index')->get();
+
+        foreach ($childCourses as $childCourse) {
+            if ($childCourse->is_leaf) {
+                // Nếu là khóa lá, lấy học viên và nhóm theo course_id
+                $childEnrollments = $childCourse->enrollments()
+                    ->with(['student.province', 'student.ethnicity', 'courseItem'])
+                    ->whereNotIn('status', [EnrollmentStatus::WAITING, EnrollmentStatus::CANCELLED])
+                    ->get();
+
+                if ($childEnrollments->count() > 0) {
+                    $groupedEnrollments[$childCourse->id] = $childEnrollments;
+                }
+            } else {
+                // Nếu là thư mục, đệ quy tiếp
+                $this->collectEnrollmentsGrouped($childCourse, $groupedEnrollments);
             }
         }
     }
@@ -986,12 +1028,8 @@ class CourseItemController extends Controller
         try {
             $course = CourseItem::findOrFail($id);
 
-            if (!$course->is_leaf) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Chỉ có thể thiết lập lộ trình cho khóa học cụ thể'
-                ], 400);
-            }
+            // Cho phép thiết lập lộ trình cho mọi khóa học
+            // Không cần kiểm tra is_leaf nữa
 
             $learningPaths = LearningPath::where('course_item_id', $id)
                 ->orderBy('order')
@@ -1017,12 +1055,8 @@ class CourseItemController extends Controller
         try {
             $course = CourseItem::findOrFail($id);
 
-            if (!$course->is_leaf) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Chỉ có thể thiết lập lộ trình cho khóa học cụ thể'
-                ], 400);
-            }
+            // Cho phép thiết lập lộ trình cho mọi khóa học
+            // Không cần kiểm tra is_leaf nữa
 
             // Debug: Log request data
             \Log::info('Learning paths save request:', [

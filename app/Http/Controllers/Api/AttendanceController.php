@@ -497,64 +497,25 @@ class AttendanceController extends Controller
     public function getStudentsByCourse(CourseItem $courseItem)
     {
         try {
-            // Nếu là khóa cha (có khóa con), lấy tất cả học viên từ các khóa con
-            if ($courseItem->children()->exists()) {
-                $allStudents = collect();
+            // Lấy tất cả ID của khóa học này và các khóa con (đệ quy)
+            $allCourseIds = $this->getAllDescendantCourseIds($courseItem);
 
-                // Lấy tất cả khóa con theo thứ tự order_index
-                $childCourses = $courseItem->children()->orderBy('order_index')->get();
-
-                foreach ($childCourses as $childCourse) {
-                    $childStudents = Student::whereHas('enrollments', function ($query) use ($childCourse) {
-                        $query->where('course_item_id', $childCourse->id)
-                              ->where('status', 'active');
-                    })
-                    ->with(['enrollments' => function ($query) use ($childCourse) {
-                        $query->where('course_item_id', $childCourse->id);
-                    }])
-                    ->get()
-                    ->map(function ($student) use ($childCourse) {
-                        $enrollment = $student->enrollments->first();
-                        return [
-                            'student_id' => $student->id,   
-                            'student_name' => $student->full_name,   
-                            'student_phone' => $student->phone,
-                            'student_email' => $student->email,
-                            'enrollment_id' => $enrollment ? $enrollment->id : null,
-                            'course_name' => $childCourse->name,
-                            'child_course_name' => $childCourse->name,
-                            'child_course_id' => $childCourse->id,
-                            'child_course_order' => $childCourse->order_index,
-                            'enrollment_status' => $enrollment ? $enrollment->status : null
-                        ];
-                    });
-
-                    $allStudents = $allStudents->concat($childStudents);
-                }
-
-                $students = $allStudents;
-            } else {
-                // Nếu là khóa con hoặc khóa độc lập, lấy học viên của chính khóa đó
-                $students = Student::whereHas('enrollments', function ($query) use ($courseItem) {
-                    $query->where('course_item_id', $courseItem->id)
-                          ->where('status', 'active');
-                })
-                ->with(['enrollments' => function ($query) use ($courseItem) {
-                    $query->where('course_item_id', $courseItem->id);
-                }])
-                ->get()
-                ->map(function ($student) use ($courseItem) {
-                    $enrollment = $student->enrollments->first();
-                    return [
-                        'student_id' => $student->id,
-                        'student_name' => $student->name,
-                        'student_phone' => $student->phone,
-                        'student_email' => $student->email,
-                        'enrollment_id' => $enrollment ? $enrollment->id : null,
-                        'course_name' => $courseItem->name,
-                        'enrollment_status' => $enrollment ? $enrollment->status : null
-                    ];
+            // Nếu có khóa con, lấy học viên từ tất cả khóa con
+            if (count($allCourseIds) > 1) {
+                // Loại bỏ khóa cha khỏi danh sách (chỉ lấy từ khóa con)
+                $childCourseIds = array_filter($allCourseIds, function($id) use ($courseItem) {
+                    return $id !== $courseItem->id;
                 });
+
+                if (!empty($childCourseIds)) {
+                    $students = $this->getStudentsFromCourses($childCourseIds);
+                } else {
+                    // Nếu không có khóa con, lấy từ chính khóa đó
+                    $students = $this->getStudentsFromCourses([$courseItem->id]);
+                }
+            } else {
+                // Nếu là khóa lá (không có con), lấy học viên của chính khóa đó
+                $students = $this->getStudentsFromCourses([$courseItem->id]);
             }
 
             return response()->json([
@@ -567,6 +528,69 @@ class AttendanceController extends Controller
                 'message' => 'Lỗi khi lấy danh sách học viên: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Lấy tất cả ID của khóa học và các khóa con (đệ quy)
+     */
+    private function getAllDescendantCourseIds(CourseItem $courseItem)
+    {
+        $courseIds = [$courseItem->id];
+
+        // Lấy tất cả khóa con
+        $children = $courseItem->children;
+
+        foreach ($children as $child) {
+            // Đệ quy lấy ID của khóa con và các khóa con của nó
+            $childIds = $this->getAllDescendantCourseIds($child);
+            $courseIds = array_merge($courseIds, $childIds);
+        }
+
+        return array_unique($courseIds);
+    }
+
+    /**
+     * Lấy học viên từ danh sách các khóa học
+     */
+    private function getStudentsFromCourses(array $courseIds)
+    {
+        // Lấy thông tin khóa học để hiển thị tên
+        $courses = CourseItem::whereIn('id', $courseIds)
+            ->orderBy('order_index')
+            ->get()
+            ->keyBy('id');
+
+        // Lấy tất cả học viên từ các khóa học
+        $students = Student::whereHas('enrollments', function ($query) use ($courseIds) {
+            $query->whereIn('course_item_id', $courseIds)
+                  ->where('status', 'active');
+        })
+        ->with(['enrollments' => function ($query) use ($courseIds) {
+            $query->whereIn('course_item_id', $courseIds)
+                  ->where('status', 'active');
+        }])
+        ->get()
+        ->flatMap(function ($student) use ($courses) {
+            // Một học viên có thể có nhiều enrollment trong các khóa khác nhau
+            return $student->enrollments->map(function ($enrollment) use ($student, $courses) {
+                $course = $courses->get($enrollment->course_item_id);
+                return [
+                    'student_id' => $student->id,
+                    'student_name' => $student->full_name,
+                    'student_phone' => $student->phone,
+                    'student_email' => $student->email,
+                    'enrollment_id' => $enrollment->id,
+                    'course_name' => $course ? $course->name : 'Unknown',
+                    'course_id' => $enrollment->course_item_id,
+                    'course_order' => $course ? $course->order_index : 0,
+                    'enrollment_status' => $enrollment->status
+                ];
+            });
+        })
+        ->sortBy(['course_order', 'student_name'])
+        ->values();
+
+        return $students;
     }
 
     /**

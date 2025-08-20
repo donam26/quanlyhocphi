@@ -85,6 +85,37 @@ class EnrollmentController extends Controller
                 'notes' => 'nullable|string|max:1000'
             ]);
 
+            // Kiểm tra xem học viên đã ghi danh khóa học này chưa
+            $existingEnrollment = \App\Models\Enrollment::where('student_id', $validated['student_id'])
+                ->where('course_item_id', $validated['course_item_id'])
+                ->first();
+
+            if ($existingEnrollment) {
+                $student = \App\Models\Student::find($validated['student_id']);
+                $courseItem = \App\Models\CourseItem::find($validated['course_item_id']);
+
+                $statusText = match($existingEnrollment->status->value) {
+                    'waiting' => 'đang chờ xác nhận',
+                    'active' => 'đang học',
+                    'completed' => 'đã hoàn thành',
+                    'cancelled' => 'đã hủy',
+                    default => $existingEnrollment->status->value
+                };
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "Học viên \"{$student->first_name} {$student->last_name}\" đã được ghi danh vào khóa học \"{$courseItem->name}\" rồi (trạng thái: {$statusText}).",
+                    'error_code' => 'DUPLICATE_ENROLLMENT',
+                    'data' => [
+                        'existing_enrollment_id' => $existingEnrollment->id,
+                        'existing_status' => $existingEnrollment->status->value,
+                        'existing_date' => $existingEnrollment->enrollment_date ? $existingEnrollment->enrollment_date->format('d/m/Y') : null,
+                        'student_name' => "{$student->first_name} {$student->last_name}",
+                        'course_name' => $courseItem->name
+                    ]
+                ], 422);
+            }
+
             // Convert dd/mm/yyyy to Y-m-d format for database
             if (isset($validated['enrollment_date'])) {
                 $validated['enrollment_date'] = Carbon::createFromFormat('d/m/Y', $validated['enrollment_date'])->format('Y-m-d');
@@ -97,11 +128,38 @@ class EnrollmentController extends Controller
                 'data' => $enrollment,
                 'message' => 'Tạo ghi danh thành công'
             ], 201);
+
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Xử lý lỗi database constraint
+            if ($e->errorInfo[1] == 1062) { // Duplicate entry error
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Học viên đã được ghi danh vào khóa học này rồi. Vui lòng kiểm tra lại.',
+                    'error_code' => 'DUPLICATE_ENROLLMENT'
+                ], 422);
+            }
+
+            \Log::error('Database error when creating enrollment', [
+                'error' => $e->getMessage(),
+                'request_data' => $validated ?? $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi cơ sở dữ liệu xảy ra. Vui lòng thử lại.'
+            ], 500);
+
         } catch (\Exception $e) {
+            \Log::error('Error creating enrollment', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'request_data' => $validated ?? $request->all()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi tạo ghi danh: ' . $e->getMessage()
-            ], 422);
+            ], 500);
         }
     }
 
@@ -151,13 +209,21 @@ class EnrollmentController extends Controller
     public function destroy($id)
     {
         try {
-            $this->enrollmentService->deleteEnrollment($id);
+            // Tìm enrollment trước khi xóa
+            $enrollment = Enrollment::findOrFail($id);
+            $this->enrollmentService->deleteEnrollment($enrollment);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Xóa ghi danh thành công'
             ]);
         } catch (\Exception $e) {
+            \Log::error('Error deleting enrollment', [
+                'enrollment_id' => $id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi xóa ghi danh: ' . $e->getMessage()
@@ -296,10 +362,11 @@ class EnrollmentController extends Controller
             $filters = $request->only(['search', 'per_page']);
             $filters['status'] = EnrollmentStatus::WAITING->value;
 
-            // Nếu là khóa cha (có khóa con), lấy tất cả học viên từ các khóa con
+            // Nếu là khóa cha (có khóa con), lấy tất cả học viên từ các khóa con đệ quy
             if ($courseItem->children()->exists()) {
-                $childCourseIds = $courseItem->children()->pluck('id')->toArray();
-                $filters['course_item_ids'] = $childCourseIds; // Sử dụng array để filter nhiều khóa
+                $allChildIds = [];
+                $this->getAllChildrenIds($courseItem, $allChildIds);
+                $filters['course_item_ids'] = $allChildIds; // Sử dụng array để filter nhiều khóa
             } else {
                 // Nếu là khóa con hoặc khóa độc lập
                 $filters['course_item_id'] = $courseId;
@@ -582,6 +649,19 @@ class EnrollmentController extends Controller
                 'success' => false,
                 'message' => 'Lỗi khi tạo link thanh toán: ' . $e->getMessage()
             ], 500);
+        }
+    }
+
+    /**
+     * Lấy tất cả ID của khóa con đệ quy
+     */
+    private function getAllChildrenIds($courseItem, &$allIds)
+    {
+        foreach ($courseItem->children as $child) {
+            $allIds[] = $child->id;
+            if ($child->children->count() > 0) {
+                $this->getAllChildrenIds($child, $allIds);
+            }
         }
     }
 }

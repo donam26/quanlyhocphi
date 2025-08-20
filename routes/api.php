@@ -58,10 +58,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{student}/payments', [StudentController::class, 'payments']);
         Route::get('/{student}/details', [StudentController::class, 'details']);
         Route::get('/{student}/info', [StudentController::class, 'info']);
+        Route::get('/{student}/available-courses', [StudentController::class, 'availableCourses']);
 
         // Bulk operations
         Route::post('/import', [StudentController::class, 'import']);
-        Route::post('/bulk-delete', [StudentController::class, 'bulkDelete']);
 
         // Search and filter
         Route::get('/province/{province}', [StudentController::class, 'byProvince']);

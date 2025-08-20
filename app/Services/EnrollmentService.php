@@ -594,16 +594,6 @@ class EnrollmentService
      */
     private function validateTransferConditions($enrollment, $targetCourse, $data)
     {
-        // Check if student already enrolled in target course
-        $existingEnrollment = Enrollment::where('student_id', $enrollment->student_id)
-            ->where('course_item_id', $targetCourse->id)
-            ->whereIn('status', ['active', 'waiting'])
-            ->first();
-
-        if ($existingEnrollment) {
-            throw new \Exception('Học viên đã được ghi danh vào khóa học này');
-        }
-
         // Check if enrollment can be transferred
         if ($enrollment->status === EnrollmentStatus::COMPLETED->value) {
             throw new \Exception('Không thể chuyển khóa học đã hoàn thành');
@@ -616,6 +606,16 @@ class EnrollmentService
         // Check if target course is active
         if (!$targetCourse->isActive()) {
             throw new \Exception('Khóa học đích không còn hoạt động');
+        }
+
+        // Check if student already has active enrollment in target course
+        $activeEnrollment = Enrollment::where('student_id', $enrollment->student_id)
+            ->where('course_item_id', $targetCourse->id)
+            ->whereIn('status', ['active', 'waiting'])
+            ->first();
+
+        if ($activeEnrollment) {
+            throw new \Exception('Học viên đã có enrollment đang hoạt động trong khóa học này');
         }
 
         // Validate refund policy if applicable
@@ -738,15 +738,46 @@ class EnrollmentService
     }
 
     /**
-     * Create new enrollment for transfer
+     * Create new enrollment for transfer or reactivate existing one
      */
     private function createTransferEnrollment($oldEnrollment, $targetCourse, $paymentCalculation, $data)
     {
+        // Check if there's an existing enrollment (cancelled/completed) that we can reactivate
+        $existingEnrollment = Enrollment::where('student_id', $oldEnrollment->student_id)
+            ->where('course_item_id', $targetCourse->id)
+            ->whereNotIn('status', ['active', 'waiting'])
+            ->first();
+
+        if ($existingEnrollment) {
+            // Reactivate existing enrollment
+            $existingEnrollment->update([
+                'enrollment_date' => now(),
+                'status' => $data['new_status'] ?? 'active',
+                'discount_percentage' => $paymentCalculation['discount_percentage'],
+                'discount_amount' => $paymentCalculation['discount_amount'],
+                'final_fee' => $paymentCalculation['new_final_fee'],
+                'notes' => $this->buildTransferNotes($oldEnrollment, $targetCourse, $paymentCalculation, $data),
+                'custom_fields' => array_merge(
+                    $existingEnrollment->custom_fields ?? [],
+                    [
+                        'transfer_from_enrollment_id' => $oldEnrollment->id,
+                        'transfer_date' => now()->toDateString(),
+                        'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học',
+                        'payment_calculation' => $paymentCalculation,
+                        'reactivated_at' => now()->toDateTimeString()
+                    ]
+                )
+            ]);
+
+            return $existingEnrollment;
+        }
+
+        // Create new enrollment if no existing one found
         $newEnrollment = Enrollment::create([
             'student_id' => $oldEnrollment->student_id,
             'course_item_id' => $targetCourse->id,
             'enrollment_date' => now(),
-            'status' => $data['new_status'] ?? $oldEnrollment->status,
+            'status' => $data['new_status'] ?? 'active',
             'discount_percentage' => $paymentCalculation['discount_percentage'],
             'discount_amount' => $paymentCalculation['discount_amount'],
             'final_fee' => $paymentCalculation['new_final_fee'],
@@ -834,11 +865,11 @@ class EnrollmentService
      */
     private function handleCreditBalance($newEnrollment, $action, $data)
     {
-        // Create a credit payment record
+        // Create a credit payment record using 'cash' method instead of 'credit'
         Payment::create([
             'enrollment_id' => $newEnrollment->id,
             'amount' => $action['amount'],
-            'payment_method' => 'credit',
+            'payment_method' => 'cash', // Changed from 'credit' to 'cash'
             'payment_date' => now(),
             'status' => 'confirmed',
             'notes' => 'Credit balance do chuyển khóa học - ' . $action['description'],
@@ -883,10 +914,24 @@ class EnrollmentService
      */
     private function buildTransferNotes($oldEnrollment, $targetCourse, $paymentCalculation, $data)
     {
-        $notes = "CHUYỂN KHÓA HỌC\n";
-        $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
-        $notes .= "Sang: " . $targetCourse->name . "\n";
-        $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
+        // Check if this is a reactivation
+        $existingEnrollment = Enrollment::where('student_id', $oldEnrollment->student_id)
+            ->where('course_item_id', $targetCourse->id)
+            ->whereNotIn('status', ['active', 'waiting'])
+            ->first();
+
+        if ($existingEnrollment) {
+            $notes = "CHUYỂN KHÓA HỌC (TÁI KÍCH HOẠT)\n";
+            $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
+            $notes .= "Sang: " . $targetCourse->name . " (Tái kích hoạt enrollment cũ)\n";
+            $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
+            $notes .= "Enrollment cũ ID: " . $existingEnrollment->id . " (Status: " . $existingEnrollment->status . ")\n";
+        } else {
+            $notes = "CHUYỂN KHÓA HỌC\n";
+            $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
+            $notes .= "Sang: " . $targetCourse->name . "\n";
+            $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
+        }
 
         if (isset($data['reason'])) {
             $notes .= "Lý do: " . $data['reason'] . "\n";
