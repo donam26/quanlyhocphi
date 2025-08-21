@@ -26,10 +26,10 @@ return new class extends Migration
             $table->string('ethnicity_other')->nullable()->after('ethnicity')->comment('Dân tộc khác (khi chọn Khác)');
 
             // Trường nhập tự do khi chọn "Khác" cho nơi sinh
-            $table->string('place_of_birth_other')->nullable()->after('place_of_birth_province_id')->comment('Nơi sinh khác (khi chọn Khác)');
+            $table->string('place_of_birth_other')->nullable()->after('ethnicity_other')->comment('Nơi sinh khác (khi chọn Khác)');
 
             // Trường nhập tự do khi chọn "Khác" cho tỉnh thành
-            $table->string('province_other')->nullable()->after('province_id')->comment('Tỉnh/thành khác (khi chọn Khác)');
+            $table->string('province_other')->nullable()->after('place_of_birth_other')->comment('Tỉnh/thành khác (khi chọn Khác)');
         });
     }
 

@@ -21,7 +21,7 @@ return new class extends Migration
             $table->decimal('discount_amount', 15, 2)->default(0); // Số tiền chiết khấu
             $table->decimal('final_fee', 15, 2); // Học phí cuối cùng sau chiết khấu
             $table->text('notes')->nullable(); // Ghi chú
-            $table->json('custom_fields')->nullable()->after('notes');
+            $table->json('custom_fields')->nullable();
             $table->timestamps();
             
             // Đảm bảo một học viên chỉ ghi danh một lần cho một lớp
