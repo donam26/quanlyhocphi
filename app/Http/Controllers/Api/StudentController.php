@@ -582,15 +582,27 @@ class StudentController extends Controller
             $request->validate([
                 'columns' => 'array',
                 'columns.*' => 'string',
-                'filters' => 'array'
+                'filters' => 'array',
+                'search' => 'nullable|string',
+                'province_id' => 'nullable|integer',
+                'gender' => 'nullable|in:male,female,other',
+                'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
+                'course_item_id' => 'nullable|integer',
+                'status' => 'nullable|string'
             ]);
 
-            // Lấy danh sách học viên với filters
-            $query = Student::with(['province', 'placeOfBirthProvince', 'ethnicity', 'enrollments.courseItem', 'payments']);
+            // Get filters from both direct params and filters array
+            $filters = array_merge(
+                $request->input('filters', []),
+                $request->only(['search', 'province_id', 'gender', 'education_level', 'start_date', 'end_date', 'course_item_id', 'status'])
+            );
 
-            // Apply filters
-            $filters = $request->input('filters', []);
+            // Build query with relationships
+            $query = Student::with(['province', 'placeOfBirthProvince', 'ethnicity', 'enrollments.courseItem', 'enrollments.payments']);
 
+            // Apply search filter
             if (!empty($filters['search'])) {
                 $query->where(function($q) use ($filters) {
                     $term = $filters['search'];
@@ -602,34 +614,69 @@ class StudentController extends Controller
                 });
             }
 
+            // Apply province filter
             if (!empty($filters['province_id'])) {
                 $query->where('province_id', $filters['province_id']);
             }
 
+            // Apply gender filter
             if (!empty($filters['gender'])) {
                 $query->where('gender', $filters['gender']);
             }
 
+            // Apply education level filter
             if (!empty($filters['education_level'])) {
                 $query->where('education_level', $filters['education_level']);
             }
 
-            if (!empty($filters['date_from'])) {
-                $query->whereDate('created_at', '>=', $filters['date_from']);
+            // Apply date range filter
+            if (!empty($filters['start_date'])) {
+                $query->whereDate('created_at', '>=', $filters['start_date']);
             }
 
-            if (!empty($filters['date_to'])) {
-                $query->whereDate('created_at', '<=', $filters['date_to']);
+            if (!empty($filters['end_date'])) {
+                $query->whereDate('created_at', '<=', $filters['end_date']);
             }
 
-            $students = $query->get();
+            // Apply course filter (bao gồm cả khóa con)
+            if (!empty($filters['course_item_id'])) {
+                $courseItem = \App\Models\CourseItem::find($filters['course_item_id']);
+                if ($courseItem) {
+                    // Lấy tất cả ID của khóa học này và các khóa học con
+                    $courseItemIds = [$courseItem->id];
+                    foreach ($courseItem->descendants() as $descendant) {
+                        $courseItemIds[] = $descendant->id;
+                    }
 
-            // Columns to export
+                    $query->whereHas('enrollments', function($q) use ($courseItemIds) {
+                        $q->whereIn('course_item_id', $courseItemIds);
+                    });
+                }
+            }
+
+            // Apply enrollment status filter
+            if (!empty($filters['status'])) {
+                $statusMap = [
+                    'active' => ['active'],
+                    'completed' => ['completed'],
+                    'waiting' => ['waiting'],
+                    'cancelled' => ['cancelled', 'dropped']
+                ];
+
+                if (isset($statusMap[$filters['status']])) {
+                    $query->whereHas('enrollments', function($q) use ($statusMap, $filters) {
+                        $q->whereIn('status', $statusMap[$filters['status']]);
+                    });
+                }
+            }
+
+            $students = $query->orderBy('created_at', 'desc')->get();
+
+            // Default columns if none provided
             $columns = $request->input('columns', [
                 'full_name', 'phone', 'email', 'date_of_birth', 'gender',
-                'province', 'place_of_birth_province', 'ethnicity', 'current_workplace',
-                'accounting_experience_years', 'education_level', 'training_specialization',
-                'hard_copy_documents', 'company_name', 'tax_code', 'source'
+                'province', 'current_workplace', 'accounting_experience_years',
+                'education_level', 'source', 'created_at'
             ]);
 
             $fileName = 'danh_sach_hoc_vien_' . date('Y_m_d_H_i_s') . '.xlsx';
@@ -640,6 +687,11 @@ class StudentController extends Controller
             );
 
         } catch (\Exception $e) {
+            \Log::error('Student export error: ' . $e->getMessage(), [
+                'request' => $request->all(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
             return response()->json([
                 'success' => false,
                 'message' => 'Lỗi khi xuất file: ' . $e->getMessage()

@@ -2,7 +2,6 @@
 
 namespace App\Exports;
 
-use App\Models\Student;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
@@ -10,7 +9,6 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use PhpOffice\PhpSpreadsheet\Style\Font;
 
 class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
@@ -28,33 +26,36 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'ho_va_ten' => 'ho_va_ten',
-            'ho' => 'ho',
-            'ten' => 'ten',
-            'so_dien_thoai' => 'so_dien_thoai',
-            'email' => 'email',
-            'ngay_sinh' => 'ngay_sinh',
-            'gioi_tinh' => 'gioi_tinh',
-            'tinh_hien_tai' => 'tinh_hien_tai',
-            'tinh_noi_sinh' => 'tinh_noi_sinh',
-            'dan_toc' => 'dan_toc',
-            'quoc_tich' => 'quoc_tich',
-            'noi_cong_tac' => 'noi_cong_tac',
-            'kinh_nghiem_ke_toan' => 'kinh_nghiem_ke_toan',
-            'trinh_do_hoc_van' => 'trinh_do_hoc_van',
-            'chuyen_mon_dao_tao' => 'chuyen_mon_dao_tao',
-            'ho_so_ban_cung' => 'ho_so_ban_cung',
-            'ten_cong_ty' => 'ten_cong_ty',
-            'ma_so_thue' => 'ma_so_thue',
-            'email_hoa_don' => 'email_hoa_don',
-            'dia_chi_cong_ty' => 'dia_chi_cong_ty',
-            'nguon' => 'nguon',
-            'ghi_chu' => 'ghi_chu',
-            'ngay_tao' => 'ngay_tao',
-            'so_khoa_hoc' => 'so_khoa_hoc',
-            'tong_da_thanh_toan' => 'tong_da_thanh_toan',
-            'tong_hoc_phi' => 'tong_hoc_phi',
-            'trang_thai_thanh_toan' => 'trang_thai_thanh_toan'
+            'full_name' => 'Họ và tên',
+            'first_name' => 'Họ',
+            'last_name' => 'Tên',
+            'phone' => 'Số điện thoại',
+            'email' => 'Email',
+            'course_name' => 'Khóa học cụ thể',
+            'course_path' => 'Đường dẫn khóa học',
+            'date_of_birth' => 'Ngày sinh',
+            'gender' => 'Giới tính',
+            'province' => 'Tỉnh hiện tại',
+            'place_of_birth_province' => 'Tỉnh nơi sinh',
+            'ethnicity' => 'Dân tộc',
+            'nation' => 'Quốc tịch',
+            'address' => 'Địa chỉ',
+            'current_workplace' => 'Nơi công tác',
+            'accounting_experience_years' => 'Kinh nghiệm kế toán (năm)',
+            'education_level' => 'Trình độ học vấn',
+            'training_specialization' => 'Chuyên môn đào tạo',
+            'hard_copy_documents' => 'Hồ sơ bản cứng',
+            'company_name' => 'Tên công ty',
+            'tax_code' => 'Mã số thuế',
+            'invoice_email' => 'Email hóa đơn',
+            'company_address' => 'Địa chỉ công ty',
+            'source' => 'Nguồn',
+            'notes' => 'Ghi chú',
+            'created_at' => 'Ngày tạo',
+            'enrollments_count' => 'Số khóa học',
+            'total_paid' => 'Tổng đã thanh toán',
+            'total_fee' => 'Tổng học phí',
+            'payment_status' => 'Trạng thái thanh toán'
         ];
     }
 
@@ -92,6 +93,16 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     break;
                 case 'email':
                     $row[] = $student->email;
+                    break;
+                case 'course_name':
+                    // Lấy tên khóa học từ enrollment đầu tiên (nếu có filter course_item_id)
+                    $enrollment = $student->enrollments->first();
+                    $row[] = $enrollment && $enrollment->courseItem ? $enrollment->courseItem->name : '';
+                    break;
+                case 'course_path':
+                    // Lấy đường dẫn khóa học từ enrollment đầu tiên
+                    $enrollment = $student->enrollments->first();
+                    $row[] = $enrollment && $enrollment->courseItem ? $enrollment->courseItem->path : '';
                     break;
                 case 'date_of_birth':
                     $row[] = $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';

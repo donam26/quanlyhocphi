@@ -51,8 +51,12 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
 
     protected function loadAttendances()
     {
+        // Lấy tất cả course IDs bao gồm cả khóa con
+        $courseIds = $this->courseItem->getAllDescendantIds();
+        $courseIds[] = $this->courseItem->id; // Thêm chính khóa này
+
         $query = Attendance::with(['enrollment.student.province', 'enrollment.courseItem'])
-            ->where('course_item_id', $this->courseItem->id);
+            ->whereIn('course_item_id', $courseIds);
 
         if ($this->startDate) {
             $query->whereDate('attendance_date', '>=', $this->startDate);

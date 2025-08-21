@@ -18,14 +18,14 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
     protected $courseItem;
     protected $enrollments;
     protected $selectedColumns;
-    protected $status;
+    protected $filters;
     protected $columnMappings;
 
-    public function __construct(CourseItem $courseItem, $selectedColumns = [], $status = null)
+    public function __construct(CourseItem $courseItem, $selectedColumns = [], $filters = [])
     {
         $this->courseItem = $courseItem;
         $this->selectedColumns = $selectedColumns;
-        $this->status = $status;
+        $this->filters = $filters;
         $this->initializeColumnMappings();
         $this->loadEnrollments();
     }
@@ -36,6 +36,8 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'student_name' => 'Họ và tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
+            'course_name' => 'Khóa học cụ thể',
+            'course_path' => 'Đường dẫn khóa học',
             'student_date_of_birth' => 'Ngày sinh',
             'student_gender' => 'Giới tính',
             'student_address' => 'Địa chỉ',
@@ -57,14 +59,36 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
 
     protected function loadEnrollments()
     {
-        $query = $this->courseItem->enrollments()
-            ->with(['student.province', 'payments']);
+        // Lấy tất cả ID của khóa học này và các khóa học con
+        $courseItemIds = [$this->courseItem->id];
 
-        if ($this->status) {
-            $query->where('status', $this->status);
+        // Thêm ID của tất cả các khóa học con (descendants)
+        foreach ($this->courseItem->descendants() as $descendant) {
+            $courseItemIds[] = $descendant->id;
         }
 
-        $this->enrollments = $query->get();
+        // Query enrollments từ tất cả khóa học (cha + con)
+        $query = Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->with(['student.province', 'payments', 'courseItem']);
+
+        // Apply filters
+        if (!empty($this->filters['status'])) {
+            $query->where('status', $this->filters['status']);
+        }
+
+        if (!empty($this->filters['payment_status'])) {
+            $query->where('payment_status', $this->filters['payment_status']);
+        }
+
+        if (!empty($this->filters['from_date'])) {
+            $query->whereDate('enrollment_date', '>=', $this->filters['from_date']);
+        }
+
+        if (!empty($this->filters['to_date'])) {
+            $query->whereDate('enrollment_date', '<=', $this->filters['to_date']);
+        }
+
+        $this->enrollments = $query->orderBy('course_item_id')->get();
     }
 
     public function collection()
@@ -97,6 +121,12 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                 case 'student_email':
                     $row[] = $student->email;
                     break;
+                case 'course_name':
+                    $row[] = $enrollment->courseItem->name ?? '';
+                    break;
+                case 'course_path':
+                    $row[] = $enrollment->courseItem->path ?? '';
+                    break;
                 case 'student_date_of_birth':
                     $row[] = $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';
                     break;
@@ -122,7 +152,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : '';
                     break;
                 case 'enrollment_status':
-                    $row[] = $this->formatEnrollmentStatus($enrollment->status);
+                    $row[] = $this->formatEnrollmentStatus($enrollment->status->value ?? $enrollment->status);
                     break;
                 case 'final_fee':
                     $row[] = number_format($enrollment->final_fee, 0, ',', '.');

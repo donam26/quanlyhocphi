@@ -10,6 +10,7 @@ use App\Models\Student;
 use App\Services\AttendanceService;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class AttendanceController extends Controller
 {
@@ -192,7 +193,14 @@ class AttendanceController extends Controller
                 'attendances.*.status' => 'required|in:present,absent,late',
                 'attendances.*.notes' => 'nullable|string'
             ]);
-            
+
+            // Debug: Log dữ liệu nhận được
+            \Log::info('=== ATTENDANCE SAVE DEBUG ===');
+            \Log::info('Course Item ID: ' . $courseItem->id);
+            \Log::info('Course Item Name: ' . $courseItem->name);
+            \Log::info('Has Children: ' . ($courseItem->children()->exists() ? 'Yes' : 'No'));
+            \Log::info('Validated Data: ', $validated);
+
             $attendanceDate = Carbon::parse($validated['attendance_date']);
             $createdAttendances = [];
             
@@ -200,8 +208,13 @@ class AttendanceController extends Controller
                 // Lấy enrollment để biết course_item_id thực tế
                 $enrollment = \App\Models\Enrollment::find($attendanceData['enrollment_id']);
                 if (!$enrollment) {
+                    \Log::warning('Enrollment not found: ' . $attendanceData['enrollment_id']);
                     continue; // Skip nếu không tìm thấy enrollment
                 }
+
+                \Log::info('Processing attendance for enrollment: ' . $enrollment->id .
+                          ', course: ' . $enrollment->course_item_id .
+                          ', status: ' . $attendanceData['status']);
 
                 $attendance = Attendance::updateOrCreate(
                     [
@@ -215,6 +228,7 @@ class AttendanceController extends Controller
                     ]
                 );
 
+                \Log::info('Saved attendance: ' . $attendance->id . ', status: ' . $attendance->status);
                 $createdAttendances[] = $attendance->load(['enrollment.student']);
             }
             
@@ -239,24 +253,61 @@ class AttendanceController extends Controller
         try {
             $attendanceDate = Carbon::parse($date);
 
-            // Nếu là khóa cha, lấy điểm danh từ tất cả khóa con
-            if ($courseItem->children()->exists()) {
-                $childCourseIds = $courseItem->children()->pluck('id');
-                $attendances = Attendance::whereIn('course_item_id', $childCourseIds)
-                    ->whereDate('attendance_date', $attendanceDate)
-                    ->with(['enrollment.student', 'enrollment.courseItem'])
-                    ->get();
+            // Debug: Log thông tin khóa học
+            \Log::info('=== FETCH ATTENDANCE BY DATE ===');
+            \Log::info('Course Item ID: ' . $courseItem->id);
+            \Log::info('Course Item Name: ' . $courseItem->name);
+            \Log::info('Date: ' . $attendanceDate);
+            \Log::info('Has Children: ' . ($courseItem->children()->exists() ? 'Yes' : 'No'));
+
+            // Lấy tất cả ID của khóa học này và các khóa con (đệ quy)
+            $allCourseIds = $this->getAllDescendantCourseIds($courseItem);
+            \Log::info('All Course IDs: ', $allCourseIds);
+
+            // Nếu có khóa con, lấy từ tất cả khóa con
+            if (count($allCourseIds) > 1) {
+                // Loại bỏ khóa cha khỏi danh sách (chỉ lấy từ khóa con)
+                $childCourseIds = array_filter($allCourseIds, function($id) use ($courseItem) {
+                    return $id !== $courseItem->id;
+                });
+                \Log::info('Child Course IDs: ', $childCourseIds);
+                $targetCourseIds = $childCourseIds;
             } else {
-                // Nếu là khóa con hoặc khóa độc lập
-                $attendances = Attendance::where('course_item_id', $courseItem->id)
-                    ->whereDate('attendance_date', $attendanceDate)
-                    ->with(['enrollment.student'])
-                    ->get();
+                // Nếu là khóa lá (không có con), lấy từ chính khóa đó
+                \Log::info('Getting from leaf course: ' . $courseItem->id);
+                $targetCourseIds = [$courseItem->id];
             }
+
+            // 1. Lấy tất cả học viên từ các khóa đích
+            $allStudents = $this->getStudentsFromCourses($targetCourseIds);
+            \Log::info('Found ' . $allStudents->count() . ' students');
+
+            // 2. Lấy attendance records có sẵn
+            $attendances = Attendance::whereIn('course_item_id', $targetCourseIds)
+                ->whereDate('attendance_date', $attendanceDate)
+                ->with(['enrollment.student', 'enrollment.courseItem'])
+                ->get();
+            \Log::info('Found ' . $attendances->count() . ' attendance records');
+
+            // 3. Tạo map attendance theo enrollment_id
+            $attendanceMap = $attendances->keyBy('enrollment_id');
+
+            // 4. Tạo response data bao gồm cả học viên và attendance
+            $responseData = [
+                'students' => $allStudents,
+                'attendances' => $attendances,
+                'date' => $attendanceDate->format('Y-m-d'),
+                'course_info' => [
+                    'id' => $courseItem->id,
+                    'name' => $courseItem->name,
+                    'has_children' => count($allCourseIds) > 1,
+                    'target_course_ids' => $targetCourseIds
+                ]
+            ];
 
             return response()->json([
                 'success' => true,
-                'data' => $attendances
+                'data' => $responseData
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -468,16 +519,46 @@ class AttendanceController extends Controller
     }
 
     /**
+     * API: Xuất dữ liệu điểm danh dạng ma trận
+     */
+    public function exportMatrix(Request $request)
+    {
+        try {
+            $request->validate([
+                'course_item_id' => 'required|exists:course_items,id',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date'
+            ]);
+
+            $courseItem = CourseItem::findOrFail($request->course_item_id);
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+
+            $fileName = 'diem_danh_ma_tran_khoa_' . $courseItem->id . '_' . date('Y_m_d_H_i_s') . '.xlsx';
+
+            return \Maatwebsite\Excel\Facades\Excel::download(
+                new \App\Exports\AttendanceMatrixExport($courseItem, $startDate, $endDate),
+                $fileName
+            );
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xuất ma trận điểm danh: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * API: Lấy cây khóa học cho điểm danh
      */
     public function getAttendanceTree()
     {
         try {
-            // Get all courses similar to EnrollmentController
-            $allCourses = CourseItem::with(['parent', 'children'])->get();
+            // Get all courses with relationships
+            $allCourses = CourseItem::with(['parent', 'children', 'enrollments.student'])->get();
 
-            // Build tree structure using the same method as other controllers
-            $tree = $this->buildCourseTree($allCourses);
+            // Build tree structure with student counts
+            $tree = $this->buildCourseTreeWithStudentCounts($allCourses);
 
             return response()->json([
                 'success' => true,
@@ -497,8 +578,14 @@ class AttendanceController extends Controller
     public function getStudentsByCourse(CourseItem $courseItem)
     {
         try {
+            // Debug: Log thông tin khóa học
+            \Log::info('=== GET STUDENTS BY COURSE ===');
+            \Log::info('Course Item ID: ' . $courseItem->id);
+            \Log::info('Course Item Name: ' . $courseItem->name);
+
             // Lấy tất cả ID của khóa học này và các khóa con (đệ quy)
             $allCourseIds = $this->getAllDescendantCourseIds($courseItem);
+            \Log::info('All Course IDs: ', $allCourseIds);
 
             // Nếu có khóa con, lấy học viên từ tất cả khóa con
             if (count($allCourseIds) > 1) {
@@ -506,17 +593,23 @@ class AttendanceController extends Controller
                 $childCourseIds = array_filter($allCourseIds, function($id) use ($courseItem) {
                     return $id !== $courseItem->id;
                 });
+                \Log::info('Child Course IDs: ', $childCourseIds);
 
                 if (!empty($childCourseIds)) {
                     $students = $this->getStudentsFromCourses($childCourseIds);
+                    \Log::info('Getting students from child courses');
                 } else {
                     // Nếu không có khóa con, lấy từ chính khóa đó
                     $students = $this->getStudentsFromCourses([$courseItem->id]);
+                    \Log::info('Getting students from parent course (no children)');
                 }
             } else {
                 // Nếu là khóa lá (không có con), lấy học viên của chính khóa đó
                 $students = $this->getStudentsFromCourses([$courseItem->id]);
+                \Log::info('Getting students from leaf course');
             }
+
+            \Log::info('Found ' . $students->count() . ' students');
 
             return response()->json([
                 'success' => true,
@@ -631,5 +724,109 @@ class AttendanceController extends Controller
         }
 
         return $rootCourses;
+    }
+
+    /**
+     * Build course tree structure with student counts (including descendants)
+     */
+    private function buildCourseTreeWithStudentCounts($courses)
+    {
+        $courseMap = [];
+        $rootCourses = [];
+
+        // Tính toán student counts một lần cho tất cả courses
+        $studentCounts = $this->calculateStudentCountsEfficiently($courses);
+
+        // Create map of all courses with student counts
+        foreach ($courses as $course) {
+            $courseId = $course->id;
+            $courseMap[$courseId] = [
+                'id' => $courseId,
+                'name' => $course->name,
+                'parent_id' => $course->parent_id,
+                'is_leaf' => $course->is_leaf,
+                'level' => $course->level,
+                'path' => $course->path,
+                'status' => $course->status,
+                'created_at' => $course->created_at,
+                'updated_at' => $course->updated_at,
+                'student_count' => $studentCounts[$courseId]['total'] ?? 0, // Bao gồm cả khóa con
+                'direct_student_count' => $studentCounts[$courseId]['direct'] ?? 0, // Chỉ khóa này
+                'total_enrollment_count' => $studentCounts[$courseId]['enrollments'] ?? 0, // Tổng enrollments
+                'children' => []
+            ];
+        }
+
+        // Build tree structure
+        foreach ($courseMap as $courseId => $course) {
+            if ($course['parent_id']) {
+                if (isset($courseMap[$course['parent_id']])) {
+                    $courseMap[$course['parent_id']]['children'][] = &$courseMap[$courseId];
+                }
+            } else {
+                $rootCourses[] = &$courseMap[$courseId];
+            }
+        }
+
+        return $rootCourses;
+    }
+
+    /**
+     * Tính toán student counts hiệu quả cho tất cả courses
+     */
+    private function calculateStudentCountsEfficiently($courses)
+    {
+        $courseIds = $courses->pluck('id')->toArray();
+        $studentCounts = [];
+
+        // Khởi tạo counts cho tất cả courses
+        foreach ($courseIds as $courseId) {
+            $studentCounts[$courseId] = [
+                'direct' => 0,
+                'total' => 0,
+                'enrollments' => 0
+            ];
+        }
+
+        // Lấy direct student counts và enrollment counts trong 1 query
+        $directCounts = DB::table('enrollments')
+            ->select('course_item_id',
+                DB::raw('COUNT(DISTINCT student_id) as student_count'),
+                DB::raw('COUNT(*) as enrollment_count'))
+            ->whereIn('course_item_id', $courseIds)
+            ->groupBy('course_item_id')
+            ->get();
+
+        // Cập nhật direct counts
+        foreach ($directCounts as $count) {
+            $courseId = $count->course_item_id;
+            $studentCounts[$courseId]['direct'] = $count->student_count;
+            $studentCounts[$courseId]['enrollments'] = $count->enrollment_count;
+        }
+
+        // Tính total counts (bao gồm descendants) bằng cách duyệt tree
+        $courseMap = $courses->keyBy('id');
+        foreach ($courses as $course) {
+            $studentCounts[$course->id]['total'] = $this->calculateTotalStudentCount($course, $courseMap, $studentCounts);
+        }
+
+        return $studentCounts;
+    }
+
+    /**
+     * Tính tổng số học viên bao gồm descendants
+     */
+    private function calculateTotalStudentCount($course, $courseMap, $studentCounts)
+    {
+        $total = $studentCounts[$course->id]['direct'];
+
+        // Cộng thêm từ các khóa con
+        foreach ($course->children as $child) {
+            if (isset($courseMap[$child->id])) {
+                $total += $this->calculateTotalStudentCount($child, $courseMap, $studentCounts);
+            }
+        }
+
+        return $total;
     }
 }

@@ -78,9 +78,16 @@ class AttendanceService
         DB::beginTransaction();
         try {
             foreach ($data['attendances'] as $attendanceData) {
+                // Lấy enrollment để biết course_item_id thực tế
+                $enrollment = \App\Models\Enrollment::find($attendanceData['enrollment_id']);
+                if (!$enrollment) {
+                    continue; // Skip nếu không tìm thấy enrollment
+                }
+
                 Attendance::updateOrCreate(
                     [
                         'enrollment_id' => $attendanceData['enrollment_id'],
+                        'course_item_id' => $enrollment->course_item_id, // Thêm course_item_id
                         'attendance_date' => $attendanceDate,
                     ],
                     [
@@ -89,7 +96,7 @@ class AttendanceService
                     ]
                 );
             }
-            
+
             DB::commit();
             return true;
         } catch (\Exception $e) {

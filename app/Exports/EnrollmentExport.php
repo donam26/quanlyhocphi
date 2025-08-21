@@ -73,7 +73,16 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
         }
 
         if (!empty($filters['course_item_id'])) {
-            $query->where('course_item_id', $filters['course_item_id']);
+            $courseItem = \App\Models\CourseItem::find($filters['course_item_id']);
+            if ($courseItem) {
+                // Lấy tất cả ID của khóa học này và các khóa học con
+                $courseItemIds = [$courseItem->id];
+                foreach ($courseItem->descendants() as $descendant) {
+                    $courseItemIds[] = $descendant->id;
+                }
+
+                $query->whereIn('course_item_id', $courseItemIds);
+            }
         }
 
         if (!empty($filters['start_date'])) {
@@ -147,7 +156,7 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
                     $row[] = $student->address ?? '';
                     break;
                 case 'student_workplace':
-                    $row[] = $student->workplace ?? '';
+                    $row[] = $student->current_workplace ?? '';
                     break;
                 case 'student_province':
                     $row[] = $student->province->name ?? '';

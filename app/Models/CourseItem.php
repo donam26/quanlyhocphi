@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Models\Attendance;
+use App\Models\Enrollment;
+use App\Models\Student;
 use App\Enums\CourseStatus;
 use App\Enums\EnrollmentStatus;
 use App\Enums\LearningMethod;
@@ -165,17 +167,65 @@ class CourseItem extends Model
     {
         // Lấy tất cả ID của khóa học này và các khóa học con
         $courseItemIds = [$this->id];
-        
+
         // Thêm ID của tất cả các khóa học con
         foreach ($this->descendants() as $descendant) {
             $courseItemIds[] = $descendant->id;
         }
-        
+
         // Trả về tất cả điểm danh liên quan đến các khóa học này
         return Attendance::whereIn('course_item_id', $courseItemIds)
             ->orWhereHas('enrollment', function ($query) use ($courseItemIds) {
                 $query->whereIn('course_item_id', $courseItemIds);
             });
+    }
+
+    /**
+     * Lấy tất cả enrollments cho khóa học này và các khóa học con
+     */
+    public function getAllEnrollments()
+    {
+        // Lấy tất cả ID của khóa học này và các khóa học con
+        $courseItemIds = [$this->id];
+
+        // Thêm ID của tất cả các khóa học con
+        foreach ($this->descendants() as $descendant) {
+            $courseItemIds[] = $descendant->id;
+        }
+
+        return Enrollment::whereIn('course_item_id', $courseItemIds);
+    }
+
+    /**
+     * Đếm tổng số học viên (bao gồm cả khóa con)
+     */
+    public function getTotalStudentsCount()
+    {
+        return $this->getAllEnrollments()->distinct('student_id')->count('student_id');
+    }
+
+    /**
+     * Đếm tổng số enrollments (bao gồm cả khóa con)
+     */
+    public function getTotalEnrollmentsCount()
+    {
+        return $this->getAllEnrollments()->count();
+    }
+
+    /**
+     * Lấy tất cả học viên unique (bao gồm cả khóa con)
+     */
+    public function getAllStudents()
+    {
+        $courseItemIds = [$this->id];
+
+        foreach ($this->descendants() as $descendant) {
+            $courseItemIds[] = $descendant->id;
+        }
+
+        return Student::whereHas('enrollments', function($query) use ($courseItemIds) {
+            $query->whereIn('course_item_id', $courseItemIds);
+        })->distinct();
     }
 
     /**
@@ -396,5 +446,21 @@ class CourseItem extends Model
     public function scopeOffline($query)
     {
         return $query->where('learning_method', LearningMethod::OFFLINE->value);
+    }
+
+    /**
+     * Lấy tất cả ID của khóa con (descendants) một cách đệ quy
+     */
+    public function getAllDescendantIds(): array
+    {
+        $descendantIds = [];
+
+        foreach ($this->children as $child) {
+            $descendantIds[] = $child->id;
+            // Đệ quy lấy ID của khóa con của khóa con
+            $descendantIds = array_merge($descendantIds, $child->getAllDescendantIds());
+        }
+
+        return $descendantIds;
     }
 }

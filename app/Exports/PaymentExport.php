@@ -56,7 +56,9 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
         if (!empty($filters['search'])) {
             $search = $filters['search'];
             $query->whereHas('enrollment.student', function ($q) use ($search) {
-                $q->where('full_name', 'like', "%{$search}%")
+                $q->where('first_name', 'like', "%{$search}%")
+                  ->orWhere('last_name', 'like', "%{$search}%")
+                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$search}%"])
                   ->orWhere('phone', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%");
             })->orWhereHas('enrollment.courseItem', function ($q) use ($search) {
@@ -78,6 +80,21 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
 
         if (!empty($filters['end_date'])) {
             $query->whereDate('payment_date', '<=', $filters['end_date']);
+        }
+
+        if (!empty($filters['course_item_id'])) {
+            $courseItem = \App\Models\CourseItem::find($filters['course_item_id']);
+            if ($courseItem) {
+                // Lấy tất cả ID của khóa học này và các khóa học con
+                $courseItemIds = [$courseItem->id];
+                foreach ($courseItem->descendants() as $descendant) {
+                    $courseItemIds[] = $descendant->id;
+                }
+
+                $query->whereHas('enrollment', function($q) use ($courseItemIds) {
+                    $q->whereIn('course_item_id', $courseItemIds);
+                });
+            }
         }
 
         $this->payments = $query->orderBy('payment_date', 'desc')
@@ -150,7 +167,7 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                     $row[] = $student->address ?? '';
                     break;
                 case 'student_workplace':
-                    $row[] = $student->workplace ?? '';
+                    $row[] = $student->current_workplace ?? '';
                     break;
                 default:
                     $row[] = '';

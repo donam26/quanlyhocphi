@@ -220,6 +220,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Reports
         Route::post('/export', [AttendanceController::class, 'export']);
+        Route::post('/export-matrix', [AttendanceController::class, 'exportMatrix']);
         Route::get('/student/{student}/report', [AttendanceController::class, 'studentReport']);
         Route::get('/class/{class}/report', [AttendanceController::class, 'classReport']);
 

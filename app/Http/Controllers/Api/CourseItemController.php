@@ -173,10 +173,17 @@ class CourseItemController extends Controller
     public function show(CourseItem $courseItem)
     {
         $courseItem->load(['parent', 'children', 'enrollments.student']);
-        
-        // Add student count
-        $courseItem->student_count = $courseItem->enrollments()->count();
-        $courseItem->active_student_count = $courseItem->enrollments()->where('status', 'active')->count();
+
+        // Add student count (bao gồm cả khóa con)
+        $courseItem->student_count = $courseItem->getTotalStudentsCount();
+        $courseItem->active_student_count = $courseItem->getAllEnrollments()->where('status', 'active')->distinct('student_id')->count('student_id');
+
+        // Add direct enrollment count (chỉ khóa này)
+        $courseItem->direct_enrollment_count = $courseItem->enrollments()->count();
+        $courseItem->direct_active_count = $courseItem->enrollments()->where('status', 'active')->count();
+
+        // Add total enrollment count (bao gồm cả khóa con)
+        $courseItem->total_enrollment_count = $courseItem->getTotalEnrollmentsCount();
 
         return response()->json($courseItem);
     }
@@ -851,8 +858,8 @@ class CourseItemController extends Controller
             ]);
 
             $columns = $request->input('columns', [
-                'student_name', 'student_phone', 'student_email', 'enrollment_date',
-                'enrollment_status', 'final_fee', 'total_paid', 'remaining_amount', 'payment_status'
+                'student_name', 'student_phone', 'student_email', 'course_name', 'course_path',
+                'enrollment_date', 'enrollment_status', 'final_fee', 'total_paid', 'remaining_amount', 'payment_status'
             ]);
 
             $filters = [

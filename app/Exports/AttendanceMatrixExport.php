@@ -23,10 +23,14 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     private $attendanceDates;
     private $attendanceMap;
     private $totalColumns;
+    private $startDate;
+    private $endDate;
 
-    public function __construct(CourseItem $courseItem)
+    public function __construct(CourseItem $courseItem, $startDate = null, $endDate = null)
     {
         $this->courseItem = $courseItem->load('children.children.children');
+        $this->startDate = $startDate;
+        $this->endDate = $endDate;
         $this->prepareData();
     }
 
@@ -42,9 +46,17 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
             ->get();
 
         // Lấy tất cả điểm danh của các khóa học này
-        $allAttendances = Attendance::whereIn('course_item_id', $courseItemIds)
-            ->orderBy('attendance_date')
-            ->get();
+        $attendanceQuery = Attendance::whereIn('course_item_id', $courseItemIds);
+
+        if ($this->startDate) {
+            $attendanceQuery->whereDate('attendance_date', '>=', $this->startDate);
+        }
+
+        if ($this->endDate) {
+            $attendanceQuery->whereDate('attendance_date', '<=', $this->endDate);
+        }
+
+        $allAttendances = $attendanceQuery->orderBy('attendance_date')->get();
 
         // Lấy tất cả ngày đã điểm danh (unique)
         $this->attendanceDates = $allAttendances->map(function($attendance) {
@@ -65,8 +77,8 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
             $this->attendanceMap[$attendance->enrollment_id][$dateKey] = $attendance;
         }
 
-        // Tính tổng số cột (1 cột tên + số ngày * 2 cột cho mỗi ngày)
-        $this->totalColumns = 1 + $this->attendanceDates->count() * 2;
+        // Tính tổng số cột (1 cột tên + số ngày * 2 vì có cột ghi chú)
+        $this->totalColumns = 1 + ($this->attendanceDates->count() * 2);
     }
 
     private function getAllCourseItemIds(CourseItem $courseItem)
@@ -85,62 +97,43 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     public function array(): array
     {
         $data = [];
-        
-        // Row 1: Tiêu đề chính
-        $titleRow = ['ĐIỂM DANH KHÓA HỌC: ' . strtoupper($this->courseItem->name)];
-        for ($i = 1; $i < $this->totalColumns; $i++) {
-            $titleRow[] = '';
-        }
-        $data[] = $titleRow;
 
-        // Row 2: Trống
-        $data[] = array_fill(0, $this->totalColumns, '');
-
-        // Row 3: Header ngày
-        $dateHeaderRow = ['Ngày'];
+        // Row 1: Header với ngày điểm danh thực tế và cột ghi chú
+        $headerRow = ['Tên học viên'];
         foreach ($this->attendanceDates as $date) {
-            $formattedDate = Carbon::parse($date)->format('d/m');
-            $dateHeaderRow[] = $formattedDate;
-            $dateHeaderRow[] = 'Ghi chú';
+            // Format ngày thành dd/mm/yyyy
+            $formattedDate = $date instanceof \Carbon\Carbon
+                ? $date->format('d/m/Y')
+                : \Carbon\Carbon::parse($date)->format('d/m/Y');
+            $headerRow[] = $formattedDate;
+            $headerRow[] = 'Ghi chú ' . $formattedDate;
         }
-        $data[] = $dateHeaderRow;
+        $data[] = $headerRow;
 
-        // Rows 4+: Dữ liệu học viên
+        // Rows 2+: Dữ liệu học viên
         foreach ($this->enrollments as $enrollment) {
-            $studentRow = [$enrollment->student->full_name];
-            
+            $studentName = trim($enrollment->student->first_name . ' ' . $enrollment->student->last_name);
+            $studentRow = [$studentName]; // Tên học viên
+
             foreach ($this->attendanceDates as $date) {
                 $attendance = $this->attendanceMap[$enrollment->id][$date] ?? null;
-                
-                if ($attendance) {
-                    // Cột trạng thái
-                    $statusText = $this->getStatusText($attendance->status);
-                    $studentRow[] = $statusText;
-                    
-                    // Cột ghi chú
-                    $studentRow[] = $attendance->notes ?? '';
+
+                // Cột điểm danh
+                if ($attendance && $attendance->status === 'present') {
+                    $studentRow[] = 'x'; // Có mặt: dấu x
                 } else {
-                    // Chưa điểm danh
-                    $studentRow[] = '';
-                    $studentRow[] = '';
+                    $studentRow[] = ''; // Vắng mặt hoặc chưa điểm danh: để trống
                 }
+
+                // Cột ghi chú
+                $notes = $attendance ? ($attendance->notes ?? '') : '';
+                $studentRow[] = $notes;
             }
-            
+
             $data[] = $studentRow;
         }
 
         return $data;
-    }
-
-    private function getStatusText($status)
-    {
-        return match($status) {
-            'present' => 'Có mặt',
-            'absent' => 'Vắng',
-            'late' => 'Đi muộn', 
-            'excused' => 'Có phép',
-            default => ''
-        };
     }
 
     public function title(): string
@@ -150,16 +143,22 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
 
     public function columnWidths(): array
     {
-        $widths = ['A' => 25]; // Cột tên học viên rộng hơn
-        
-        $column = 'B';
+        $widths = ['A' => 20]; // Cột tên học viên
+
+        // Các cột ngày điểm danh và ghi chú
+        $columnIndex = 2; // Bắt đầu từ cột B
         foreach ($this->attendanceDates as $date) {
-            $widths[$column] = 12; // Cột trạng thái
-            $column++;
-            $widths[$column] = 15; // Cột ghi chú
-            $column++;
+            // Cột điểm danh (hẹp)
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+            $widths[$column] = 8; // Cột ngày hẹp
+            $columnIndex++;
+
+            // Cột ghi chú (rộng hơn)
+            $column = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+            $widths[$column] = 25; // Cột ghi chú rộng hơn
+            $columnIndex++;
         }
-        
+
         return $widths;
     }
 
@@ -179,68 +178,77 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     public function styles(Worksheet $sheet)
     {
         $lastColumn = $this->getColumnLetter($this->totalColumns);
-        $lastRow = 3 + $this->enrollments->count();
+        $lastRow = 1 + $this->enrollments->count();
 
-        return [
-            // Tiêu đề chính
-            'A1' => [
-                'font' => [
-                    'bold' => true,
-                    'size' => 16,
+        $baseStyles = [
+            // Header row (hàng đầu tiên)
+            1 => [
+                'font' => ['bold' => true, 'size' => 12],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'E3F2FD']
                 ],
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical' => Alignment::VERTICAL_CENTER,
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'E3F2FD'],
-                ],
+                    'vertical' => Alignment::VERTICAL_CENTER
+                ]
             ],
-            
-            // Header ngày
-            "A3:{$lastColumn}3" => [
-                'font' => [
-                    'bold' => true,
-                    'size' => 11,
-                ],
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical' => Alignment::VERTICAL_CENTER,
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'F5F5F5'],
-                ],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                    ],
-                ],
-            ],
-            
-            // Tất cả dữ liệu
+
+            // All cells
             "A1:{$lastColumn}{$lastRow}" => [
-                'alignment' => [
-                    'horizontal' => Alignment::HORIZONTAL_CENTER,
-                    'vertical' => Alignment::VERTICAL_CENTER,
-                ],
                 'borders' => [
                     'allBorders' => [
                         'borderStyle' => Border::BORDER_THIN,
-                    ],
+                        'color' => ['rgb' => 'CCCCCC']
+                    ]
                 ],
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER
+                ]
             ],
-            
-            // Cột tên học viên
-            "A4:A{$lastRow}" => [
+
+            // Student names column (cột A)
+            "A2:A{$lastRow}" => [
+                'font' => ['bold' => true],
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_LEFT
+                ]
+            ],
+
+            // Attendance data columns (center align for attendance, left align for notes)
+            "B2:{$lastColumn}{$lastRow}" => [
+                'alignment' => [
+                    'vertical' => Alignment::VERTICAL_CENTER
+                ]
+            ]
+        ];
+
+        // Thêm styles riêng cho từng loại cột
+        $styles = $baseStyles;
+
+        // Style cho các cột điểm danh (center align)
+        $columnIndex = 2; // Bắt đầu từ cột B
+        foreach ($this->attendanceDates as $date) {
+            $attendanceColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+            $styles["{$attendanceColumn}2:{$attendanceColumn}{$lastRow}"] = [
+                'alignment' => [
+                    'horizontal' => Alignment::HORIZONTAL_CENTER,
+                    'vertical' => Alignment::VERTICAL_CENTER
+                ]
+            ];
+            $columnIndex++;
+
+            // Cột ghi chú (left align)
+            $notesColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($columnIndex);
+            $styles["{$notesColumn}2:{$notesColumn}{$lastRow}"] = [
                 'alignment' => [
                     'horizontal' => Alignment::HORIZONTAL_LEFT,
-                ],
-                'font' => [
-                    'bold' => true,
-                ],
-            ],
-        ];
+                    'vertical' => Alignment::VERTICAL_CENTER
+                ]
+            ];
+            $columnIndex++;
+        }
+
+        return $styles;
     }
 }
