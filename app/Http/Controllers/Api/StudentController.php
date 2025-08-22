@@ -86,7 +86,7 @@ class StudentController extends Controller
      */
     public function advancedSearch(Request $request)
     {
-        $query = Student::with(['province', 'enrollments.courseItem']);
+        $query = Student::with(['province', 'placeOfBirthProvince', 'ethnicity', 'enrollments.courseItem']);
 
         // Search by name or phone
         if ($request->has('q') && $request->q) {
@@ -125,6 +125,31 @@ class StudentController extends Controller
         // Filter by source
         if ($request->has('source') && $request->source) {
             $query->where('source', $request->source);
+        }
+
+        // Filter by place of birth province
+        if ($request->has('place_of_birth_province_id') && $request->place_of_birth_province_id) {
+            $query->where('place_of_birth_province_id', $request->place_of_birth_province_id);
+        }
+
+        // Filter by ethnicity
+        if ($request->has('ethnicity_id') && $request->ethnicity_id) {
+            $query->where('ethnicity_id', $request->ethnicity_id);
+        }
+
+        // Filter by accounting experience years
+        if ($request->has('accounting_experience_years') && $request->accounting_experience_years !== '') {
+            if ($request->accounting_experience_years == '5') {
+                // 5 năm trở lên
+                $query->where('accounting_experience_years', '>=', 5);
+            } else {
+                $query->where('accounting_experience_years', $request->accounting_experience_years);
+            }
+        }
+
+        // Filter by current workplace
+        if ($request->has('current_workplace') && $request->current_workplace) {
+            $query->where('current_workplace', 'like', '%' . $request->current_workplace . '%');
         }
 
         // Order by relevance (name match first, then phone)
@@ -585,8 +610,14 @@ class StudentController extends Controller
                 'filters' => 'array',
                 'search' => 'nullable|string',
                 'province_id' => 'nullable|integer',
+                'place_of_birth_province_id' => 'nullable|integer',
+                'ethnicity_id' => 'nullable|integer',
                 'gender' => 'nullable|in:male,female,other',
                 'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+                'accounting_experience_years' => 'nullable|string',
+                'current_workplace' => 'nullable|string',
+                'source' => 'nullable|string',
+                'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
                 'start_date' => 'nullable|date',
                 'end_date' => 'nullable|date|after_or_equal:start_date',
                 'course_item_id' => 'nullable|integer',
@@ -596,7 +627,11 @@ class StudentController extends Controller
             // Get filters from both direct params and filters array
             $filters = array_merge(
                 $request->input('filters', []),
-                $request->only(['search', 'province_id', 'gender', 'education_level', 'start_date', 'end_date', 'course_item_id', 'status'])
+                $request->only([
+                    'search', 'province_id', 'place_of_birth_province_id', 'ethnicity_id',
+                    'gender', 'education_level', 'accounting_experience_years', 'current_workplace',
+                    'source', 'hard_copy_documents', 'start_date', 'end_date', 'course_item_id', 'status'
+                ])
             );
 
             // Build query with relationships
@@ -636,6 +671,41 @@ class StudentController extends Controller
 
             if (!empty($filters['end_date'])) {
                 $query->whereDate('created_at', '<=', $filters['end_date']);
+            }
+
+            // Apply place of birth province filter
+            if (!empty($filters['place_of_birth_province_id'])) {
+                $query->where('place_of_birth_province_id', $filters['place_of_birth_province_id']);
+            }
+
+            // Apply ethnicity filter
+            if (!empty($filters['ethnicity_id'])) {
+                $query->where('ethnicity_id', $filters['ethnicity_id']);
+            }
+
+            // Apply accounting experience years filter
+            if (!empty($filters['accounting_experience_years']) && $filters['accounting_experience_years'] !== '') {
+                if ($filters['accounting_experience_years'] == '5') {
+                    // 5 năm trở lên
+                    $query->where('accounting_experience_years', '>=', 5);
+                } else {
+                    $query->where('accounting_experience_years', $filters['accounting_experience_years']);
+                }
+            }
+
+            // Apply current workplace filter
+            if (!empty($filters['current_workplace'])) {
+                $query->where('current_workplace', 'like', '%' . $filters['current_workplace'] . '%');
+            }
+
+            // Apply source filter
+            if (!empty($filters['source'])) {
+                $query->where('source', $filters['source']);
+            }
+
+            // Apply hard copy documents filter
+            if (!empty($filters['hard_copy_documents'])) {
+                $query->where('hard_copy_documents', $filters['hard_copy_documents']);
             }
 
             // Apply course filter (bao gồm cả khóa con)
