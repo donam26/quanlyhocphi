@@ -189,6 +189,110 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Get student statistics recursively (online/offline counts)
+     */
+    public function getStudentStats(CourseItem $courseItem)
+    {
+        try {
+            $stats = $this->calculateStudentStatsRecursive($courseItem);
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy thống kê học viên: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Calculate student statistics recursively
+     */
+    private function calculateStudentStatsRecursive(CourseItem $courseItem)
+    {
+        $stats = [
+            'total_students' => 0,
+            'online_students' => 0,
+            'offline_students' => 0,
+            'active_enrollments' => 0,
+            'completed_enrollments' => 0,
+            'waiting_enrollments' => 0,
+            'cancelled_enrollments' => 0,
+            'breakdown_by_course' => []
+        ];
+
+        // Lấy tất cả khóa con đệ quy
+        $allCourseIds = [$courseItem->id];
+        $this->collectAllChildrenIds($courseItem, $allCourseIds);
+
+        // Lấy tất cả enrollments từ các khóa này
+        $enrollments = \App\Models\Enrollment::whereIn('course_item_id', $allCourseIds)
+            ->with(['student', 'courseItem'])
+            ->get();
+
+        // Tính tổng số học viên unique
+        $uniqueStudentIds = $enrollments->pluck('student_id')->unique();
+        $stats['total_students'] = $uniqueStudentIds->count();
+
+        // Thống kê theo trạng thái enrollment
+        $stats['active_enrollments'] = $enrollments->where('status', 'active')->count();
+        $stats['completed_enrollments'] = $enrollments->where('status', 'completed')->count();
+        $stats['waiting_enrollments'] = $enrollments->where('status', 'waiting')->count();
+        $stats['cancelled_enrollments'] = $enrollments->where('status', 'cancelled')->count();
+
+        // Thống kê theo phương thức học (online/offline)
+        $onlineStudentIds = collect();
+        $offlineStudentIds = collect();
+
+        foreach ($enrollments as $enrollment) {
+            if ($enrollment->courseItem && $enrollment->courseItem->learning_method === 'online') {
+                $onlineStudentIds->push($enrollment->student_id);
+            } elseif ($enrollment->courseItem && $enrollment->courseItem->learning_method === 'offline') {
+                $offlineStudentIds->push($enrollment->student_id);
+            }
+        }
+
+        $stats['online_students'] = $onlineStudentIds->unique()->count();
+        $stats['offline_students'] = $offlineStudentIds->unique()->count();
+
+        // Breakdown theo từng khóa học
+        $courseStats = [];
+        foreach ($allCourseIds as $courseId) {
+            $course = \App\Models\CourseItem::find($courseId);
+            if ($course && $course->is_leaf) {
+                $courseEnrollments = $enrollments->where('course_item_id', $courseId);
+                $courseStats[] = [
+                    'course_id' => $courseId,
+                    'course_name' => $course->name,
+                    'learning_method' => $course->learning_method,
+                    'total_enrollments' => $courseEnrollments->count(),
+                    'active_enrollments' => $courseEnrollments->where('status', 'active')->count(),
+                    'unique_students' => $courseEnrollments->pluck('student_id')->unique()->count()
+                ];
+            }
+        }
+
+        $stats['breakdown_by_course'] = $courseStats;
+
+        return $stats;
+    }
+
+    /**
+     * Collect all children IDs recursively
+     */
+    private function collectAllChildrenIds(CourseItem $courseItem, &$courseIds)
+    {
+        $children = $courseItem->children()->get();
+        foreach ($children as $child) {
+            $courseIds[] = $child->id;
+            $this->collectAllChildrenIds($child, $courseIds);
+        }
+    }
+
+    /**
      * Update the specified course item
      */
     public function update(Request $request, CourseItem $courseItem)

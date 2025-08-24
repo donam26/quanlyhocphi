@@ -28,6 +28,10 @@ use App\Http\Controllers\Api\EnrollmentController;
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout']);
 
+
+
+
+
 // Protected routes
 Route::middleware(['auth:sanctum'])->group(function () {
     // User info

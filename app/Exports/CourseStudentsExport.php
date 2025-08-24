@@ -33,6 +33,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
+            // Thông tin cơ bản
             'student_name' => 'Họ và tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
@@ -40,20 +41,35 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'course_path' => 'Đường dẫn khóa học',
             'student_date_of_birth' => 'Ngày sinh',
             'student_gender' => 'Giới tính',
-            'student_address' => 'Địa chỉ',
             'student_province' => 'Tỉnh/Thành phố',
+            'student_address' => 'Địa chỉ',
             'student_workplace' => 'Nơi công tác',
-            'student_experience' => 'Kinh nghiệm (năm)',
+
+            // Thông tin học vấn và kinh nghiệm
+            'student_experience' => 'Kinh nghiệm kế toán (năm)',
             'student_education' => 'Trình độ học vấn',
+            'training_specialization' => 'Chuyên môn đào tạo',
+            'hard_copy_documents' => 'Hồ sơ bản cứng',
+
+            // Thông tin công ty và hóa đơn
+            'company_name' => 'Tên công ty',
+            'tax_code' => 'Mã số thuế',
+            'invoice_email' => 'Email hóa đơn',
+            'company_address' => 'Địa chỉ công ty',
+
+            // Thông tin ghi danh và thanh toán
             'enrollment_date' => 'Ngày ghi danh',
-            'enrollment_status' => 'Trạng thái',
+            'enrollment_status' => 'Trạng thái ghi danh',
             'final_fee' => 'Học phí',
             'discount_percentage' => 'Chiết khấu (%)',
             'discount_amount' => 'Số tiền chiết khấu',
             'total_paid' => 'Đã thanh toán',
             'remaining_amount' => 'Còn lại',
             'payment_status' => 'Trạng thái thanh toán',
-            'notes' => 'Ghi chú'
+
+            // Thông tin khác
+            'notes' => 'Ghi chú',
+            'created_at' => 'Ngày tạo hồ sơ'
         ];
     }
 
@@ -148,6 +164,27 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                 case 'student_education':
                     $row[] = $this->formatEducationLevel($student->education_level);
                     break;
+                case 'training_specialization':
+                    $row[] = $student->training_specialization;
+                    break;
+                case 'hard_copy_documents':
+                    $row[] = $student->hard_copy_documents ? 'Có' : 'Không';
+                    break;
+
+                // Thông tin công ty và hóa đơn
+                case 'company_name':
+                    $row[] = $student->company_name;
+                    break;
+                case 'tax_code':
+                    $row[] = $student->tax_code;
+                    break;
+                case 'invoice_email':
+                    $row[] = $student->invoice_email;
+                    break;
+                case 'company_address':
+                    $row[] = $student->company_address;
+                    break;
+
                 case 'enrollment_date':
                     $row[] = $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : '';
                     break;
@@ -174,6 +211,9 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     break;
                 case 'notes':
                     $row[] = $enrollment->notes;
+                    break;
+                case 'created_at':
+                    $row[] = $student->created_at ? $student->created_at->format('d/m/Y H:i') : '';
                     break;
                 default:
                     $row[] = '';

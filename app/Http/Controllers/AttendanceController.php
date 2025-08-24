@@ -322,25 +322,49 @@ class AttendanceController extends Controller
     }
 
     /**
-     * Export toàn bộ điểm danh của khóa học ra file Excel (ma trận)
+     * Export điểm danh với tùy chọn columns và filters
      */
     public function exportAttendance(Request $request)
     {
         $validated = $request->validate([
-            'course_id' => 'required|exists:course_items,id'
+            'course_id' => 'required|exists:course_items,id',
+            'columns' => 'array',
+            'columns.*' => 'string',
+            'start_date' => 'nullable|date',
+            'end_date' => 'nullable|date|after_or_equal:start_date',
+            'status' => 'nullable|string|in:present,absent,late',
+            'enrollmentStatus' => 'nullable|string|in:waiting,active,completed,cancelled',
+            'paymentStatus' => 'nullable|string|in:unpaid,partial,paid,no_fee'
         ]);
 
         $courseItem = CourseItem::findOrFail($validated['course_id']);
 
         try {
-            // Sử dụng Export class mới
+            // Default columns nếu không có columns được chọn
+            $columns = $validated['columns'] ?? [
+                'student_name', 'student_phone', 'attendance_date',
+                'status', 'check_in_time'
+            ];
+
             $fileName = 'diem_danh_' . Str::slug($courseItem->name) . '_' . now()->format('Y_m_d') . '.xlsx';
 
-            return Excel::download(new \App\Exports\AttendanceMatrixExport($courseItem), $fileName);
+            return Excel::download(
+                new \App\Exports\AttendanceExport(
+                    $courseItem,
+                    $columns,
+                    $validated['start_date'] ?? null,
+                    $validated['end_date'] ?? null,
+                    $validated
+                ),
+                $fileName
+            );
 
         } catch (\Exception $e) {
             Log::error('Export attendance error: ' . $e->getMessage());
-            return back()->withErrors(['export' => 'Có lỗi xảy ra khi export: ' . $e->getMessage()]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi export: ' . $e->getMessage()
+            ], 500);
         }
     }
 

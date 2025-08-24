@@ -7,6 +7,8 @@ use Illuminate\Http\Request;
 use App\Models\Student;
 use App\Models\Enrollment;
 use App\Models\Payment;
+use App\Models\CourseItem;
+use App\Enums\EnrollmentStatus;
 use Illuminate\Support\Facades\Validator;
 
 class StudentController extends Controller
@@ -57,29 +59,100 @@ class StudentController extends Controller
 
         // Paginate
         $perPage = $request->get('per_page', 15);
-        $students = $query->with(['province', 'ethnicity'])->paginate($perPage);
+        $students = $query->with(['province', 'ethnicity', 'enrollments.courseItem'])->paginate($perPage);
 
         // Add computed fields
-        $students->getCollection()->transform(function ($student) {
+        $students->through(function ($student) {
             $student->full_name = $student->first_name . ' ' . $student->last_name;
-            $student->formatted_date_of_birth = $student->date_of_birth ? 
+            $student->formatted_date_of_birth = $student->date_of_birth ?
                 \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null;
-            
-            // Calculate payment status
-            $totalFee = $student->enrollments()->sum('final_fee');
-            $paidAmount = Payment::whereHas('enrollment', function ($q) use ($student) {
-                $q->where('student_id', $student->id);
-            })->where('status', 'confirmed')->sum('amount');
-            
-            $student->total_fee = $totalFee;
-            $student->paid_amount = $paidAmount;
-            $student->payment_status = $this->getPaymentStatus($totalFee, $paidAmount);
-            
+
+            // Get active enrollments and waiting list
+            $activeEnrollments = $student->enrollments->filter(function ($enrollment) {
+                return in_array($enrollment->status->value, ['active', 'enrolled']);
+            });
+            $waitingEnrollments = $student->enrollments->filter(function ($enrollment) {
+                return $enrollment->status->value === 'waiting';
+            });
+
+            // Prepare enrolled courses info
+            $enrolledCourses = [];
+            foreach ($activeEnrollments as $enrollment) {
+                if ($enrollment->courseItem) {
+                    $courseName = $this->getCourseName($enrollment->courseItem);
+                    $enrolledCourses[] = [
+                        'id' => $enrollment->courseItem->id,
+                        'name' => $courseName,
+                        'status' => $enrollment->status->value,
+                        'learning_method' => $enrollment->courseItem->learning_method ?? null
+                    ];
+                }
+            }
+
+            // Prepare waiting courses info
+            $waitingCourses = [];
+            foreach ($waitingEnrollments as $enrollment) {
+                if ($enrollment->courseItem) {
+                    $courseName = $this->getCourseName($enrollment->courseItem);
+                    $waitingCourses[] = [
+                        'id' => $enrollment->courseItem->id,
+                        'name' => $courseName,
+                        'status' => $enrollment->status->value,
+                        'learning_method' => $enrollment->courseItem->learning_method ?? null
+                    ];
+                }
+            }
+
+            $student->enrolled_courses = $enrolledCourses;
+            $student->waiting_courses = $waitingCourses;
+
+            // Calculate payment status only if has active enrollments
+            if ($activeEnrollments->count() > 0) {
+                $totalFee = $activeEnrollments->sum('final_fee');
+                $paidAmount = Payment::whereHas('enrollment', function ($q) use ($student) {
+                    $q->where('student_id', $student->id)
+                      ->whereIn('status', [
+                          EnrollmentStatus::ACTIVE->value,
+                          'enrolled'  // fallback for old data
+                      ]);
+                })->where('status', 'confirmed')->sum('amount');
+
+                $student->total_fee = $totalFee;
+                $student->paid_amount = $paidAmount;
+                $student->payment_status = $this->getPaymentStatus($totalFee, $paidAmount);
+            } else {
+                // No active enrollments, no payment status
+                $student->total_fee = 0;
+                $student->paid_amount = 0;
+                $student->payment_status = null;
+            }
+
             return $student;
         });
 
         return response()->json($students);
     }
+
+    /**
+     * Get formatted course name
+     */
+    private function getCourseName($courseItem)
+    {
+        // Use the actual course name
+        $name = $courseItem->name;
+
+        // Add learning method info if available and not already in name
+        if ($courseItem->learning_method) {
+            $methodText = $courseItem->learning_method->value === 'online' ? 'Online' : 'Offline';
+            if (!str_contains(strtolower($name), strtolower($methodText))) {
+                $name .= ' (' . $methodText . ')';
+            }
+        }
+
+        return $name;
+    }
+
+
 
     /**
      * Advanced search for students

@@ -93,6 +93,35 @@ class ValidEnrollmentRule implements ValidationRule
             return;
         }
 
+        // Check for enrollment in sibling courses (same parent)
+        if ($courseItem->parent_id) {
+            $siblingCourseIds = CourseItem::where('parent_id', $courseItem->parent_id)
+                ->where('id', '!=', $courseItemId)
+                ->pluck('id')
+                ->toArray();
+
+            if (!empty($siblingCourseIds)) {
+                $siblingEnrollment = Enrollment::where('student_id', $studentId)
+                    ->whereIn('course_item_id', $siblingCourseIds)
+                    ->whereIn('status', [
+                        EnrollmentStatus::WAITING->value,
+                        EnrollmentStatus::ACTIVE->value
+                    ]);
+
+                // Exclude current enrollment for update operations
+                if ($this->excludeEnrollmentId) {
+                    $siblingEnrollment->where('id', '!=', $this->excludeEnrollmentId);
+                }
+
+                if ($siblingEnrollment->exists()) {
+                    $existingSiblingEnrollment = $siblingEnrollment->with('courseItem')->first();
+                    $siblingCourseName = $existingSiblingEnrollment->courseItem->name ?? 'khóa học khác';
+                    $fail("Học viên đã được ghi danh vào khóa học '{$siblingCourseName}' trong cùng nhóm khóa học. Một học viên chỉ có thể ghi danh vào một khóa con trong cùng nhóm.");
+                    return;
+                }
+            }
+        }
+
         // Check course capacity if defined
         if (isset($courseItem->custom_fields['max_students'])) {
             $maxStudents = (int) $courseItem->custom_fields['max_students'];
