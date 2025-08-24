@@ -233,30 +233,74 @@ class CourseItemController extends Controller
             ->with(['student', 'courseItem'])
             ->get();
 
-        // Tính tổng số học viên unique
-        $uniqueStudentIds = $enrollments->pluck('student_id')->unique();
-        $stats['total_students'] = $uniqueStudentIds->count();
-
         // Thống kê theo trạng thái enrollment
         $stats['active_enrollments'] = $enrollments->where('status', 'active')->count();
         $stats['completed_enrollments'] = $enrollments->where('status', 'completed')->count();
         $stats['waiting_enrollments'] = $enrollments->where('status', 'waiting')->count();
         $stats['cancelled_enrollments'] = $enrollments->where('status', 'cancelled')->count();
 
-        // Thống kê theo phương thức học (online/offline)
+        // Thống kê theo phương thức học (online/offline) - tính unique students
         $onlineStudentIds = collect();
         $offlineStudentIds = collect();
 
-        foreach ($enrollments as $enrollment) {
-            if ($enrollment->courseItem && $enrollment->courseItem->learning_method === 'online') {
-                $onlineStudentIds->push($enrollment->student_id);
-            } elseif ($enrollment->courseItem && $enrollment->courseItem->learning_method === 'offline') {
-                $offlineStudentIds->push($enrollment->student_id);
+        // Lấy tất cả học viên unique từ active enrollments
+        // Sử dụng enum constant để so sánh
+        $activeEnrollments = $enrollments->where('status', \App\Enums\EnrollmentStatus::ACTIVE);
+
+        foreach ($activeEnrollments as $enrollment) {
+            if ($enrollment->courseItem && $enrollment->courseItem->learning_method) {
+                $studentId = $enrollment->student_id;
+
+                // So sánh với enum constants
+                if ($enrollment->courseItem->learning_method === \App\Enums\LearningMethod::ONLINE) {
+                    $onlineStudentIds->push($studentId);
+                } elseif ($enrollment->courseItem->learning_method === \App\Enums\LearningMethod::OFFLINE) {
+                    $offlineStudentIds->push($studentId);
+                }
             }
         }
 
-        $stats['online_students'] = $onlineStudentIds->unique()->count();
-        $stats['offline_students'] = $offlineStudentIds->unique()->count();
+        // Đếm unique students cho mỗi loại
+        $uniqueOnlineStudents = $onlineStudentIds->unique();
+        $uniqueOfflineStudents = $offlineStudentIds->unique();
+
+        $stats['online_students'] = $uniqueOnlineStudents->count();
+        $stats['offline_students'] = $uniqueOfflineStudents->count();
+
+        // Tính lại tổng students để đảm bảo consistency
+        // Một học viên có thể học cả online và offline, nên cần union
+        $allUniqueStudents = $uniqueOnlineStudents->merge($uniqueOfflineStudents)->unique();
+        $stats['total_students'] = $allUniqueStudents->count();
+
+        // Thống kê theo trạng thái enrollment - sử dụng enum constants
+        $stats['active_enrollments'] = $enrollments->where('status', \App\Enums\EnrollmentStatus::ACTIVE)->count();
+        $stats['completed_enrollments'] = $enrollments->where('status', \App\Enums\EnrollmentStatus::COMPLETED)->count();
+        $stats['waiting_enrollments'] = $enrollments->where('status', \App\Enums\EnrollmentStatus::WAITING)->count();
+        $stats['cancelled_enrollments'] = $enrollments->where('status', \App\Enums\EnrollmentStatus::CANCELLED)->count();
+
+        // Debug log
+        \Log::info('Course Stats Debug', [
+            'course_id' => $courseItem->id,
+            'course_name' => $courseItem->name,
+            'is_leaf' => $courseItem->is_leaf,
+            'all_course_ids' => $allCourseIds,
+            'total_enrollments' => $enrollments->count(),
+            'active_enrollments' => $activeEnrollments->count(),
+            'total_students' => $stats['total_students'],
+            'online_students' => $stats['online_students'],
+            'offline_students' => $stats['offline_students'],
+            'online_student_ids' => $uniqueOnlineStudents->toArray(),
+            'offline_student_ids' => $uniqueOfflineStudents->toArray(),
+            'breakdown_count' => count($courseStats ?? []),
+            'course_methods' => $activeEnrollments->map(function($e) {
+                return [
+                    'course_id' => $e->course_item_id,
+                    'course_name' => $e->courseItem->name ?? 'N/A',
+                    'learning_method' => $e->courseItem->learning_method ?? 'N/A',
+                    'student_id' => $e->student_id
+                ];
+            })->toArray()
+        ]);
 
         // Breakdown theo từng khóa học
         $courseStats = [];
@@ -264,13 +308,15 @@ class CourseItemController extends Controller
             $course = \App\Models\CourseItem::find($courseId);
             if ($course && $course->is_leaf) {
                 $courseEnrollments = $enrollments->where('course_item_id', $courseId);
+                $activeCourseEnrollments = $courseEnrollments->where('status', 'active');
+
                 $courseStats[] = [
                     'course_id' => $courseId,
                     'course_name' => $course->name,
                     'learning_method' => $course->learning_method,
                     'total_enrollments' => $courseEnrollments->count(),
-                    'active_enrollments' => $courseEnrollments->where('status', 'active')->count(),
-                    'unique_students' => $courseEnrollments->pluck('student_id')->unique()->count()
+                    'active_enrollments' => $activeCourseEnrollments->count(),
+                    'unique_students' => $activeCourseEnrollments->pluck('student_id')->unique()->count()
                 ];
             }
         }

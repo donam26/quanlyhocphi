@@ -482,6 +482,120 @@ class StudentController extends Controller
         }
     }
 
+    /**
+     * Bulk delete students
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:students,id',
+            'delete_enrollments' => 'boolean',
+            'delete_payments' => 'boolean'
+        ]);
+
+        try {
+            $studentIds = $request->input('student_ids');
+            $deleteEnrollments = $request->boolean('delete_enrollments', false);
+            $deletePayments = $request->boolean('delete_payments', false);
+
+            // Get students with their related data counts
+            $students = Student::whereIn('id', $studentIds)
+                ->withCount(['enrollments', 'payments'])
+                ->get();
+
+            if ($students->count() !== count($studentIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Một số học viên không tồn tại',
+                    'error_code' => 'STUDENTS_NOT_FOUND'
+                ], 422);
+            }
+
+            $errors = [];
+            $deletedStudents = [];
+            $skippedStudents = [];
+
+            foreach ($students as $student) {
+                try {
+                    // Check constraints
+                    if (!$deleteEnrollments && $student->enrollments_count > 0) {
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'full_name' => $student->full_name,
+                            'reason' => "Có {$student->enrollments_count} ghi danh khóa học"
+                        ];
+                        continue;
+                    }
+
+                    if (!$deletePayments && $student->payments_count > 0) {
+                        $skippedStudents[] = [
+                            'id' => $student->id,
+                            'full_name' => $student->full_name,
+                            'reason' => "Có {$student->payments_count} thanh toán"
+                        ];
+                        continue;
+                    }
+
+                    // Delete related data if requested
+                    if ($deleteEnrollments) {
+                        $student->enrollments()->delete();
+                    }
+
+                    if ($deletePayments) {
+                        $student->payments()->delete();
+                    }
+
+                    $student->delete();
+
+                    $deletedStudents[] = [
+                        'id' => $student->id,
+                        'full_name' => $student->full_name
+                    ];
+
+                } catch (\Exception $e) {
+                    $errors[] = [
+                        'student_id' => $student->id,
+                        'student_name' => $student->full_name,
+                        'error' => $e->getMessage()
+                    ];
+                }
+            }
+
+            $deletedCount = count($deletedStudents);
+            $skippedCount = count($skippedStudents);
+            $errorCount = count($errors);
+
+            $message = "Đã xóa {$deletedCount} học viên thành công";
+            if ($skippedCount > 0) {
+                $message .= ", bỏ qua {$skippedCount} học viên";
+            }
+            if ($errorCount > 0) {
+                $message .= ", {$errorCount} học viên lỗi";
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'deleted_count' => $deletedCount,
+                    'skipped_count' => $skippedCount,
+                    'error_count' => $errorCount,
+                    'deleted_students' => $deletedStudents,
+                    'skipped_students' => $skippedStudents,
+                    'errors' => $errors
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => "Có lỗi xảy ra khi xóa hàng loạt học viên: " . $e->getMessage(),
+                'error_code' => 'BULK_DELETE_FAILED'
+            ], 500);
+        }
+    }
+
 
 
     /**

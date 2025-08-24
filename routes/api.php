@@ -49,6 +49,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Students API
     Route::prefix('students')->group(function () {
         Route::post('/export', [StudentController::class, 'export']);
+        Route::post('/bulk-delete', [StudentController::class, 'bulkDestroy']);
         Route::get('/', [StudentController::class, 'index']);
         Route::get('/advanced-search', [StudentController::class, 'advancedSearch']);
         Route::get('/import-template', [StudentController::class, 'downloadImportTemplate']);
@@ -104,6 +105,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Course students
         Route::get('/{courseItem}/students', [CourseItemController::class, 'students']);
         Route::get('/{courseItem}/students-recursive', [CourseItemController::class, 'studentsRecursive']);
+        Route::get('/{courseItem}/student-stats', [CourseItemController::class, 'getStudentStats']);
         Route::post('/{courseItem}/add-student', [CourseItemController::class, 'addStudent']);
         Route::post('/{courseItem}/import-students', [CourseItemController::class, 'importStudents']);
         Route::post('/{courseItem}/import-students-to-waiting', [CourseItemController::class, 'importStudentsToWaiting']);
