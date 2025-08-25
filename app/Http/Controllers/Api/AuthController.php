@@ -29,11 +29,7 @@ class AuthController extends Controller
             ]);
         }
 
-        // Delete old tokens
-        $user->tokens()->delete();
-
-        // Create new token
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $user->createToken()->plainTextToken;
 
         return response()->json([
             'user' => $user,
@@ -73,7 +69,7 @@ class AuthController extends Controller
         $request->user()->currentAccessToken()->delete();
         
         // Create new token
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $user->createToken()->plainTextToken;
 
         return response()->json([
             'user' => $user,
