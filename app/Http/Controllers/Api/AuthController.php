@@ -29,9 +29,7 @@ class AuthController extends Controller
             ]);
         }
 
-        // Delete old tokens
-        $user->tokens()->delete();
-
+        // Không xóa token cũ để cho phép đăng nhập nhiều thiết bị
         // Create new token
         $token = $user->createToken('auth-token')->plainTextToken;
 
@@ -68,10 +66,10 @@ class AuthController extends Controller
     public function refresh(Request $request)
     {
         $user = $request->user();
-        
+
         // Delete current token
         $request->user()->currentAccessToken()->delete();
-        
+
         // Create new token
         $token = $user->createToken('auth-token')->plainTextToken;
 

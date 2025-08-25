@@ -67,6 +67,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
         // Bulk operations
         Route::post('/import', [StudentController::class, 'import']);
+        Route::post('/bulk-details', [StudentController::class, 'bulkDetails']);
 
         // Search and filter
         Route::get('/province/{province}', [StudentController::class, 'byProvince']);

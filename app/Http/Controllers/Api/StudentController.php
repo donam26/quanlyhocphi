@@ -528,7 +528,9 @@ class StudentController extends Controller
                         continue;
                     }
 
-                    if (!$deletePayments && $student->payments_count > 0) {
+                    // Nếu có enrollments và được phép xóa, thì payments cũng sẽ bị xóa theo
+                    // Chỉ check payments riêng lẻ nếu không có enrollments
+                    if ($student->enrollments_count == 0 && !$deletePayments && $student->payments_count > 0) {
                         $skippedStudents[] = [
                             'id' => $student->id,
                             'full_name' => $student->full_name,
@@ -537,12 +539,12 @@ class StudentController extends Controller
                         continue;
                     }
 
-                    // Delete related data if requested
-                    if ($deleteEnrollments) {
+                    // Delete related data
+                    if ($deleteEnrollments && $student->enrollments_count > 0) {
+                        // Xóa enrollments sẽ tự động xóa payments liên quan (cascade)
                         $student->enrollments()->delete();
-                    }
-
-                    if ($deletePayments) {
+                    } elseif ($deletePayments && $student->payments_count > 0) {
+                        // Chỉ xóa payments riêng lẻ nếu không xóa enrollments
                         $student->payments()->delete();
                     }
 
@@ -642,18 +644,46 @@ class StudentController extends Controller
     {
         $student->load(['province', 'enrollments.courseItem', 'enrollments.payments']);
         $student->full_name = $student->first_name . ' ' . $student->last_name;
-        
+
         // Calculate totals
         $totalFee = $student->enrollments()->sum('final_fee');
         $paidAmount = Payment::whereHas('enrollment', function ($q) use ($student) {
             $q->where('student_id', $student->id);
         })->where('status', 'confirmed')->sum('amount');
-        
+
         $student->total_fee = $totalFee;
         $student->paid_amount = $paidAmount;
         $student->remaining_amount = $totalFee - $paidAmount;
 
         return response()->json($student);
+    }
+
+    /**
+     * Get bulk student details for delete modal (optimized)
+     */
+    public function bulkDetails(Request $request)
+    {
+        $request->validate([
+            'student_ids' => 'required|array|min:1',
+            'student_ids.*' => 'integer|exists:students,id'
+        ]);
+
+        $studentIds = $request->input('student_ids');
+
+        // Optimized query with counts
+        $students = Student::whereIn('id', $studentIds)
+            ->withCount(['enrollments', 'payments'])
+            ->with(['enrollments.courseItem', 'payments'])
+            ->get()
+            ->map(function ($student) {
+                $student->full_name = $student->first_name . ' ' . $student->last_name;
+                return $student;
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => $students
+        ]);
     }
 
     /**
