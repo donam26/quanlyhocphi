@@ -30,6 +30,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
             'first_name' => 'Họ',
             'last_name' => 'Tên',
             'phone' => 'Số điện thoại',
+            'citizen_id' => 'Số CCCD/CMND',
             'email' => 'Email',
             'course_name' => 'Khóa học cụ thể',
             'course_path' => 'Đường dẫn khóa học',
@@ -89,7 +90,10 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->last_name;
                     break;
                 case 'phone':
-                    $row[] = $student->phone;
+                    $row[] = "'" . $student->phone; // Thêm ' để Excel hiểu là text
+                    break;
+                case 'citizen_id':
+                    $row[] = "'" . $student->citizen_id; // Thêm ' để Excel hiểu là text
                     break;
                 case 'email':
                     $row[] = $student->email;
@@ -126,7 +130,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->current_workplace;
                     break;
                 case 'accounting_experience_years':
-                    $row[] = $student->accounting_experience_years;
+                    $row[] = $student->accounting_experience_years ? (string) $student->accounting_experience_years : '';
                     break;
                 case 'education_level':
                     $row[] = $this->formatEducationLevel($student->education_level);
@@ -141,7 +145,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->company_name;
                     break;
                 case 'tax_code':
-                    $row[] = $student->tax_code;
+                    $row[] = "'" . $student->tax_code; // Thêm ' để Excel hiểu là text
                     break;
                 case 'invoice_email':
                     $row[] = $student->invoice_email;

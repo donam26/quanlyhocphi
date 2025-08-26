@@ -33,6 +33,7 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
         $this->columnMappings = [
             'student_name' => 'Họ và tên học viên',
             'student_phone' => 'Số điện thoại',
+            'student_citizen_id' => 'Số CCCD/CMND',
             'student_email' => 'Email',
             'course_name' => 'Khóa học',
             'enrollment_date' => 'Ngày ghi danh',
@@ -124,7 +125,10 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
                     $row[] = $student->full_name ?? '';
                     break;
                 case 'student_phone':
-                    $row[] = $student->phone ?? '';
+                    $row[] = "'" . ($student->phone ?? ''); // Thêm ' để Excel hiểu là text
+                    break;
+                case 'student_citizen_id':
+                    $row[] = "'" . ($student->citizen_id ?? ''); // Thêm ' để Excel hiểu là text
                     break;
                 case 'student_email':
                     $row[] = $student->email ?? '';

@@ -55,7 +55,7 @@ class ValidDiscountRule implements ValidationRule
 
             // Check if percentage results in negative final fee
             $discountAmount = $originalFee * ($value / 100);
-            if ($discountAmount >= $originalFee) {
+            if ($discountAmount > $originalFee) {
                 $fail('Phần trăm chiết khấu quá lớn, học phí cuối cùng sẽ âm.');
                 return;
             }
@@ -119,9 +119,10 @@ class ValidDiscountRule implements ValidationRule
         }
 
         // Default minimum fee check (10% of original fee)
+        // Allow 100% discount as special case
         $defaultMinFee = $originalFee * 0.1;
-        if ($finalFee < $defaultMinFee) {
-            $fail('Chiết khấu quá lớn. Học phí cuối cùng phải ít nhất 10% học phí gốc.');
+        if ($finalFee < $defaultMinFee && $finalFee > 0) {
+            $fail('Chiết khấu quá lớn. Học phí cuối cùng phải ít nhất 10% học phí gốc hoặc bằng 0 (chiết khấu 100%).');
             return;
         }
     }

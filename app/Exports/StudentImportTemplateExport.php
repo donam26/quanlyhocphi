@@ -29,6 +29,7 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
                     'Nguyễn Văn', // ho
                     'A', // ten
                     '0901234567', // so_dien_thoai
+                    '123456789012', // cccd
                     'nguyenvana@example.com', // email
                     '01/01/1990', // ngay_sinh
                     'Nam', // gioi_tinh
@@ -60,6 +61,7 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'ho',
             'ten',
             'so_dien_thoai',
+            'cccd',
             'email',
             'ngay_sinh',
             'gioi_tinh',

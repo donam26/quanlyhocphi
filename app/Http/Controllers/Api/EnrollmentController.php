@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
+use App\Rules\ValidDiscountRule;
 
 class EnrollmentController extends Controller
 {
@@ -79,8 +80,19 @@ class EnrollmentController extends Controller
                 'course_item_id' => 'required|exists:course_items,id',
                 'enrollment_date' => 'required|date_format:d/m/Y',
                 'status' => ['required', Rule::in(['waiting', 'active', 'completed', 'cancelled'])],
-                'discount_percentage' => 'nullable|numeric|min:0|max:100',
-                'discount_amount' => 'nullable|numeric|min:0',
+                'discount_percentage' => [
+                    'nullable',
+                    'numeric',
+                    'min:0',
+                    'max:100',
+                    new ValidDiscountRule($request->input('course_item_id'), 'percentage')
+                ],
+                'discount_amount' => [
+                    'nullable',
+                    'numeric',
+                    'min:0',
+                    new ValidDiscountRule($request->input('course_item_id'), 'amount')
+                ],
                 'final_fee' => 'nullable|numeric|min:0',
                 'notes' => 'nullable|string|max:1000'
             ]);

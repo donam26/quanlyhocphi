@@ -18,6 +18,7 @@ class Student extends Model
         'gender',
         'email',
         'phone',
+        'citizen_id',
         'province_id',
         'place_of_birth_province_id',
         'nation',
