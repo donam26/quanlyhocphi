@@ -25,31 +25,33 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
             // Trả về dữ liệu mẫu với header đơn giản
             return [
                 [
-                    'Nguyễn Văn', // ho
-                    'A', // ten
-                    '0901234567', // so_dien_thoai
+                    "'Nguyễn Văn", // ho - format as text
+                    "'A", // ten - format as text
+                    "'0901234567", // so_dien_thoai - format as text
+                    "'123456789012", // so_cccd_cmnd - format as text
                     'nguyenvana@example.com', // email
-                    '01/01/1990', // ngay_sinh
+                    "'12/2/1990", // ngay_sinh - format as text
                     'Nam', // gioi_tinh
+                    '123 Đường ABC, Quận 1', // dia_chi
                     'Hồ Chí Minh', // tinh_hien_tai
                     'Hà Nội', // tinh_noi_sinh
                     'Kinh', // dan_toc
                     'Việt Nam', // quoc_tich
                     'Công ty ABC', // noi_cong_tac
-                    '5', // kinh_nghiem_ke_toan
+                    "'5", // kinh_nghiem_ke_toan - format as text
                     'Kế toán', // chuyen_mon_dao_tao
                     'Đã nộp', // ho_so_ban_cung
                     'Đại học', // trinh_do_hoc_van
                     'Công ty TNHH ABC', // ten_cong_ty
-                    '0123456789', // ma_so_thue
+                    "'0123456789", // ma_so_thue - format as text
                     'ketoan@abc.com', // email_hoa_don
                     '456 Đường XYZ', // dia_chi_cong_ty
                     'facebook', // nguon
                     'Ghi chú mẫu', // ghi_chu
-                    '01/01/2024', // ngay_ghi_danh
+                    "'1/1/2024", // ngay_ghi_danh - format as text
                     'waiting', // trang_thai
-                    '5000000', // hoc_phi
-                    '2000000', // da_dong
+                    "'5000000", // hoc_phi - format as text
+                    "'2000000", // da_dong - format as text
                     'Ghi chú ghi danh' // ghi_chu_ghi_danh
                 ]
             ];
@@ -64,9 +66,11 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
             'ho',
             'ten',
             'so_dien_thoai',
+            'so_cccd_cmnd',
             'email',
             'ngay_sinh',
             'gioi_tinh',
+            'dia_chi',
             'tinh_hien_tai',
             'tinh_noi_sinh',
             'dan_toc',
@@ -94,14 +98,18 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
     {
         // Thêm ghi chú hướng dẫn
         $sheet->setCellValue('A4', 'HƯỚNG DẪN NHẬP LIỆU:');
-        $sheet->setCellValue('A5', '• ho, ten, so_dien_thoai là bắt buộc');
-        $sheet->setCellValue('A6', '• ngay_sinh, ngay_ghi_danh: DD/MM/YYYY (ví dụ: 01/01/1990)');
-        $sheet->setCellValue('A7', '• gioi_tinh: Nam, Nữ hoặc để trống');
-        $sheet->setCellValue('A8', '• trang_thai: "waiting", "active", "completed", "cancelled"');
-        $sheet->setCellValue('A9', '• ho_so_ban_cung: "Đã nộp", "Chưa nộp" hoặc để trống');
-        $sheet->setCellValue('A10', '• trinh_do_hoc_van: "Đại học", "Cao đẳng", "Trung cấp", "Thạc sĩ", "VB2"');
-        $sheet->setCellValue('A11', '• nguon: "facebook", "zalo", "website", "linkedin", "tiktok", "friend_referral"');
-        $sheet->setCellValue('A12', '• hoc_phi, da_dong: Số tiền (ví dụ: 5000000)');
+        $sheet->setCellValue('A5', '🔴 Các cột BẮT BUỘC: ho, ten');
+        $sheet->setCellValue('A6', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, dia_chi, v.v.');
+        $sheet->setCellValue('A7', '📧 Email sẽ được tự động tạo nếu bỏ trống (dạng: ten.ho.random@gmail.com)');
+        $sheet->setCellValue('A8', '📅 ngay_sinh: Hỗ trợ nhiều format: 12/2/2002, 12/02/2002, 2/2/2002, 2002-02-12');
+        $sheet->setCellValue('A9', '• gioi_tinh: Nam, Nữ hoặc để trống');
+        $sheet->setCellValue('A10', '• ho_so_ban_cung: "Đã nộp", "Chưa nộp" hoặc để trống');
+        $sheet->setCellValue('A11', '• trinh_do_hoc_van: "Đại học", "Cao đẳng", "Trung cấp", "Thạc sĩ", "VB2"');
+        $sheet->setCellValue('A12', '• nguon: "facebook", "zalo", "website", "linkedin", "tiktok", "friends"');
+        $sheet->setCellValue('A13', '• trang_thai: "waiting", "enrolled", "completed", "cancelled"');
+        $sheet->setCellValue('A14', '• hoc_phi, da_dong: Số tiền (ví dụ: 5000000)');
+        $sheet->setCellValue('A15', '• ngay_ghi_danh: Hỗ trợ nhiều format: 1/1/2024, 01/01/2024, 2024-01-01');
+        $sheet->setCellValue('A16', '• Tất cả số điện thoại, CCCD, MST sẽ được format về text để tránh lỗi hiển thị');
 
         return [
             // Style cho header

@@ -186,40 +186,44 @@ class ImportService
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        // Đặt tiêu đề cột theo cấu trúc database hiện tại
+        // Đặt tiêu đề cột theo cấu trúc database hiện tại (đồng bộ với UnifiedStudentImport)
         $headings = [
-            'Họ *', 'Tên *', 'Số điện thoại *', 'Email', 'Ngày sinh (DD/MM/YYYY)',
-            'Giới tính (Nam/Nữ)', 'Tỉnh/Thành phố hiện tại', 'Tỉnh/TP nơi sinh',
-            'Dân tộc', 'Quốc tịch', 'Nơi công tác hiện tại', 'Kinh nghiệm kế toán (năm)',
-            'Chuyên môn đào tạo', 'Hồ sơ bản cứng (Đã nộp/Chưa nộp)', 'Trình độ học vấn',
-            'Tên công ty', 'Mã số thuế', 'Email hóa đơn', 'Địa chỉ công ty', 'Nguồn', 'Ghi chú'
+            'ho', 'ten', 'so_dien_thoai', 'so_cccd_cmnd', 'email', 'ngay_sinh',
+            'gioi_tinh', 'dia_chi', 'tinh_hien_tai', 'tinh_noi_sinh',
+            'dan_toc', 'quoc_tich', 'noi_cong_tac', 'kinh_nghiem_ke_toan',
+            'chuyen_mon_dao_tao', 'ho_so_ban_cung', 'trinh_do_hoc_van',
+            'ten_cong_ty', 'ma_so_thue', 'email_hoa_don', 'dia_chi_cong_ty', 'nguon', 'ghi_chu'
         ];
         $sheet->fromArray($headings, NULL, 'A1');
         
-        // Thêm dữ liệu mẫu
+        // Thêm dữ liệu mẫu (format về text để tránh lỗi hiển thị)
         $sampleData = [
-            ['Nguyễn', 'Văn A', '0901234567', 'nguyenvana@example.com', '01/01/1990', 'Hà Nội', 'Kinh', 'Nam', 'Hà Nội', 'Số 1, đường ABC', 'Công ty X', '5', 'Đã nộp', 'Đại học', 'Học viên tiềm năng'],
-            ['Trần', 'Thị B', '0909876543', 'tranthib@example.com', '15/05/1995', 'TP. Hồ Chí Minh', 'Tày', 'Nữ', 'TP. Hồ Chí Minh', 'Số 2, đường XYZ', 'Công ty Y', '3', 'Chưa nộp', 'Cao đẳng', 'Đã liên hệ'],
+            ["'Nguyễn Văn", "'A", "'0901234567", "'123456789012", 'nguyenvana@example.com', "'12/2/1990", 'Nam', '123 Đường ABC, Quận 1', 'Hồ Chí Minh', 'Hà Nội', 'Kinh', 'Việt Nam', 'Công ty ABC', "'5", 'Kế toán', 'Đã nộp', 'Đại học', 'Công ty TNHH ABC', "'0123456789", 'ketoan@abc.com', '456 Đường XYZ, Quận 2', 'facebook', 'Ghi chú mẫu'],
+            ["'Trần Thị", "'B", "'0909876543", "'987654321098", 'tranthib@example.com', "'15/5/1995", 'Nữ', '789 Đường DEF, Quận 3', 'TP. Hồ Chí Minh', 'Đà Nẵng', 'Tày', 'Việt Nam', 'Công ty XYZ', "'3", 'Tài chính', 'Chưa nộp', 'Cao đẳng', 'Công ty CP XYZ', "'9876543210", 'taichinh@xyz.com', '123 Đường GHI, Quận 4', 'zalo', 'Ghi chú mẫu 2'],
         ];
         $sheet->fromArray($sampleData, NULL, 'A2');
         
-        // Định dạng tiêu đề
-        $sheet->getStyle('A1:O1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:O1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DDDDDD');
-        
+        // Định dạng tiêu đề (cập nhật cho 23 cột)
+        $sheet->getStyle('A1:W1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:W1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setRGB('DDDDDD');
+
         // Tự động điều chỉnh độ rộng cột
-        foreach(range('A','O') as $col) {
+        foreach(range('A','W') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
         
-        // Thêm note về format dữ liệu
-        $sheet->setCellValue('A5', 'Lưu ý:');
-        $sheet->setCellValue('B5', '- Ngày sinh định dạng: DD/MM/YYYY');
-        $sheet->setCellValue('B6', '- Giới tính: Nam, Nữ, hoặc để trống');
-        $sheet->setCellValue('B7', '- Hồ sơ bản cứng: Đã nộp, Chưa nộp, hoặc để trống');
-        $sheet->setCellValue('B8', '- Bằng cấp: Đại học, Cao đẳng, Trung cấp, Thạc sĩ, VB2, hoặc để trống');
-        $sheet->setCellValue('B9', '- Các cột bắt buộc: Họ, Tên, Số điện thoại');
-        $sheet->getStyle('A5:B9')->getFont()->setItalic(true)->getSize(9);
+        // Thêm note về format dữ liệu (cập nhật theo hướng dẫn mới)
+        $sheet->setCellValue('A5', 'HƯỚNG DẪN NHẬP LIỆU:');
+        $sheet->setCellValue('A6', '🔴 Các cột BẮT BUỘC: ho, ten');
+        $sheet->setCellValue('A7', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, dia_chi, v.v.');
+        $sheet->setCellValue('A8', '📧 Email sẽ được tự động tạo nếu bỏ trống (dạng: ten.ho.random@gmail.com)');
+        $sheet->setCellValue('A9', '📅 ngay_sinh: Hỗ trợ nhiều format: 12/2/2002, 12/02/2002, 2/2/2002, 2002-02-12');
+        $sheet->setCellValue('A10', '• gioi_tinh: Nam, Nữ hoặc để trống');
+        $sheet->setCellValue('A11', '• ho_so_ban_cung: "Đã nộp", "Chưa nộp" hoặc để trống');
+        $sheet->setCellValue('A12', '• trinh_do_hoc_van: "Đại học", "Cao đẳng", "Trung cấp", "Thạc sĩ", "VB2"');
+        $sheet->setCellValue('A13', '• nguon: "facebook", "zalo", "website", "linkedin", "tiktok", "friends"');
+        $sheet->setCellValue('A14', '• Tất cả số điện thoại, CCCD, MST sẽ được format về text để tránh lỗi hiển thị');
+        $sheet->getStyle('A5:A14')->getFont()->setBold(true)->setSize(10);
         
         // Tạo đối tượng Writer
         $writer = new Xlsx($spreadsheet);

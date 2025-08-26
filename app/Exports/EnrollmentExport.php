@@ -144,14 +144,14 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
                     $row[] = $this->formatStatus($enrollment->status->value ?? $enrollment->status);
                     break;
                 case 'final_fee':
-                    $row[] = number_format($enrollment->final_fee, 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->final_fee, 0, ',', '.'); // Format as text
                     break;
                 case 'paid_amount':
-                    $row[] = number_format($enrollment->paid_amount ?? 0, 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->paid_amount ?? 0, 0, ',', '.'); // Format as text
                     break;
                 case 'remaining_amount':
                     $remaining = ($enrollment->final_fee ?? 0) - ($enrollment->paid_amount ?? 0);
-                    $row[] = number_format($remaining, 0, ',', '.');
+                    $row[] = "'" . number_format($remaining, 0, ',', '.'); // Format as text
                     break;
                 case 'payment_status':
                     $row[] = $this->formatPaymentStatus($enrollment->payment_status->value ?? $enrollment->payment_status);

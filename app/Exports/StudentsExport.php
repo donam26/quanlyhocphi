@@ -166,10 +166,10 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->enrollments ? $student->enrollments->count() : 0;
                     break;
                 case 'total_paid':
-                    $row[] = number_format($student->getTotalPaidAmount(), 0, ',', '.');
+                    $row[] = "'" . number_format($student->getTotalPaidAmount(), 0, ',', '.'); // Format as text
                     break;
                 case 'total_fee':
-                    $row[] = number_format($student->getTotalFeeAmount(), 0, ',', '.');
+                    $row[] = "'" . number_format($student->getTotalFeeAmount(), 0, ',', '.'); // Format as text
                     break;
                 case 'payment_status':
                     $row[] = $this->getPaymentStatus($student);

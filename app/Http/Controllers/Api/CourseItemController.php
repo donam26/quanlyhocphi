@@ -1037,7 +1037,7 @@ class CourseItemController extends Controller
             $enrollmentStatus = $request->input('enrollment_status', 'active');
             $discountPercentage = $request->input('discount_percentage', 0);
 
-            $import = new \App\Imports\CourseStudentsImport($courseItem, $enrollmentStatus, $discountPercentage);
+            $import = new \App\Imports\UnifiedStudentImport('create_and_update', $courseItem, $enrollmentStatus, $discountPercentage);
             \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
 
             return response()->json([
@@ -1045,6 +1045,9 @@ class CourseItemController extends Controller
                 'message' => 'Import thành công!',
                 'data' => [
                     'imported_count' => $import->getImportedCount(),
+                    'enrolled_count' => $import->getEnrolledCount(),
+                    'created_count' => $import->getCreatedCount(),
+                    'updated_count' => $import->getUpdatedCount(),
                     'skipped_count' => $import->getSkippedCount(),
                     'errors' => $import->getErrors()
                 ]
@@ -1071,7 +1074,7 @@ class CourseItemController extends Controller
         try {
             $notes = $request->input('notes', 'Thêm vào danh sách chờ qua import Excel');
 
-            $import = new \App\Imports\CourseStudentsImport($courseItem, 'waiting', 0);
+            $import = new \App\Imports\UnifiedStudentImport('create_and_update', $courseItem, 'waiting', 0);
             \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
 
             return response()->json([
@@ -1079,6 +1082,9 @@ class CourseItemController extends Controller
                 'message' => 'Import vào danh sách chờ thành công!',
                 'data' => [
                     'imported_count' => $import->getImportedCount(),
+                    'enrolled_count' => $import->getEnrolledCount(),
+                    'created_count' => $import->getCreatedCount(),
+                    'updated_count' => $import->getUpdatedCount(),
                     'skipped_count' => $import->getSkippedCount(),
                     'errors' => $import->getErrors()
                 ]

@@ -198,7 +198,7 @@ class StudentService
         ]);
 
         try {
-            $import = new \App\Imports\StudentsImport($importMode);
+            $import = new \App\Imports\UnifiedStudentImport($importMode);
             Excel::import($import, $file);
 
             $result = [

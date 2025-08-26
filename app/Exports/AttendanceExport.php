@@ -41,6 +41,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             'student_name' => 'Họ và tên học viên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
+            'citizen_id' => 'Số CCCD/CMND',
             'attendance_date' => 'Ngày điểm danh',
             'status' => 'Trạng thái điểm danh',
             'notes' => 'Ghi chú điểm danh',
@@ -142,10 +143,13 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                     $row[] = $student->full_name;
                     break;
                 case 'student_phone':
-                    $row[] = $student->phone;
+                    $row[] = "'" . $student->phone; // Format as text
                     break;
                 case 'student_email':
                     $row[] = $student->email;
+                    break;
+                case 'citizen_id':
+                    $row[] = "'" . $student->citizen_id; // Format as text
                     break;
                 case 'attendance_date':
                     $row[] = $attendance->attendance_date ?

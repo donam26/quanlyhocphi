@@ -34,6 +34,7 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
             'student_name' => 'Họ và tên học viên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
+            'citizen_id' => 'Số CCCD/CMND',
             'course_name' => 'Khóa học',
             'payment_date' => 'Ngày thanh toán',
             'amount' => 'Số tiền (VNĐ)',
@@ -128,10 +129,13 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                     $row[] = $student->full_name ?? '';
                     break;
                 case 'student_phone':
-                    $row[] = $student->phone ?? '';
+                    $row[] = "'" . ($student->phone ?? ''); // Format as text
                     break;
                 case 'student_email':
                     $row[] = $student->email ?? '';
+                    break;
+                case 'citizen_id':
+                    $row[] = "'" . ($student->citizen_id ?? ''); // Format as text
                     break;
                 case 'course_name':
                     $row[] = $courseItem->name ?? '';
@@ -141,7 +145,7 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                         Carbon::parse($payment->payment_date)->format('d/m/Y') : '';
                     break;
                 case 'amount':
-                    $row[] = number_format($payment->amount, 0, ',', '.');
+                    $row[] = "'" . number_format($payment->amount, 0, ',', '.'); // Format as text
                     break;
                 case 'payment_method':
                     $row[] = $this->formatPaymentMethod($payment->payment_method);
@@ -157,8 +161,8 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                         $payment->enrollment->enrollment_date->format('d/m/Y') : '';
                     break;
                 case 'final_fee':
-                    $row[] = $payment->enrollment ? 
-                        number_format($payment->enrollment->final_fee, 0, ',', '.') : '';
+                    $row[] = $payment->enrollment ?
+                        "'" . number_format($payment->enrollment->final_fee, 0, ',', '.') : ''; // Format as text
                     break;
                 case 'notes':
                     $row[] = $payment->notes ?? '';

@@ -37,6 +37,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'student_name' => 'Họ và tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
+            'citizen_id' => 'Số CCCD/CMND',
             'course_name' => 'Khóa học cụ thể',
             'course_path' => 'Đường dẫn khóa học',
             'student_date_of_birth' => 'Ngày sinh',
@@ -132,10 +133,13 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = $student->full_name;
                     break;
                 case 'student_phone':
-                    $row[] = $student->phone;
+                    $row[] = "'" . $student->phone; // Thêm ' để Excel hiểu là text
                     break;
                 case 'student_email':
                     $row[] = $student->email;
+                    break;
+                case 'citizen_id':
+                    $row[] = "'" . $student->citizen_id; // Thêm ' để Excel hiểu là text
                     break;
                 case 'course_name':
                     $row[] = $enrollment->courseItem->name ?? '';
@@ -176,7 +180,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = $student->company_name;
                     break;
                 case 'tax_code':
-                    $row[] = $student->tax_code;
+                    $row[] = "'" . $student->tax_code; // Thêm ' để Excel hiểu là text
                     break;
                 case 'invoice_email':
                     $row[] = $student->invoice_email;
@@ -192,19 +196,19 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = $this->formatEnrollmentStatus($enrollment->status->value ?? $enrollment->status);
                     break;
                 case 'final_fee':
-                    $row[] = number_format($enrollment->final_fee, 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->final_fee, 0, ',', '.'); // Format as text
                     break;
                 case 'discount_percentage':
-                    $row[] = $enrollment->discount_percentage . '%';
+                    $row[] = "'" . $enrollment->discount_percentage . '%'; // Format as text
                     break;
                 case 'discount_amount':
-                    $row[] = number_format($enrollment->discount_amount, 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->discount_amount, 0, ',', '.'); // Format as text
                     break;
                 case 'total_paid':
-                    $row[] = number_format($enrollment->getTotalPaidAmount(), 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->getTotalPaidAmount(), 0, ',', '.'); // Format as text
                     break;
                 case 'remaining_amount':
-                    $row[] = number_format($enrollment->getRemainingAmount(), 0, ',', '.');
+                    $row[] = "'" . number_format($enrollment->getRemainingAmount(), 0, ',', '.'); // Format as text
                     break;
                 case 'payment_status':
                     $row[] = $this->getPaymentStatus($enrollment);

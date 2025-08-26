@@ -789,7 +789,7 @@ class StudentController extends Controller
         ]);
 
         try {
-            $import = new \App\Imports\StudentsImport($request->import_mode ?? 'create_and_update');
+            $import = new \App\Imports\UnifiedStudentImport($request->import_mode ?? 'create_and_update');
             \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));
 
             $result = [
