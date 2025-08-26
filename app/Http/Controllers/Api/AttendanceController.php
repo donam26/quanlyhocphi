@@ -498,16 +498,21 @@ class AttendanceController extends Controller
 
             $columns = $request->input('columns', [
                 'student_name', 'student_phone', 'attendance_date',
-                'attendance_status', 'notes'
+                'status', 'notes'
             ]);
 
             $startDate = $request->input('start_date');
             $endDate = $request->input('end_date');
 
+            // Collect filters
+            $filters = $request->only([
+                'status', 'enrollment_status', 'payment_status'
+            ]);
+
             $fileName = 'diem_danh_khoa_' . $courseItem->id . '_' . date('Y_m_d_H_i_s') . '.xlsx';
 
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\AttendanceExport($courseItem, $columns, $startDate, $endDate),
+                new \App\Exports\AttendanceExport($courseItem, $columns, $startDate, $endDate, $filters),
                 $fileName
             );
         } catch (\Exception $e) {

@@ -330,9 +330,16 @@ class EnrollmentController extends Controller
                 ->orderBy('request_date', 'asc')
                 ->get();
 
+            // Transform data để thêm student_notes
+            $transformedData = $enrollments->map(function ($enrollment) {
+                $enrollmentArray = $enrollment->toArray();
+                $enrollmentArray['student_notes'] = $enrollment->student->notes ?? null;
+                return $enrollmentArray;
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => $enrollments,
+                'data' => $transformedData,
                 'message' => 'Lấy danh sách chờ thành công'
             ]);
         } catch (\Exception $e) {
@@ -396,6 +403,7 @@ class EnrollmentController extends Controller
                         trim($enrollment->student->first_name . ' ' . $enrollment->student->last_name) : 'N/A',
                     'student_phone' => $enrollment->student->phone ?? null,
                     'student_email' => $enrollment->student->email ?? null,
+                    'student_notes' => $enrollment->student->notes ?? null,
                     'course_name' => $enrollment->courseItem->name ?? 'N/A',
                     'final_fee' => $enrollment->final_fee,
                     'status' => $enrollment->status,

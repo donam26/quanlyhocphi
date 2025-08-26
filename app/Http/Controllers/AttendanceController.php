@@ -343,7 +343,7 @@ class AttendanceController extends Controller
             // Default columns nếu không có columns được chọn
             $columns = $validated['columns'] ?? [
                 'student_name', 'student_phone', 'attendance_date',
-                'status', 'check_in_time'
+                'status', 'notes'
             ];
 
             $fileName = 'diem_danh_' . Str::slug($courseItem->name) . '_' . now()->format('Y_m_d') . '.xlsx';

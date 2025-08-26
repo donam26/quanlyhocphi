@@ -43,8 +43,6 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             'student_email' => 'Email',
             'attendance_date' => 'Ngày điểm danh',
             'status' => 'Trạng thái điểm danh',
-            'check_in_time' => 'Giờ vào',
-            'check_out_time' => 'Giờ ra',
             'notes' => 'Ghi chú điểm danh',
 
             // Thông tin học viên bổ sung
@@ -155,14 +153,6 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                     break;
                 case 'status':
                     $row[] = $this->formatAttendanceStatus($attendance->status);
-                    break;
-                case 'check_in_time':
-                    $row[] = $attendance->check_in_time ?
-                        Carbon::parse($attendance->check_in_time)->format('H:i') : '';
-                    break;
-                case 'check_out_time':
-                    $row[] = $attendance->check_out_time ?
-                        Carbon::parse($attendance->check_out_time)->format('H:i') : '';
                     break;
                 case 'notes':
                     $row[] = $attendance->notes;

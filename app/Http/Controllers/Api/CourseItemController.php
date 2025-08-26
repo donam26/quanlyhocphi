@@ -239,38 +239,27 @@ class CourseItemController extends Controller
         $stats['waiting_enrollments'] = $enrollments->where('status', 'waiting')->count();
         $stats['cancelled_enrollments'] = $enrollments->where('status', 'cancelled')->count();
 
-        // Thống kê theo phương thức học (online/offline) - tính unique students
-        $onlineStudentIds = collect();
-        $offlineStudentIds = collect();
-
-        // Lấy tất cả học viên unique từ active enrollments
-        // Sử dụng enum constant để so sánh
+        // Thống kê theo phương thức học (online/offline) - tính theo enrollments
+        // Lấy tất cả active enrollments
         $activeEnrollments = $enrollments->where('status', \App\Enums\EnrollmentStatus::ACTIVE);
 
-        foreach ($activeEnrollments as $enrollment) {
-            if ($enrollment->courseItem && $enrollment->courseItem->learning_method) {
-                $studentId = $enrollment->student_id;
+        // Đếm enrollments theo phương thức học
+        $onlineEnrollments = $activeEnrollments->filter(function ($enrollment) {
+            return $enrollment->courseItem &&
+                   $enrollment->courseItem->learning_method === \App\Enums\LearningMethod::ONLINE;
+        });
 
-                // So sánh với enum constants
-                if ($enrollment->courseItem->learning_method === \App\Enums\LearningMethod::ONLINE) {
-                    $onlineStudentIds->push($studentId);
-                } elseif ($enrollment->courseItem->learning_method === \App\Enums\LearningMethod::OFFLINE) {
-                    $offlineStudentIds->push($studentId);
-                }
-            }
-        }
+        $offlineEnrollments = $activeEnrollments->filter(function ($enrollment) {
+            return $enrollment->courseItem &&
+                   $enrollment->courseItem->learning_method === \App\Enums\LearningMethod::OFFLINE;
+        });
 
-        // Đếm unique students cho mỗi loại
-        $uniqueOnlineStudents = $onlineStudentIds->unique();
-        $uniqueOfflineStudents = $offlineStudentIds->unique();
+        $stats['online_students'] = $onlineEnrollments->count();
+        $stats['offline_students'] = $offlineEnrollments->count();
 
-        $stats['online_students'] = $uniqueOnlineStudents->count();
-        $stats['offline_students'] = $uniqueOfflineStudents->count();
-
-        // Tính lại tổng students để đảm bảo consistency
-        // Một học viên có thể học cả online và offline, nên cần union
-        $allUniqueStudents = $uniqueOnlineStudents->merge($uniqueOfflineStudents)->unique();
-        $stats['total_students'] = $allUniqueStudents->count();
+        // Tính tổng students theo enrollments (không unique)
+        // Nếu 1 học viên tham gia 2 khóa con thì tính là 2
+        $stats['total_students'] = $activeEnrollments->count();
 
         // Thống kê theo trạng thái enrollment - sử dụng enum constants
         $stats['active_enrollments'] = $enrollments->where('status', \App\Enums\EnrollmentStatus::ACTIVE)->count();
@@ -289,8 +278,6 @@ class CourseItemController extends Controller
             'total_students' => $stats['total_students'],
             'online_students' => $stats['online_students'],
             'offline_students' => $stats['offline_students'],
-            'online_student_ids' => $uniqueOnlineStudents->toArray(),
-            'offline_student_ids' => $uniqueOfflineStudents->toArray(),
             'breakdown_count' => count($courseStats ?? []),
             'course_methods' => $activeEnrollments->map(function($e) {
                 return [
