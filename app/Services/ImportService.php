@@ -188,7 +188,7 @@ class ImportService
         
         // Đặt tiêu đề cột theo cấu trúc database hiện tại (đồng bộ với UnifiedStudentImport)
         $headings = [
-            'ho', 'ten', 'so_dien_thoai', 'so_cccd_cmnd', 'email', 'ngay_sinh',
+            'ho', 'ten', 'so_dien_thoai', 'cccd', 'email', 'ngay_sinh',
             'gioi_tinh', 'dia_chi', 'tinh_hien_tai', 'tinh_noi_sinh',
             'dan_toc', 'quoc_tich', 'noi_cong_tac', 'kinh_nghiem_ke_toan',
             'chuyen_mon_dao_tao', 'ho_so_ban_cung', 'trinh_do_hoc_van',

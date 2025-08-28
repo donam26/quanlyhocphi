@@ -44,7 +44,58 @@ class StudentService
 
     public function createStudent(array $data)
     {
+        // Tự động tạo email nếu không có
+        if (empty($data['email'])) {
+            $data['email'] = $this->generateEmail($data['first_name'], $data['last_name']);
+        }
+
         return Student::create($data);
+    }
+
+    /**
+     * Tự động tạo email từ họ tên
+     */
+    private function generateEmail($firstName, $lastName)
+    {
+        // Chuyển về không dấu và lowercase
+        $firstName = $this->removeVietnameseAccents(strtolower($firstName));
+        $lastName = $this->removeVietnameseAccents(strtolower($lastName));
+
+        // Tạo base email
+        $baseEmail = $lastName . '.' . $firstName;
+
+        // Thêm số random để tránh trùng
+        $randomNumber = rand(1000, 9999);
+
+        return $baseEmail . '.' . $randomNumber . '@gmail.com';
+    }
+
+    /**
+     * Loại bỏ dấu tiếng Việt
+     */
+    private function removeVietnameseAccents($str)
+    {
+        $accents = [
+            'à', 'á', 'ạ', 'ả', 'ã', 'â', 'ầ', 'ấ', 'ậ', 'ẩ', 'ẫ', 'ă', 'ằ', 'ắ', 'ặ', 'ẳ', 'ẵ',
+            'è', 'é', 'ẹ', 'ẻ', 'ẽ', 'ê', 'ề', 'ế', 'ệ', 'ể', 'ễ',
+            'ì', 'í', 'ị', 'ỉ', 'ĩ',
+            'ò', 'ó', 'ọ', 'ỏ', 'õ', 'ô', 'ồ', 'ố', 'ộ', 'ổ', 'ỗ', 'ơ', 'ờ', 'ớ', 'ợ', 'ở', 'ỡ',
+            'ù', 'ú', 'ụ', 'ủ', 'ũ', 'ư', 'ừ', 'ứ', 'ự', 'ử', 'ữ',
+            'ỳ', 'ý', 'ỵ', 'ỷ', 'ỹ',
+            'đ'
+        ];
+
+        $noAccents = [
+            'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
+            'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e',
+            'i', 'i', 'i', 'i', 'i',
+            'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o', 'o',
+            'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u', 'u',
+            'y', 'y', 'y', 'y', 'y',
+            'd'
+        ];
+
+        return str_replace($accents, $noAccents, $str);
     }
 
     public function updateStudent(Student $student, array $data)

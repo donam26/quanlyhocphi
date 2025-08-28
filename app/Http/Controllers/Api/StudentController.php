@@ -262,24 +262,32 @@ class StudentController extends Controller
     {
         try {
 
-            // Validation cơ bản
+            // Validation cơ bản - chỉ bắt buộc họ và tên
             $rules = [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
-                'date_of_birth' => 'required|date',
-                'gender' => 'required|in:male,female,other',
-                'phone' => 'required|string|max:20|unique:students',
+                'date_of_birth' => 'nullable|date',
+                'gender' => 'nullable|in:male,female,other',
+                'phone' => 'nullable|string|max:20|unique:students',
                 'email' => 'nullable|email|unique:students',
+                'citizen_id' => 'nullable|string|max:20',
+                'address' => 'nullable|string|max:500',
                 'province_id' => 'nullable|exists:provinces,id',
                 'place_of_birth_province_id' => 'nullable|exists:provinces,id',
                 'nation' => 'nullable|string|max:255',
                 'ethnicity_id' => 'nullable|exists:ethnicities,id',
+                'current_workplace' => 'nullable|string|max:255',
+                'accounting_experience_years' => 'nullable|integer|min:0',
+                'training_specialization' => 'nullable|string|max:255',
+                'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
+                'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
                 'source' => 'nullable|in:facebook,zalo,website,linkedin,tiktok,friend_referral',
                 'notes' => 'nullable|string',
                 // Thông tin công ty
                 'company_name' => 'nullable|string|max:255',
                 'tax_code' => 'nullable|string|max:20',
                 'invoice_email' => 'nullable|email',
+                'company_address' => 'nullable|string|max:500',
                 'company_address' => 'nullable|string',
                 // Thông tin bổ sung cho khóa học đặc biệt
                 'current_workplace' => 'nullable|string|max:255',
@@ -642,8 +650,17 @@ class StudentController extends Controller
      */
     public function details(Student $student)
     {
-        $student->load(['province', 'enrollments.courseItem', 'enrollments.payments']);
+        $student->load([
+            'province',
+            'placeOfBirthProvince',
+            'ethnicity',
+            'enrollments.courseItem',
+            'enrollments.payments'
+        ]);
+
         $student->full_name = $student->first_name . ' ' . $student->last_name;
+        $student->formatted_date_of_birth = $student->date_of_birth ?
+            \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null;
 
         // Calculate totals
         $totalFee = $student->enrollments()->sum('final_fee');

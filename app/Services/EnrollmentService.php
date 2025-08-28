@@ -98,16 +98,22 @@ class EnrollmentService
             // Tính học phí sau khi giảm giá
             $courseItem = CourseItem::findOrFail($data['course_item_id']);
 
-            $finalFee = $courseItem->fee;
-            $discountAmount = 0;
+            $originalFee = $courseItem->fee;
+            $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : 0;
+            $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0;
 
-            if (isset($data['discount_percentage']) && $data['discount_percentage'] > 0) {
-                $discountAmount = $finalFee * ($data['discount_percentage'] / 100);
-                $finalFee -= $discountAmount;
-            } elseif (isset($data['discount_amount']) && $data['discount_amount'] > 0) {
-                $discountAmount = $data['discount_amount'];
-                $finalFee -= $discountAmount;
-            }
+            // Tính discount từ percentage trước
+            $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+
+            // Tổng discount = percentage discount + fixed discount amount
+            $totalDiscount = $percentageDiscount + $discountAmount;
+
+            // Final fee = original fee - total discount (không được âm)
+            $finalFee = max(0, $originalFee - $totalDiscount);
+
+            // Lưu discount_amount thực tế (bao gồm cả percentage và fixed amount)
+            $data['discount_amount'] = $totalDiscount;
+            $data['final_fee'] = $finalFee;
 
             // Xử lý custom_fields: tự động sao chép từ khóa học đặc biệt
             $customFields = null;
@@ -164,19 +170,32 @@ class EnrollmentService
             // Tính học phí sau khi giảm giá nếu có thay đổi
             if (isset($data['discount_percentage']) || isset($data['discount_amount']) || isset($data['final_fee'])) {
                 $courseItem = $enrollment->courseItem;
-                $finalFee = isset($data['final_fee']) ? $data['final_fee'] : $courseItem->fee;
-                $discountAmount = $enrollment->discount_amount;
+                $originalFee = $courseItem->fee;
 
-                if (isset($data['discount_percentage']) && $data['discount_percentage'] > 0) {
-                    $discountAmount = $courseItem->fee * ($data['discount_percentage'] / 100);
-                    $finalFee = $courseItem->fee - $discountAmount;
-                } elseif (isset($data['discount_amount']) && $data['discount_amount'] > 0) {
-                    $discountAmount = $data['discount_amount'];
-                    $finalFee = $courseItem->fee - $discountAmount;
+                // Lấy giá trị discount từ data hoặc giữ nguyên giá trị cũ
+                $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : $enrollment->discount_percentage;
+                $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0; // Reset về 0 nếu không có trong data
+
+                // Nếu có final_fee trong data, sử dụng trực tiếp (trường hợp manual override)
+                if (isset($data['final_fee'])) {
+                    $finalFee = (float)$data['final_fee'];
+                    // Tính ngược discount_amount từ final_fee
+                    $totalDiscount = max(0, $originalFee - $finalFee);
+                    $data['discount_amount'] = $totalDiscount;
+                } else {
+                    // Tính discount từ percentage trước
+                    $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+
+                    // Tổng discount = percentage discount + fixed discount amount
+                    $totalDiscount = $percentageDiscount + $discountAmount;
+
+                    // Final fee = original fee - total discount (không được âm)
+                    $finalFee = max(0, $originalFee - $totalDiscount);
+
+                    // Lưu discount_amount thực tế và final_fee
+                    $data['discount_amount'] = $totalDiscount;
+                    $data['final_fee'] = $finalFee;
                 }
-
-                $data['final_fee'] = $finalFee;
-                $data['discount_amount'] = $discountAmount;
             }
 
             $enrollment->update($data);

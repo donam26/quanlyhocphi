@@ -64,6 +64,7 @@ class DataNormalizer
 
     /**
      * Chuẩn hóa số điện thoại
+     * Chấp nhận cả text và number từ Excel, format lại thành chuỗi số
      */
     public static function normalizePhone($phoneValue)
     {
@@ -71,22 +72,35 @@ class DataNormalizer
             return null;
         }
 
-        // Chuyển về string và loại bỏ khoảng trắng
-        $phone = trim((string) $phoneValue);
-        
-        // Loại bỏ các ký tự không phải số
+        // Xử lý trường hợp Excel format số thành scientific notation
+        if (is_numeric($phoneValue)) {
+            // Chuyển về string với định dạng đầy đủ (không scientific notation)
+            $phone = sprintf('%.0f', (float) $phoneValue);
+        } else {
+            // Chuyển về string và loại bỏ khoảng trắng
+            $phone = trim((string) $phoneValue);
+        }
+
+        // Loại bỏ các ký tự không phải số (dấu phẩy, dấu chấm, khoảng trắng, dấu gạch ngang, etc.)
         $phone = preg_replace('/[^0-9]/', '', $phone);
-        
+
         // Nếu bắt đầu bằng +84, chuyển thành 0
         if (str_starts_with($phone, '84') && strlen($phone) >= 10) {
             $phone = '0' . substr($phone, 2);
         }
-        
-        return $phone;
+
+        // Kiểm tra độ dài hợp lệ (10-11 số)
+        if (strlen($phone) >= 10 && strlen($phone) <= 11) {
+            return $phone;
+        }
+
+        // Nếu không hợp lệ nhưng có dữ liệu, vẫn trả về để người dùng có thể kiểm tra
+        return $phone ?: null;
     }
 
     /**
      * Chuẩn hóa số CCCD/CMND
+     * Chấp nhận cả text và number từ Excel, format lại thành chuỗi số
      */
     public static function normalizeCitizenId($citizenIdValue)
     {
@@ -94,13 +108,25 @@ class DataNormalizer
             return null;
         }
 
-        // Chuyển về string và loại bỏ khoảng trắng
-        $citizenId = trim((string) $citizenIdValue);
-        
-        // Loại bỏ các ký tự không phải số
+        // Xử lý trường hợp Excel format số thành scientific notation (1.23E+11)
+        if (is_numeric($citizenIdValue)) {
+            // Chuyển về string với định dạng đầy đủ (không scientific notation)
+            $citizenId = sprintf('%.0f', (float) $citizenIdValue);
+        } else {
+            // Chuyển về string và loại bỏ khoảng trắng
+            $citizenId = trim((string) $citizenIdValue);
+        }
+
+        // Loại bỏ các ký tự không phải số (dấu phẩy, dấu chấm, khoảng trắng, etc.)
         $citizenId = preg_replace('/[^0-9]/', '', $citizenId);
-        
-        return $citizenId;
+
+        // Kiểm tra độ dài hợp lệ (CMND: 9 số, CCCD: 12 số)
+        if (strlen($citizenId) >= 9 && strlen($citizenId) <= 12) {
+            return $citizenId;
+        }
+
+        // Nếu không hợp lệ nhưng có dữ liệu, vẫn trả về để người dùng có thể kiểm tra
+        return $citizenId ?: null;
     }
 
     /**

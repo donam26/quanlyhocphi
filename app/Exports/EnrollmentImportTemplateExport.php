@@ -28,7 +28,7 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
                     "'Nguyễn Văn", // ho - format as text
                     "'A", // ten - format as text
                     "'0901234567", // so_dien_thoai - format as text
-                    "'123456789012", // so_cccd_cmnd - format as text
+                    "'123456789012", // cccd - format as text
                     'nguyenvana@example.com', // email
                     "'12/2/1990", // ngay_sinh - format as text
                     'Nam', // gioi_tinh
@@ -66,7 +66,7 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
             'ho',
             'ten',
             'so_dien_thoai',
-            'so_cccd_cmnd',
+            'cccd',
             'email',
             'ngay_sinh',
             'gioi_tinh',

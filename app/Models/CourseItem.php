@@ -182,15 +182,26 @@ class CourseItem extends Model
 
     /**
      * Lấy tất cả enrollments cho khóa học này và các khóa học con
+     * Logic:
+     * - Nếu là khóa lá: chỉ lấy enrollments của chính nó
+     * - Nếu là khóa cha: lấy enrollments của tất cả khóa con (không bao gồm chính nó vì học viên chỉ đăng ký vào khóa lá)
      */
     public function getAllEnrollments()
     {
-        // Lấy tất cả ID của khóa học này và các khóa học con
-        $courseItemIds = [$this->id];
+        if ($this->is_leaf) {
+            // Khóa lá: chỉ lấy enrollments của chính nó
+            return Enrollment::where('course_item_id', $this->id);
+        }
 
-        // Thêm ID của tất cả các khóa học con
+        // Khóa cha: lấy tất cả ID của các khóa học con (không bao gồm chính nó)
+        $courseItemIds = [];
         foreach ($this->descendants() as $descendant) {
             $courseItemIds[] = $descendant->id;
+        }
+
+        if (empty($courseItemIds)) {
+            // Nếu không có khóa con nào, trả về query rỗng
+            return Enrollment::whereRaw('1 = 0');
         }
 
         return Enrollment::whereIn('course_item_id', $courseItemIds);
@@ -214,13 +225,28 @@ class CourseItem extends Model
 
     /**
      * Lấy tất cả học viên unique (bao gồm cả khóa con)
+     * Logic:
+     * - Nếu là khóa lá: chỉ lấy học viên của chính nó
+     * - Nếu là khóa cha: lấy học viên của tất cả khóa con (không bao gồm chính nó vì học viên chỉ đăng ký vào khóa lá)
      */
     public function getAllStudents()
     {
-        $courseItemIds = [$this->id];
+        if ($this->is_leaf) {
+            // Khóa lá: chỉ lấy học viên của chính nó
+            return Student::whereHas('enrollments', function($query) {
+                $query->where('course_item_id', $this->id);
+            })->distinct();
+        }
 
+        // Khóa cha: lấy tất cả ID của các khóa học con (không bao gồm chính nó)
+        $courseItemIds = [];
         foreach ($this->descendants() as $descendant) {
             $courseItemIds[] = $descendant->id;
+        }
+
+        if (empty($courseItemIds)) {
+            // Nếu không có khóa con nào, trả về collection rỗng
+            return Student::whereRaw('1 = 0');
         }
 
         return Student::whereHas('enrollments', function($query) use ($courseItemIds) {

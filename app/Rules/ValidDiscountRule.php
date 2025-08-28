@@ -91,22 +91,28 @@ class ValidDiscountRule implements ValidationRule
             }
         }
 
-        // Check if both percentage and amount discounts are applied
+        // Calculate final fee considering both percentage and amount discounts
         $discountPercentage = request('discount_percentage', 0);
         $discountAmount = request('discount_amount', 0);
 
-        if ($discountPercentage > 0 && $discountAmount > 0) {
-            $fail('Không thể áp dụng đồng thời cả chiết khấu theo phần trăm và số tiền.');
-            return;
+        // If validating percentage, use the new value
+        if ($this->discountType === 'percentage') {
+            $discountPercentage = $value;
+        }
+        // If validating amount, use the new value
+        if ($this->discountType === 'amount') {
+            $discountAmount = $value;
         }
 
-        // Calculate final fee to ensure it's not negative or too low
-        $finalFee = $originalFee;
-        
-        if ($this->discountType === 'percentage' && $value > 0) {
-            $finalFee = $originalFee * (1 - $value / 100);
-        } elseif ($this->discountType === 'amount' && $value > 0) {
-            $finalFee = $originalFee - $value;
+        // Calculate total discount (percentage + fixed amount)
+        $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+        $totalDiscount = $percentageDiscount + $discountAmount;
+        $finalFee = max(0, $originalFee - $totalDiscount);
+
+        // Check if total discount exceeds original fee
+        if ($totalDiscount > $originalFee) {
+            $fail('Tổng chiết khấu không được vượt quá học phí gốc.');
+            return;
         }
 
         // Check minimum fee if defined

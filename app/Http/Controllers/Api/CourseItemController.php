@@ -56,6 +56,28 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Check if course is special or has special parent
+     */
+    private function isSpecialCourseOrHasSpecialParent(CourseItem $courseItem)
+    {
+        // Kiểm tra chính khóa học này
+        if ($courseItem->is_special) {
+            return true;
+        }
+
+        // Kiểm tra các khóa cha
+        $current = $courseItem;
+        while ($current->parent_id) {
+            $current = CourseItem::find($current->parent_id);
+            if ($current && $current->is_special) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get course tree structure
      */
     public function tree(Request $request)
@@ -98,17 +120,6 @@ class CourseItemController extends Controller
 
         // Validate special course requirements
         if ($request->boolean('is_special')) {
-            // Khóa học đặc biệt phải là leaf course (có thể có học viên)
-            if ($request->parent_id) {
-                $parent = CourseItem::find($request->parent_id);
-                if (!$parent->is_leaf) {
-                    return response()->json([
-                        'message' => 'Khóa học đặc biệt phải là khóa học cụ thể (không thể là nhóm khóa học)',
-                        'errors' => ['is_special' => ['Khóa học đặc biệt phải là khóa học cụ thể']]
-                    ], 422);
-                }
-            }
-
             // Khóa học đặc biệt phải có học phí
             if (!$request->fee || $request->fee <= 0) {
                 return response()->json([
@@ -360,14 +371,6 @@ class CourseItemController extends Controller
 
         // Validate special course requirements
         if ($request->boolean('is_special')) {
-            // Khóa học đặc biệt phải là leaf course
-            if (!$courseItem->is_leaf && !$request->boolean('is_leaf')) {
-                return response()->json([
-                    'message' => 'Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt',
-                    'errors' => ['is_special' => ['Chỉ khóa học cụ thể mới có thể được đánh dấu là đặc biệt']]
-                ], 422);
-            }
-
             // Khóa học đặc biệt phải có học phí
             if (!$request->fee || $request->fee <= 0) {
                 return response()->json([
@@ -913,6 +916,82 @@ class CourseItemController extends Controller
     }
 
     /**
+     * Reorder root courses (tabs) via drag and drop
+     */
+    public function reorderRootCourses(Request $request)
+    {
+        $request->validate([
+            'courseId' => 'required|integer|exists:course_items,id',
+            'sourceIndex' => 'required|integer|min:0',
+            'destIndex' => 'required|integer|min:0',
+            'courses' => 'required|array',
+            'courses.*.id' => 'required|integer|exists:course_items,id'
+        ]);
+
+        try {
+            \DB::beginTransaction();
+
+            $courseId = $request->courseId;
+            $sourceIndex = $request->sourceIndex;
+            $destIndex = $request->destIndex;
+            $courses = $request->courses;
+
+            // Verify all courses are root courses (parent_id is null)
+            $rootCourseIds = collect($courses)->pluck('id');
+            $invalidCourses = CourseItem::whereIn('id', $rootCourseIds)
+                ->whereNotNull('parent_id')
+                ->count();
+
+            if ($invalidCourses > 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Chỉ có thể sắp xếp các khóa học gốc'
+                ], 400);
+            }
+
+            // Get the course being moved
+            $movingCourse = CourseItem::find($courseId);
+            if (!$movingCourse || $movingCourse->parent_id !== null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Khóa học không hợp lệ'
+                ], 400);
+            }
+
+            // Reorder the courses array
+            $reorderedCourses = collect($courses);
+            $movingItem = $reorderedCourses->splice($sourceIndex, 1)->first();
+            $reorderedCourses->splice($destIndex, 0, [$movingItem]);
+
+            // Update order_index for all root courses
+            foreach ($reorderedCourses as $index => $courseData) {
+                CourseItem::where('id', $courseData['id'])
+                    ->whereNull('parent_id')
+                    ->update(['order_index' => $index]);
+            }
+
+            \DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Đã cập nhật thứ tự tab thành công'
+            ]);
+
+        } catch (\Exception $e) {
+            \DB::rollBack();
+            \Log::error('Error reordering root courses', [
+                'error' => $e->getMessage(),
+                'request_data' => $request->all()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi sắp xếp thứ tự: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Reorder courses via drag and drop
      */
     public function reorder(Request $request)
@@ -1123,8 +1202,9 @@ class CourseItemController extends Controller
                 ], 422);
             }
 
-            // Kiểm tra thông tin bổ sung cho khóa học đặc biệt
-            if ($courseItem->is_special) {
+            // Kiểm tra thông tin bổ sung cho khóa học đặc biệt (bao gồm cả khóa cha)
+            $isSpecialCourse = $this->isSpecialCourseOrHasSpecialParent($courseItem);
+            if ($isSpecialCourse) {
                 $student = \App\Models\Student::find($request->student_id);
                 $missingFields = [];
 

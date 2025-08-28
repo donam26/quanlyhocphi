@@ -265,7 +265,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         $data['last_name'] = DataNormalizer::normalizeText($row['ten'] ?? null);
         $data['phone'] = DataNormalizer::normalizePhone($row['so_dien_thoai'] ?? $row['phone'] ?? null);
         $data['email'] = DataNormalizer::normalizeEmail($row['email'] ?? null);
-        $data['citizen_id'] = DataNormalizer::normalizeText($row['so_cccd_cmnd'] ?? $row['citizen_id'] ?? null);
+        $data['citizen_id'] = DataNormalizer::normalizeCitizenId($row['cccd'] ?? $row['citizen_id'] ?? null);
 
         // Ngày sinh
         $data['date_of_birth'] = $this->parseDate($row['ngay_sinh'] ?? $row['date_of_birth'] ?? null);

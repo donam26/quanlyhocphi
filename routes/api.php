@@ -95,6 +95,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Tree structure
         Route::post('/update-order', [CourseItemController::class, 'updateOrder']);
         Route::post('/reorder', [CourseItemController::class, 'reorder']);
+        Route::post('/reorder-root-courses', [CourseItemController::class, 'reorderRootCourses']);
 
         // Course status
         Route::post('/{courseItem}/toggle-status', [CourseItemController::class, 'toggleStatus']);

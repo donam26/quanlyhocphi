@@ -820,12 +820,19 @@ class AttendanceController extends Controller
 
     /**
      * Tính tổng số học viên bao gồm descendants
+     * Logic:
+     * - Khóa lá (is_leaf = true): total = direct (vì không có khóa con)
+     * - Khóa cha (is_leaf = false): total = tổng direct của tất cả khóa con (không cộng direct của chính nó vì học viên chỉ đăng ký vào khóa lá)
      */
     private function calculateTotalStudentCount($course, $courseMap, $studentCounts)
     {
-        $total = $studentCounts[$course->id]['direct'];
+        // Nếu là khóa lá, chỉ lấy direct count
+        if ($course->is_leaf) {
+            return $studentCounts[$course->id]['direct'];
+        }
 
-        // Cộng thêm từ các khóa con
+        // Nếu là khóa cha, tính tổng từ tất cả khóa con (không cộng direct của chính nó)
+        $total = 0;
         foreach ($course->children as $child) {
             if (isset($courseMap[$child->id])) {
                 $total += $this->calculateTotalStudentCount($child, $courseMap, $studentCounts);
