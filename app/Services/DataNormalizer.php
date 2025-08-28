@@ -99,33 +99,29 @@ class DataNormalizer
     }
 
     /**
-     * Chuẩn hóa số CCCD/CMND
-     * Chấp nhận cả text và number từ Excel, format lại thành chuỗi số
+     * Chuẩn hóa số CCCD/CMND.
+     * Luôn xử lý giá trị như một chuỗi để bảo toàn số 0 ở đầu.
      */
     public static function normalizeCitizenId($citizenIdValue)
     {
-        if (empty($citizenIdValue)) {
+        if (is_null($citizenIdValue) || $citizenIdValue === '') {
             return null;
         }
 
-        // Xử lý trường hợp Excel format số thành scientific notation (1.23E+11)
-        if (is_numeric($citizenIdValue)) {
-            // Chuyển về string với định dạng đầy đủ (không scientific notation)
-            $citizenId = sprintf('%.0f', (float) $citizenIdValue);
-        } else {
-            // Chuyển về string và loại bỏ khoảng trắng
-            $citizenId = trim((string) $citizenIdValue);
+        // Chuyển đổi giá trị thành chuỗi và loại bỏ khoảng trắng
+        $citizenId = trim((string) $citizenIdValue);
+
+        // Xử lý trường hợp scientific notation từ Excel (ví dụ: 1.23E+11)
+        // Bằng cách kiểm tra sự tồn tại của 'E+' hoặc 'e+'
+        if (stripos($citizenId, 'E+') !== false) {
+            // Chuyển đổi an toàn sang chuỗi số đầy đủ
+            $citizenId = sprintf('%.0f', (float) $citizenId);
         }
 
-        // Loại bỏ các ký tự không phải số (dấu phẩy, dấu chấm, khoảng trắng, etc.)
+        // Loại bỏ tất cả các ký tự không phải là số
         $citizenId = preg_replace('/[^0-9]/', '', $citizenId);
 
-        // Kiểm tra độ dài hợp lệ (CMND: 9 số, CCCD: 12 số)
-        if (strlen($citizenId) >= 9 && strlen($citizenId) <= 12) {
-            return $citizenId;
-        }
-
-        // Nếu không hợp lệ nhưng có dữ liệu, vẫn trả về để người dùng có thể kiểm tra
+        // Trả về chuỗi số đã được làm sạch, hoặc null nếu rỗng
         return $citizenId ?: null;
     }
 
