@@ -63,38 +63,32 @@ class DataNormalizer
     }
 
     /**
-     * Chuẩn hóa số điện thoại
-     * Chấp nhận cả text và number từ Excel, format lại thành chuỗi số
+     * Chuẩn hóa số điện thoại.
+     * Luôn xử lý giá trị như một chuỗi để bảo toàn số 0 ở đầu.
      */
     public static function normalizePhone($phoneValue)
     {
-        if (empty($phoneValue)) {
+        if (is_null($phoneValue) || $phoneValue === '') {
             return null;
         }
 
-        // Xử lý trường hợp Excel format số thành scientific notation
-        if (is_numeric($phoneValue)) {
-            // Chuyển về string với định dạng đầy đủ (không scientific notation)
-            $phone = sprintf('%.0f', (float) $phoneValue);
-        } else {
-            // Chuyển về string và loại bỏ khoảng trắng
-            $phone = trim((string) $phoneValue);
+        // Luôn xử lý đầu vào như một chuỗi
+        $phone = trim((string) $phoneValue);
+
+        // Xử lý trường hợp scientific notation từ Excel
+        if (stripos($phone, 'E+') !== false) {
+            $phone = sprintf('%.0f', (float) $phone);
         }
 
-        // Loại bỏ các ký tự không phải số (dấu phẩy, dấu chấm, khoảng trắng, dấu gạch ngang, etc.)
+        // Loại bỏ tất cả các ký tự không phải số
         $phone = preg_replace('/[^0-9]/', '', $phone);
 
-        // Nếu bắt đầu bằng +84, chuyển thành 0
-        if (str_starts_with($phone, '84') && strlen($phone) >= 10) {
+        // Nếu bắt đầu bằng '84' (mã quốc gia), chuyển thành '0'
+        if (strlen($phone) > 9 && str_starts_with($phone, '84')) {
             $phone = '0' . substr($phone, 2);
         }
 
-        // Kiểm tra độ dài hợp lệ (10-11 số)
-        if (strlen($phone) >= 10 && strlen($phone) <= 11) {
-            return $phone;
-        }
-
-        // Nếu không hợp lệ nhưng có dữ liệu, vẫn trả về để người dùng có thể kiểm tra
+        // Trả về chuỗi số đã được làm sạch, hoặc null nếu rỗng
         return $phone ?: null;
     }
 
