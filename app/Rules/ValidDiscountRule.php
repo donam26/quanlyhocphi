@@ -76,8 +76,8 @@ class ValidDiscountRule implements ValidationRule
                 return;
             }
 
-            if ($value >= $originalFee) {
-                $fail('Số tiền chiết khấu không được lớn hơn hoặc bằng học phí gốc.');
+            if ($value > $originalFee) {
+                $fail('Số tiền chiết khấu không được lớn hơn học phí gốc.');
                 return;
             }
 
@@ -104,9 +104,28 @@ class ValidDiscountRule implements ValidationRule
             $discountAmount = $value;
         }
 
-        // Calculate total discount (percentage + fixed amount)
-        $percentageDiscount = ($originalFee * $discountPercentage) / 100;
-        $totalDiscount = $percentageDiscount + $discountAmount;
+        // The frontend synchronizes percentage and amount, so they represent the same discount.
+        // We should not add them. We will prioritize discount_amount as it's the final value.
+        $discountAmount = (float) request('discount_amount', 0);
+        $discountPercentage = (float) request('discount_percentage', 0);
+
+        // If discount_amount is provided, use it as the source of truth.
+        // Otherwise, calculate it from the percentage.
+        if ($discountAmount > 0) {
+            $totalDiscount = $discountAmount;
+        } else {
+            $totalDiscount = ($originalFee * $discountPercentage) / 100;
+        }
+
+        // Add a small tolerance for floating point comparisons
+        $tolerance = 0.01;
+
+        // Check if total discount exceeds original fee
+        if ($totalDiscount > $originalFee + $tolerance) {
+            $fail('Tổng chiết khấu không được vượt quá học phí gốc.');
+            return;
+        }
+
         $finalFee = max(0, $originalFee - $totalDiscount);
 
         // Check if total discount exceeds original fee

@@ -87,11 +87,6 @@ class StudentUpdateImport implements ToModel, WithHeadingRow, WithValidation, Sk
             $updateData['gender'] = $this->mapGender($row['gioi_tinh']);
         }
 
-        // Xử lý địa chỉ
-        if (!empty($row['dia_chi'])) {
-            $updateData['address'] = trim($row['dia_chi']);
-        }
-
         // Xử lý nơi sinh
         if (!empty($row['noi_sinh'])) {
             $updateData['place_of_birth'] = trim($row['noi_sinh']);

@@ -430,41 +430,39 @@ class DashboardService
      */
     public function getStudentsByLearningMode($range = 'total', $courseItemId = null)
     {
-        // Lấy tổng số học viên theo các điều kiện lọc
-        $query = Enrollment::with('courseItem');
-
-        // Chỉ xét các ghi danh đang hoạt động
-        $query->where('status', EnrollmentStatus::ACTIVE);
+        $query = DB::table('enrollments')
+            ->join('course_items', 'enrollments.course_item_id', '=', 'course_items.id')
+            ->select(DB::raw('COALESCE(course_items.learning_method, "unknown") as learning_mode, COUNT(DISTINCT enrollments.student_id) as count'))
+            ->where('enrollments.status', EnrollmentStatus::ACTIVE);
 
         // Lọc theo khoảng thời gian nếu cần
         if ($range !== 'total') {
             $today = now();
-
             switch($range) {
                 case 'day':
-                    $query->whereDate('enrollment_date', $today);
+                    $query->whereDate('enrollments.enrollment_date', $today);
                     break;
                 case 'month':
-                    $query->whereYear('enrollment_date', $today->year)
-                        ->whereMonth('enrollment_date', $today->month);
+                    $query->whereYear('enrollments.enrollment_date', $today->year)
+                        ->whereMonth('enrollments.enrollment_date', $today->month);
                     break;
                 case 'quarter':
                     $startQuarter = $today->copy()->startOfQuarter();
                     $endQuarter = $today->copy()->endOfQuarter();
-                    $query->whereBetween('enrollment_date', [$startQuarter, $endQuarter]);
+                    $query->whereBetween('enrollments.enrollment_date', [$startQuarter, $endQuarter]);
                     break;
                 case 'year':
-                    $query->whereYear('enrollment_date', $today->year);
+                    $query->whereYear('enrollments.enrollment_date', $today->year);
                     break;
             }
         }
 
         // Lọc theo khóa học nếu có
         if ($courseItemId) {
-            $query->where('course_item_id', $courseItemId);
+            $query->where('enrollments.course_item_id', $courseItemId);
         }
 
-        $enrollments = $query->get();
+        $results = $query->groupBy('learning_mode')->get();
 
         // Khởi tạo mảng với giá trị mặc định
         $learningModeData = [
@@ -474,26 +472,15 @@ class DashboardService
         ];
 
         // Đếm học viên theo phương thức học của khóa học
-        foreach ($enrollments as $enrollment) {
-            $learningMethod = $enrollment->courseItem->learning_method;
-
-            if ($learningMethod === 'online') {
-                $learningModeData['online']++;
-            } elseif ($learningMethod === 'offline') {
-                $learningModeData['offline']++;
-            } else {
-                $learningModeData['unknown']++;
+        foreach ($results as $result) {
+            $mode = $result->learning_mode ?? 'unknown';
+            if (array_key_exists($mode, $learningModeData)) {
+                $learningModeData[$mode] = $result->count;
             }
         }
 
         // Tính tổng số lượng
         $total = array_sum($learningModeData);
-
-        // Tính tỉ lệ phần trăm
-        $learningModeRatio = [];
-        foreach ($learningModeData as $mode => $count) {
-            $learningModeRatio[$mode] = $total > 0 ? round(($count / $total) * 100, 2) : 0;
-        }
 
         return [
             'data' => [

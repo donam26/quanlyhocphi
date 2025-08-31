@@ -98,16 +98,15 @@ class StudentUpdateController extends Controller
             'C1' => 'email',
             'D1' => 'ngay_sinh',
             'E1' => 'gioi_tinh',
-            'F1' => 'dia_chi',
-            'G1' => 'noi_sinh',
-            'H1' => 'dan_toc',
-            'I1' => 'tinh_thanh_pho',
-            'J1' => 'noi_cong_tac',
-            'K1' => 'kinh_nghiem_ke_toan',
-            'L1' => 'bang_cap',
-            'M1' => 'chuyen_mon_cong_tac',
-            'N1' => 'ho_so_ban_cung',
-            'O1' => 'ghi_chu'
+            'F1' => 'noi_sinh',
+            'G1' => 'dan_toc',
+            'H1' => 'tinh_thanh_pho',
+            'I1' => 'noi_cong_tac',
+            'J1' => 'kinh_nghiem_ke_toan',
+            'K1' => 'bang_cap',
+            'L1' => 'chuyen_mon_cong_tac',
+            'M1' => 'ho_so_ban_cung',
+            'N1' => 'ghi_chu'
         ];
 
         foreach ($headers as $cell => $value) {
@@ -122,16 +121,15 @@ class StudentUpdateController extends Controller
             'C2' => 'email@example.com',
             'D2' => '01/01/1990',
             'E2' => 'Nam',
-            'F2' => '123 Đường ABC',
-            'G2' => 'Hà Nội',
-            'H2' => 'Kinh',
-            'I2' => 'Hà Nội',
-            'J2' => 'Công ty XYZ',
-            'K2' => '5',
-            'L2' => 'Đại học',
-            'M2' => 'Kế toán',
-            'N2' => 'Đã nộp',
-            'O2' => 'Ghi chú'
+            'F2' => 'Hà Nội',
+            'G2' => 'Kinh',
+            'H2' => 'Hà Nội',
+            'I2' => 'Công ty XYZ',
+            'J2' => '5',
+            'K2' => 'Đại học',
+            'L2' => 'Kế toán',
+            'M2' => 'Đã nộp',
+            'N2' => 'Ghi chú'
         ];
 
         foreach ($instructions as $cell => $value) {
@@ -149,7 +147,7 @@ class StudentUpdateController extends Controller
         $sheet->setCellValue('A10', '- Hồ sơ bản cứng: Đã nộp/Chưa nộp');
 
         // Auto-size columns
-        foreach (range('A', 'O') as $col) {
+        foreach (range('A', 'N') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 

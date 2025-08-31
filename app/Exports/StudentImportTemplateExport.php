@@ -33,7 +33,6 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
                     'nguyenvana@example.com', // email
                     "'12/2/1990", // ngay_sinh - format as text
                     'Nam', // gioi_tinh
-                    '123 Đường ABC, Quận 1', // dia_chi
                     'Hồ Chí Minh', // tinh_hien_tai
                     'Hà Nội', // tinh_noi_sinh
                     'Kinh', // dan_toc
@@ -66,7 +65,6 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'email',
             'ngay_sinh',
             'gioi_tinh',
-            'dia_chi',
             'tinh_hien_tai',
             'tinh_noi_sinh',
             'dan_toc',
@@ -90,7 +88,7 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
         // Thêm ghi chú hướng dẫn
         $sheet->setCellValue('A4', 'HƯỚNG DẪN NHẬP LIỆU:');
         $sheet->setCellValue('A5', '🔴 Các cột BẮT BUỘC: ho, ten');
-        $sheet->setCellValue('A6', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, dia_chi, v.v.');
+        $sheet->setCellValue('A6', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, v.v.');
         $sheet->setCellValue('A7', '📧 Email sẽ được tự động tạo nếu bỏ trống (dạng: ten.ho.random@gmail.com)');
         $sheet->setCellValue('A8', '📅 ngay_sinh: Hỗ trợ nhiều format: 12/2/2002, 12/02/2002, 2/2/2002, 2002-02-12');
         $sheet->setCellValue('A9', '• gioi_tinh: Nam, Nữ hoặc để trống');
@@ -155,22 +153,21 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'E' => 25, // Email
             'F' => 15, // Ngày sinh
             'G' => 10, // Giới tính
-            'H' => 30, // Địa chỉ
-            'I' => 20, // Tỉnh/TP hiện tại
-            'J' => 20, // Tỉnh/TP nơi sinh
-            'K' => 10, // Dân tộc
-            'L' => 12, // Quốc tịch
-            'M' => 25, // Nơi công tác
-            'N' => 15, // Kinh nghiệm
-            'O' => 20, // Chuyên môn
-            'P' => 15, // Hồ sơ
-            'Q' => 15, // Trình độ
-            'R' => 25, // Tên công ty
-            'S' => 15, // Mã số thuế
-            'T' => 25, // Email hóa đơn
-            'U' => 30, // Địa chỉ công ty
-            'V' => 15, // Nguồn
-            'W' => 20, // Ghi chú
+            'H' => 20, // Tỉnh/TP hiện tại
+            'I' => 20, // Tỉnh/TP nơi sinh
+            'J' => 10, // Dân tộc
+            'K' => 12, // Quốc tịch
+            'L' => 25, // Nơi công tác
+            'M' => 15, // Kinh nghiệm
+            'N' => 20, // Chuyên môn
+            'O' => 15, // Hồ sơ
+            'P' => 15, // Trình độ
+            'Q' => 25, // Tên công ty
+            'R' => 15, // Mã số thuế
+            'S' => 25, // Email hóa đơn
+            'T' => 30, // Địa chỉ công ty
+            'U' => 15, // Nguồn
+            'V' => 20, // Ghi chú
         ];
     }
 }

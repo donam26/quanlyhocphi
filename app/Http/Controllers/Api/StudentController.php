@@ -59,7 +59,9 @@ class StudentController extends Controller
 
         // Paginate
         $perPage = $request->get('per_page', 15);
-        $students = $query->with(['province', 'ethnicity', 'enrollments.courseItem'])->paginate($perPage);
+        $students = $query->with(['province', 'ethnicity', 'enrollments.courseItem'])
+            ->withCount(['enrollments', 'payments'])
+            ->paginate($perPage);
 
         // Add computed fields
         $students->through(function ($student) {
@@ -431,42 +433,29 @@ class StudentController extends Controller
     {
         try {
             $deleteEnrollments = $request->boolean('delete_enrollments', false);
-            $deletePayments = $request->boolean('delete_payments', false);
 
-            // Check if student has enrollments and user doesn't want to delete them
-            $enrollmentCount = $student->enrollments()->count();
-            if (!$deleteEnrollments && $enrollmentCount > 0) {
+            // Tải số lượng bản ghi liên quan
+            $student->loadCount(['enrollments', 'payments']);
+
+            // Kiểm tra ràng buộc
+            // Nếu có ghi danh và không chọn xóa ghi danh -> lỗi
+            if ($student->enrollments_count > 0 && !$deleteEnrollments) {
                 return response()->json([
                     'success' => false,
-                    'message' => "Không thể xóa học viên \"{$student->full_name}\" vì có {$enrollmentCount} ghi danh khóa học. Vui lòng chọn xóa cả ghi danh hoặc xóa ghi danh trước.",
+                    'message' => "Không thể xóa học viên \"{$student->full_name}\" vì có {$student->enrollments_count} ghi danh khóa học. Vui lòng chọn xóa cả ghi danh hoặc xóa ghi danh trước.",
                     'error_code' => 'HAS_ENROLLMENTS',
-                    'data' => [
-                        'enrollments_count' => $enrollmentCount
-                    ]
+                    'data' => ['enrollments_count' => $student->enrollments_count]
                 ], 422);
             }
 
-            // Check if student has payments and user doesn't want to delete them
-            $paymentCount = $student->payments()->count();
-            if (!$deletePayments && $paymentCount > 0) {
-                return response()->json([
-                    'success' => false,
-                    'message' => "Không thể xóa học viên \"{$student->full_name}\" vì có {$paymentCount} thanh toán. Vui lòng chọn xóa cả thanh toán hoặc xóa thanh toán trước.",
-                    'error_code' => 'HAS_PAYMENTS',
-                    'data' => [
-                        'payments_count' => $paymentCount
-                    ]
-                ], 422);
-            }
-
-            // Delete related data if requested
-            if ($deleteEnrollments) {
+            // Xóa dữ liệu liên quan
+            // Nếu chọn xóa ghi danh, các thanh toán liên quan cũng sẽ bị xóa (do cascade on delete trong DB)
+            if ($deleteEnrollments && $student->enrollments_count > 0) {
                 $student->enrollments()->delete();
             }
 
-            if ($deletePayments) {
-                $student->payments()->delete();
-            }
+            // Xóa học viên
+            $student->delete();
 
             $student->delete();
 

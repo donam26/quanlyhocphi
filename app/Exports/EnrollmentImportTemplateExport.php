@@ -32,7 +32,6 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
                     'nguyenvana@example.com', // email
                     "'12/2/1990", // ngay_sinh - format as text
                     'Nam', // gioi_tinh
-                    '123 Đường ABC, Quận 1', // dia_chi
                     'Hồ Chí Minh', // tinh_hien_tai
                     'Hà Nội', // tinh_noi_sinh
                     'Kinh', // dan_toc
@@ -70,7 +69,6 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
             'email',
             'ngay_sinh',
             'gioi_tinh',
-            'dia_chi',
             'tinh_hien_tai',
             'tinh_noi_sinh',
             'dan_toc',
@@ -99,7 +97,7 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
         // Thêm ghi chú hướng dẫn
         $sheet->setCellValue('A4', 'HƯỚNG DẪN NHẬP LIỆU:');
         $sheet->setCellValue('A5', '🔴 Các cột BẮT BUỘC: ho, ten');
-        $sheet->setCellValue('A6', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, dia_chi, v.v.');
+        $sheet->setCellValue('A6', '✅ Các cột khác có thể bỏ trống: so_dien_thoai, email, v.v.');
         $sheet->setCellValue('A7', '📧 Email sẽ được tự động tạo nếu bỏ trống (dạng: ten.ho.random@gmail.com)');
         $sheet->setCellValue('A8', '📅 ngay_sinh: Hỗ trợ nhiều format: 12/2/2002, 12/02/2002, 2/2/2002, 2002-02-12');
         $sheet->setCellValue('A9', '• gioi_tinh: Nam, Nữ hoặc để trống');
@@ -162,29 +160,30 @@ class EnrollmentImportTemplateExport implements FromArray, WithHeadings, WithSty
             'A' => 12, // ho
             'B' => 12, // ten
             'C' => 15, // so_dien_thoai
-            'D' => 25, // email
-            'E' => 12, // ngay_sinh
-            'F' => 10, // gioi_tinh
-            'G' => 15, // tinh_hien_tai
-            'H' => 15, // tinh_noi_sinh
-            'I' => 10, // dan_toc
-            'J' => 12, // quoc_tich
-            'K' => 20, // noi_cong_tac
-            'L' => 15, // kinh_nghiem_ke_toan
-            'M' => 20, // chuyen_mon_dao_tao
-            'N' => 15, // ho_so_ban_cung
-            'O' => 15, // trinh_do_hoc_van
-            'P' => 20, // ten_cong_ty
-            'Q' => 15, // ma_so_thue
-            'R' => 25, // email_hoa_don
-            'S' => 25, // dia_chi_cong_ty
-            'T' => 12, // nguon
-            'U' => 20, // ghi_chu
-            'V' => 15, // ngay_ghi_danh
-            'W' => 12, // trang_thai
-            'X' => 15, // hoc_phi
-            'Y' => 15, // da_dong
-            'Z' => 20, // ghi_chu_ghi_danh
+            'D' => 15, // cccd
+            'E' => 25, // email
+            'F' => 12, // ngay_sinh
+            'G' => 10, // gioi_tinh
+            'H' => 15, // tinh_hien_tai
+            'I' => 15, // tinh_noi_sinh
+            'J' => 10, // dan_toc
+            'K' => 12, // quoc_tich
+            'L' => 20, // noi_cong_tac
+            'M' => 15, // kinh_nghiem_ke_toan
+            'N' => 20, // chuyen_mon_dao_tao
+            'O' => 15, // ho_so_ban_cung
+            'P' => 15, // trinh_do_hoc_van
+            'Q' => 20, // ten_cong_ty
+            'R' => 15, // ma_so_thue
+            'S' => 25, // email_hoa_don
+            'T' => 25, // dia_chi_cong_ty
+            'U' => 12, // nguon
+            'V' => 20, // ghi_chu
+            'W' => 15, // ngay_ghi_danh
+            'X' => 12, // trang_thai
+            'Y' => 15, // hoc_phi
+            'Z' => 15, // da_dong
+            'AA' => 20 // ghi_chu_ghi_danh
         ];
     }
 }
