@@ -42,7 +42,7 @@ class PaymentHistoryExport implements FromCollection, WithHeadings, ShouldAutoSi
             'date_of_birth' => 'Ngày sinh',
             'gender' => 'Giới tính',
             'address' => 'Địa chỉ',
-            'province' => 'Tỉnh/Thành phố',
+            'province' => 'Địa chỉ hiện tại',
             'workplace' => 'Nơi làm việc',
             'experience_years' => 'Kinh nghiệm',
             'course_registered' => 'Khóa học đã đăng ký'

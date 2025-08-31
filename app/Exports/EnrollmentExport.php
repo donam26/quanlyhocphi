@@ -44,7 +44,7 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
             'payment_status' => 'Trạng thái thanh toán',
             'student_address' => 'Địa chỉ học viên',
             'student_workplace' => 'Nơi công tác',
-            'student_province' => 'Tỉnh/Thành phố',
+            'student_province' => 'Địa chỉ hiện tại',
             'notes' => 'Ghi chú'
         ];
     }

@@ -33,8 +33,8 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
                     'nguyenvana@example.com', // email
                     "'12/2/1990", // ngay_sinh - format as text
                     'Nam', // gioi_tinh
-                    'Hồ Chí Minh', // tinh_hien_tai
-                    'Hà Nội', // tinh_noi_sinh
+                    'Hồ Chí Minh', // dia_chi_hien_tai
+                    'Hà Nội', // noi_sinh
                     'Kinh', // dan_toc
                     'Việt Nam', // quoc_tich
                     'Công ty ABC', // noi_cong_tac
@@ -65,8 +65,8 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'email',
             'ngay_sinh',
             'gioi_tinh',
-            'tinh_hien_tai',
-            'tinh_noi_sinh',
+            'dia_chi_hien_tai',
+            'noi_sinh',
             'dan_toc',
             'quoc_tich',
             'noi_cong_tac',
@@ -153,8 +153,8 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'E' => 25, // Email
             'F' => 15, // Ngày sinh
             'G' => 10, // Giới tính
-            'H' => 20, // Tỉnh/TP hiện tại
-            'I' => 20, // Tỉnh/TP nơi sinh
+            'H' => 20, // Địa chỉ hiện tại
+            'I' => 20, // Nơi sinh
             'J' => 10, // Dân tộc
             'K' => 12, // Quốc tịch
             'L' => 25, // Nơi công tác

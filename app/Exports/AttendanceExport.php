@@ -49,7 +49,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             // Thông tin học viên bổ sung
             'student_address' => 'Địa chỉ học viên',
             'student_workplace' => 'Nơi công tác',
-            'student_province' => 'Tỉnh/Thành phố',
+            'student_province' => 'Địa chỉ hiện tại',
             'student_gender' => 'Giới tính',
             'student_date_of_birth' => 'Ngày sinh',
             'education_level' => 'Trình độ học vấn',

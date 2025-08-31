@@ -19,8 +19,8 @@ Tài liệu này mô tả chi tiết cách mapping dữ liệu trong tất cả 
 'email' => 'Email',                            // $student->email
 'date_of_birth' => 'Ngày sinh',                // $student->date_of_birth (d/m/Y)
 'gender' => 'Giới tính',                       // formatGender($student->gender)
-'province' => 'Tỉnh hiện tại',                 // $student->province->name
-'place_of_birth_province' => 'Tỉnh nơi sinh', // $student->placeOfBirthProvince->name
+'province' => 'Địa chỉ hiện tại',                 // $student->province->name
+'place_of_birth_province' => 'Nơi sinh', // $student->placeOfBirthProvince->name
 'ethnicity' => 'Dân tộc',                      // $student->ethnicity->name
 'address' => 'Địa chỉ',                        // $student->address
 'current_workplace' => 'Nơi công tác',         // $student->current_workplace
@@ -99,7 +99,7 @@ formatStatus($status): 'Chờ xác nhận', 'Đã xác nhận', 'Đã hủy'
 'payment_status' => 'Trạng thái thanh toán',   // formatPaymentStatus($enrollment->payment_status)
 'student_address' => 'Địa chỉ học viên',       // $enrollment->student->address
 'student_workplace' => 'Nơi công tác',         // $enrollment->student->current_workplace
-'student_province' => 'Tỉnh/Thành phố',        // $enrollment->student->province->name
+'student_province' => 'Địa chỉ hiện tại',        // $enrollment->student->province->name
 'notes' => 'Ghi chú'                          // $enrollment->notes
 ```
 
@@ -172,7 +172,7 @@ const studentColumns = [
   { key: 'full_name', label: 'Họ và tên', defaultSelected: true },
   { key: 'phone', label: 'Số điện thoại', defaultSelected: true },
   { key: 'email', label: 'Email', defaultSelected: true },
-  { key: 'province', label: 'Tỉnh/Thành phố', defaultSelected: true },
+  { key: 'province', label: 'Địa chỉ hiện tại', defaultSelected: true },
   { key: 'current_workplace', label: 'Nơi công tác', defaultSelected: true },
   { key: 'created_at', label: 'Ngày tạo', defaultSelected: true },
   // ... more columns

@@ -87,10 +87,10 @@ class ImportService
                     }
                 }
                 
-                // Xử lý tỉnh thành (tìm kiếm theo tên)
+                // Xử lý địa chỉ hiện tại (tìm kiếm theo tên)
                 $provinceId = null;
-                if (isset($mappedHeader['Tỉnh/Thành phố']) && !empty($row[$mappedHeader['Tỉnh/Thành phố']])) {
-                    $provinceName = trim($row[$mappedHeader['Tỉnh/Thành phố']]);
+                if (isset($mappedHeader['Địa chỉ hiện tại']) && !empty($row[$mappedHeader['Địa chỉ hiện tại']])) {
+                    $provinceName = trim($row[$mappedHeader['Địa chỉ hiện tại']]);
                     $province = \App\Models\Province::where('name', 'like', "%{$provinceName}%")->first();
                     if ($province) {
                         $provinceId = $province->id;
@@ -384,8 +384,8 @@ class ImportService
                 
                 // Xử lý province_id
                 $provinceId = null;
-                if (isset($mappedHeader['Tỉnh/Thành phố']) && !empty(trim($row[$mappedHeader['Tỉnh/Thành phố']]))) {
-                    $provinceName = trim($row[$mappedHeader['Tỉnh/Thành phố']]);
+                if (isset($mappedHeader['Địa chỉ hiện tại']) && !empty(trim($row[$mappedHeader['Địa chỉ hiện tại']]))) {
+                    $provinceName = trim($row[$mappedHeader['Địa chỉ hiện tại']]);
                     $province = \App\Models\Province::where('name', 'like', '%' . $provinceName . '%')->first();
                     $provinceId = $province ? $province->id : null;
                 }

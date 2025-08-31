@@ -42,7 +42,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'course_path' => 'Đường dẫn khóa học',
             'student_date_of_birth' => 'Ngày sinh',
             'student_gender' => 'Giới tính',
-            'student_province' => 'Tỉnh/Thành phố',
+            'student_province' => 'Địa chỉ hiện tại',
             'student_address' => 'Địa chỉ',
             'student_workplace' => 'Nơi công tác',
 
