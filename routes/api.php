@@ -211,7 +211,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('attendance')->group(function () {
         Route::get('/', [AttendanceController::class, 'index']);
         Route::post('/', [AttendanceController::class, 'store']);
-        
+
 
         // Tree and course structure
         Route::get('/tree', [AttendanceController::class, 'getAttendanceTree']);
@@ -297,7 +297,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/course/{courseId}/progress', [LearningPathController::class, 'getCoursePathProgress']);
         Route::put('/course/{courseId}/step/{stepId}', [LearningPathController::class, 'updatePathStepCompletion']);
         Route::get('/statistics', [LearningPathController::class, 'getPathStatistics']);
+        Route::get('/grouped-by-parent', [LearningPathController::class, 'getEnrollmentsGroupedByParent']);
         Route::post('/course/{courseId}/complete', [LearningPathController::class, 'completeCoursePathProgress']);
+        Route::get('/course/{courseId}/details', [LearningPathController::class, 'getCoursePathDetails']);
         Route::post('/course/{courseId}/reset', [LearningPathController::class, 'resetCoursePathProgress']);
     });
 });

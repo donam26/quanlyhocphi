@@ -80,7 +80,7 @@ class CourseItem extends Model
         return $this->hasMany(Enrollment::class, 'course_item_id')
             ->where('status', 'waiting');
     }
-    
+
     /**
      * Lấy danh sách lộ trình học tập của khóa học
      */
@@ -104,14 +104,27 @@ class CourseItem extends Model
     {
         $ancestors = collect([]);
         $parent = $this->parent;
-        
+
         while ($parent) {
             $ancestors->push($parent);
             $parent = $parent->parent;
         }
-        
+
         return $ancestors->reverse();
     }
+
+    /**
+     * Lấy item cha gốc (cao nhất trong cây)
+     */
+    public function getRootParent()
+    {
+        $parent = $this;
+        while ($parent->parent) {
+            $parent = $parent->parent;
+        }
+        return $parent;
+    }
+
 
     /**
      * Lấy tất cả hậu duệ của item này
@@ -119,11 +132,11 @@ class CourseItem extends Model
     public function descendants()
     {
         $descendants = $this->children;
-        
+
         foreach ($this->children as $child) {
             $descendants = $descendants->merge($child->descendants());
         }
-        
+
         return $descendants;
     }
 
@@ -134,7 +147,7 @@ class CourseItem extends Model
     {
         $path = $this->ancestors()->pluck('name')->toArray();
         $path[] = $this->name;
-        
+
         return implode(' > ', $path);
     }
 
@@ -146,7 +159,7 @@ class CourseItem extends Model
         if ($this->isRoot()) {
             return CourseItem::whereNull('parent_id')->where('id', '!=', $this->id)->get();
         }
-        
+
         return CourseItem::where('parent_id', $this->parent_id)
                         ->where('id', '!=', $this->id)
                         ->get();

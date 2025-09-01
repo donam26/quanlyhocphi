@@ -29,10 +29,10 @@ class LearningPathController extends Controller
                 $totalSteps = $course->learningPaths->count();
                 $completedSteps = $course->learningPaths->where('is_completed', true)->count();
                 $progressPercentage = $totalSteps > 0 ? ($completedSteps / $totalSteps) * 100 : 0;
-                
+
                 // Xác định ngành học dựa trên tên khóa học hoặc parent
                 $major = $this->determineMajor($course);
-                
+
                 return [
                     'id' => $course->id,
                     'name' => $course->name,
@@ -140,7 +140,7 @@ class LearningPathController extends Controller
                     $totalSteps = $course->learningPaths->count();
                     $completedSteps = $course->learningPaths->where('is_completed', true)->count();
                     $progressPercentage = $totalSteps > 0 ? ($completedSteps / $totalSteps) * 100 : 0;
-                    
+
                     return [
                         'course' => $course,
                         'progress_percentage' => $progressPercentage,
@@ -159,7 +159,7 @@ class LearningPathController extends Controller
             $majorBreakdown = $coursesWithProgress->groupBy('major')->map(function($courses, $major) {
                 $total = $courses->count();
                 $completed = $courses->where('progress_percentage', 100)->count();
-                
+
                 return [
                     'total' => $total,
                     'completed' => $completed,
@@ -190,7 +190,7 @@ class LearningPathController extends Controller
             DB::beginTransaction();
 
             $course = CourseItem::findOrFail($courseId);
-            
+
             LearningPath::where('course_item_id', $courseId)
                 ->update(['is_completed' => true]);
 
@@ -216,7 +216,7 @@ class LearningPathController extends Controller
             DB::beginTransaction();
 
             $course = CourseItem::findOrFail($courseId);
-            
+
             LearningPath::where('course_item_id', $courseId)
                 ->update(['is_completed' => false]);
 
@@ -228,29 +228,125 @@ class LearningPathController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
+
             Log::error('Error resetting course path: ' . $e->getMessage());
             return response()->json(['error' => 'Có lỗi xảy ra khi reset lộ trình'], 500);
         }
     }
 
+    public function getEnrollmentsGroupedByParent(Request $request)
+    {
+        $user = $request->user();
+        $studentId = null;
+
+        if ($user->isAdmin() && $request->has('student_id')) {
+            $studentId = $request->input('student_id');
+        } elseif ($user->student) {
+            $studentId = $user->student->id;
+        } else if ($user->isAdmin()) {
+            // Fallback for admin to see some data for testing
+            $firstStudent = \App\Models\Student::first();
+            if ($firstStudent) {
+                $studentId = $firstStudent->id;
+            }
+        }
+
+        if (!$studentId) {
+            return response()->json([]);
+        }
+
+        $enrollments = Enrollment::where('student_id', $studentId)
+            ->with(['courseItem.parent.parent', 'courseItem.learningPaths'])
+            ->get();
+
+        $grouped = [];
+
+        foreach ($enrollments as $enrollment) {
+            $course = $enrollment->courseItem;
+
+            if (!$course) continue;
+
+            // Sử dụng phương thức mới để lấy cha gốc
+            $parent = $course->getRootParent();
+
+            if (!isset($grouped[$parent->id])) {
+                $grouped[$parent->id] = [
+                    'parent_id' => $parent->id,
+                    'parent_name' => $parent->name,
+                    'courses' => [],
+                ];
+            }
+
+            $totalSteps = $course->learningPaths->count();
+
+            // Bỏ qua nếu không có lộ trình hoặc đã hoàn thành 100%
+            if ($totalSteps > 0) {
+                $completedSteps = $course->learningPaths->where('is_completed', true)->count();
+                $progress = ($completedSteps / $totalSteps) * 100;
+
+                if ($progress < 100) {
+                    $grouped[$parent->id]['courses'][] = [
+                        'id' => $course->id,
+                        'name' => $course->name,
+                        'progress' => $progress,
+                        'total_steps' => $totalSteps,
+                        'completed_steps' => $completedSteps,
+                        'enrollment_id' => $enrollment->id,
+                    ];
+                }
+            }
+        }
+
+        // Lọc ra các group không có course nào
+        $filteredGroups = array_filter($grouped, function ($group) {
+            return !empty($group['courses']);
+        });
+
+        return response()->json(array_values($filteredGroups));
+    }
+
     /**
      * Xác định ngành học dựa trên tên khóa học hoặc parent
      */
-    private function determineMajor($course)
+    public function determineMajor($course)
     {
         $name = strtolower($course->name);
         $path = strtolower($course->path ?? '');
-        
+
         if (str_contains($name, 'kế toán') || str_contains($path, 'kế toán')) {
             return 'Kế toán';
         } elseif (str_contains($name, 'marketing') || str_contains($path, 'marketing')) {
-            return 'Marketing';
+      return 'Marketing';
         } elseif (str_contains($name, 'quản trị') || str_contains($path, 'quản trị')) {
             return 'Quản trị';
         } elseif (str_contains($name, 'kinh tế') || str_contains($path, 'kinh tế')) {
             return 'Kinh tế';
         }
-        
+
         return 'Khác';
     }
+    public function getCoursePathDetails(Request $request, $courseId)
+    {
+        $course = CourseItem::with(['learningPaths' => function ($query) {
+            $query->orderBy('order', 'asc');
+        }])->find($courseId);
+
+        if (!$course) {
+            return response()->json(['error' => 'Course not found'], 404);
+        }
+
+        $totalSteps = $course->learningPaths->count();
+        $completedSteps = $course->learningPaths->where('is_completed', true)->count();
+        $progress = $totalSteps > 0 ? ($completedSteps / $totalSteps) * 100 : 0;
+
+        return response()->json([
+            'id' => $course->id,
+            'name' => $course->name,
+            'total_steps' => $totalSteps,
+            'completed_steps' => $completedSteps,
+            'progress' => round($progress, 1),
+            'paths' => $course->learningPaths,
+        ]);
+    }
+      
 }

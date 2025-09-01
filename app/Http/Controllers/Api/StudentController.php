@@ -373,9 +373,9 @@ class StudentController extends Controller
             $rules = [
                 'first_name' => 'required|string|max:255',
                 'last_name' => 'required|string|max:255',
-                'date_of_birth' => 'required|date',
-                'gender' => 'required|in:male,female,other',
-                'phone' => "required|string|max:20|unique:students,phone,{$student->id}",
+                'date_of_birth' => 'nullable|date',
+                'gender' => 'nullable|in:male,female,other',
+                'phone' => "nullable|string|max:20|unique:students,phone,{$student->id}",
                 'email' => "nullable|email|unique:students,email,{$student->id}",
                 'province_id' => 'nullable|exists:provinces,id',
                 'place_of_birth_province_id' => 'nullable|exists:provinces,id',
