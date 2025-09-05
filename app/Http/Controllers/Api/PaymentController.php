@@ -74,10 +74,12 @@ class PaymentController extends Controller
                 'data' => [
                     'data' => $payments->items(),
                     'pagination' => [
-                        'page' => $payments->currentPage(),
-                        'limit' => $payments->perPage(),
+                        'current_page' => $payments->currentPage(),
+                        'per_page' => $payments->perPage(),
                         'total' => $payments->total(),
-                        'totalPages' => $payments->lastPage()
+                        'last_page' => $payments->lastPage(),
+                        'from' => $payments->firstItem(),
+                        'to' => $payments->lastItem()
                     ]
                 ]
             ]);
@@ -935,7 +937,7 @@ class PaymentController extends Controller
 
             // Pagination parameters
             $page = $request->input('page', 1);
-            $limit = $request->input('limit', 10);
+            $limit = $request->input('per_page', $request->input('limit', 15));
 
             // Get all courses first, then transform and filter
             $allCourses = $query->get();
@@ -980,10 +982,12 @@ class PaymentController extends Controller
                 'data' => [
                     'data' => $paginatedData,
                     'pagination' => [
-                        'page' => $page,
-                        'limit' => $limit,
+                        'current_page' => $page,
+                        'per_page' => $limit,
                         'total' => $total,
-                        'totalPages' => ceil($total / $limit)
+                        'last_page' => ceil($total / $limit),
+                        'from' => $offset + 1,
+                        'to' => min($offset + $limit, $total)
                     ]
                 ]
             ]);
