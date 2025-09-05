@@ -532,17 +532,22 @@ class AttendanceController extends Controller
             $request->validate([
                 'course_item_id' => 'required|exists:course_items,id',
                 'start_date' => 'nullable|date',
-                'end_date' => 'nullable|date'
+                'end_date' => 'nullable|date',
+                'columns' => 'sometimes|array',
             ]);
 
             $courseItem = CourseItem::findOrFail($request->course_item_id);
             $startDate = $request->input('start_date');
             $endDate = $request->input('end_date');
+            $columns = $request->input('columns', []);
+
+            // Lấy các bộ lọc khác
+            $filters = $request->only(['enrollmentStatus', 'paymentStatus']);
 
             $fileName = 'diem_danh_ma_tran_khoa_' . $courseItem->id . '_' . date('Y_m_d_H_i_s') . '.xlsx';
 
             return \Maatwebsite\Excel\Facades\Excel::download(
-                new \App\Exports\AttendanceMatrixExport($courseItem, $startDate, $endDate),
+                new \App\Exports\AttendanceMatrixExport($courseItem, $startDate, $endDate, $columns, $filters),
                 $fileName
             );
         } catch (\Exception $e) {
@@ -799,6 +804,7 @@ class AttendanceController extends Controller
                 DB::raw('COUNT(DISTINCT student_id) as student_count'),
                 DB::raw('COUNT(*) as enrollment_count'))
             ->whereIn('course_item_id', $courseIds)
+            ->where('status', 'active') // Chỉ đếm học viên đang hoạt động
             ->groupBy('course_item_id')
             ->get();
 

@@ -227,20 +227,68 @@ class StudentController extends Controller
             $query->where('current_workplace', 'like', '%' . $request->current_workplace . '%');
         }
 
-        // Order by relevance (name match first, then phone)
-        $query->orderByRaw("
-            CASE
-                WHEN CONCAT(first_name, ' ', last_name) LIKE ? THEN 1
-                WHEN first_name LIKE ? OR last_name LIKE ? THEN 2
-                WHEN phone LIKE ? THEN 3
-                ELSE 4
-            END
-        ", [
-            "%{$request->q}%",
-            "%{$request->q}%",
-            "%{$request->q}%",
-            "%{$request->q}%"
-        ]);
+        // Filter by course (both parent and child courses)
+        if ($request->has('course_id') && $request->course_id) {
+            $courseId = $request->course_id;
+            $query->whereHas('enrollments', function ($q) use ($courseId) {
+                $q->whereHas('courseItem', function ($courseQuery) use ($courseId) {
+                    $courseQuery->where('id', $courseId)
+                               ->orWhere('parent_id', $courseId)
+                               ->orWhereHas('parent', function ($parentQuery) use ($courseId) {
+                                   $parentQuery->where('id', $courseId)
+                                              ->orWhere('parent_id', $courseId);
+                               });
+                });
+            });
+        }
+
+        // Sorting logic
+        $sortBy = $request->get('sort_by', 'relevance');
+        $sortOrder = $request->get('sort_order', 'asc');
+
+        switch ($sortBy) {
+            case 'course':
+                // Sort by course name (get the first enrolled course)
+                $query->leftJoin('enrollments', 'students.id', '=', 'enrollments.student_id')
+                      ->leftJoin('course_items', 'enrollments.course_item_id', '=', 'course_items.id')
+                      ->orderBy('course_items.name', $sortOrder)
+                      ->select('students.*')
+                      ->distinct();
+                break;
+
+            case 'name':
+                $query->orderByRaw("CONCAT(first_name, ' ', last_name) {$sortOrder}");
+                break;
+
+            case 'enrollment_date':
+                $query->leftJoin('enrollments as e_sort', 'students.id', '=', 'e_sort.student_id')
+                      ->orderBy('e_sort.enrollment_date', $sortOrder)
+                      ->select('students.*')
+                      ->distinct();
+                break;
+
+            case 'relevance':
+            default:
+                // Order by relevance (name match first, then phone)
+                if ($request->has('q') && $request->q) {
+                    $query->orderByRaw("
+                        CASE
+                            WHEN CONCAT(first_name, ' ', last_name) LIKE ? THEN 1
+                            WHEN first_name LIKE ? OR last_name LIKE ? THEN 2
+                            WHEN phone LIKE ? THEN 3
+                            ELSE 4
+                        END
+                    ", [
+                        "%{$request->q}%",
+                        "%{$request->q}%",
+                        "%{$request->q}%",
+                        "%{$request->q}%"
+                    ]);
+                } else {
+                    $query->orderBy('created_at', 'desc');
+                }
+                break;
+        }
 
         $students = $query->limit(50)->get();
 

@@ -17,6 +17,7 @@ class DatabaseSeeder extends Seeder
             AdminUserSeeder::class, // Thêm admin user seeder đầu tiên
             ProvinceSeeder::class,  // Seeder tỉnh thành
             EthnicitySeeder::class,
+            DemoDataSeeder::class, // Thêm seeder dữ liệu demo
         ]);
     }
 }

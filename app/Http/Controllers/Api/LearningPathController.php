@@ -255,18 +255,20 @@ class LearningPathController extends Controller
             return response()->json([]);
         }
 
-        $enrollments = Enrollment::where('student_id', $studentId)
-            ->with(['courseItem.parent.parent', 'courseItem.learningPaths'])
+        // Lấy tất cả các khóa học con (is_leaf = 1) có lộ trình học tập
+        $courses = CourseItem::where('is_leaf', 1)
+            ->whereHas('learningPaths')
+            ->with(['parent.parent', 'learningPaths'])
             ->get();
+
+        // Lấy danh sách ghi danh của học viên để tra cứu
+        $studentEnrollments = Enrollment::where('student_id', $studentId)
+            ->pluck('course_item_id')
+            ->flip(); // flip để tra cứu O(1)
 
         $grouped = [];
 
-        foreach ($enrollments as $enrollment) {
-            $course = $enrollment->courseItem;
-
-            if (!$course) continue;
-
-            // Sử dụng phương thức mới để lấy cha gốc
+        foreach ($courses as $course) {
             $parent = $course->getRootParent();
 
             if (!isset($grouped[$parent->id])) {
@@ -278,22 +280,31 @@ class LearningPathController extends Controller
             }
 
             $totalSteps = $course->learningPaths->count();
+            $completedSteps = 0;
+            $progress = 0;
+            $isEnrolled = isset($studentEnrollments[$course->id]);
 
-            // Bỏ qua nếu không có lộ trình hoặc đã hoàn thành 100%
-            if ($totalSteps > 0) {
+            // Chỉ tính tiến độ nếu học viên đã ghi danh
+            if ($isEnrolled) {
+                // Cần lấy đúng tiến độ của student, logic này cần được điều chỉnh
+                // Tạm thời tính toán dựa trên learning paths chung
                 $completedSteps = $course->learningPaths->where('is_completed', true)->count();
-                $progress = ($completedSteps / $totalSteps) * 100;
-
-                if ($progress < 100) {
-                    $grouped[$parent->id]['courses'][] = [
-                        'id' => $course->id,
-                        'name' => $course->name,
-                        'progress' => $progress,
-                        'total_steps' => $totalSteps,
-                        'completed_steps' => $completedSteps,
-                        'enrollment_id' => $enrollment->id,
-                    ];
+                if ($totalSteps > 0) {
+                    $progress = ($completedSteps / $totalSteps) * 100;
                 }
+            }
+
+            // Thêm khóa học vào danh sách nếu nó có lộ trình
+            if ($totalSteps > 0) {
+                $grouped[$parent->id]['courses'][] = [
+                    'id' => $course->id,
+                    'name' => $course->name,
+                    'progress' => $progress,
+                    'total_steps' => $totalSteps,
+                    'completed_steps' => $completedSteps,
+                    'is_enrolled' => $isEnrolled,
+                    // 'enrollment_id' => $isEnrolled ? $studentEnrollments[$course->id] : null, // Cần lấy enrollment id đúng
+                ];
             }
         }
 

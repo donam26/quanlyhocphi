@@ -25,25 +25,55 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     private $totalColumns;
     private $startDate;
     private $endDate;
+    protected $selectedColumns;
+    protected $filters;
+    protected $columnMappings;
 
-    public function __construct(CourseItem $courseItem, $startDate = null, $endDate = null)
+    public function __construct(CourseItem $courseItem, $startDate = null, $endDate = null, $selectedColumns = [], $filters = [])
     {
         $this->courseItem = $courseItem->load('children.children.children');
         $this->startDate = $startDate;
         $this->endDate = $endDate;
+        $this->selectedColumns = !empty($selectedColumns) ? $selectedColumns : ['student_name'];
+        $this->filters = $filters;
+        $this->initializeColumnMappings();
         $this->prepareData();
+    }
+
+    protected function initializeColumnMappings()
+    {
+        // Tương tự như AttendanceExport, có thể đưa vào một Trait để dùng chung
+        $this->columnMappings = [
+            'student_name' => 'Họ và tên',
+            'student_phone' => 'Số điện thoại',
+            'student_email' => 'Email',
+            'course_name' => 'Tên khóa học',
+            'enrollment_status' => 'Trạng thái ghi danh',
+            'payment_status' => 'Trạng thái thanh toán',
+        ];
     }
 
     private function prepareData()
     {
         // Lấy danh sách học viên đã ghi danh (bao gồm cả khóa con nếu có)
         $courseItemIds = $this->getAllCourseItemIds($this->courseItem);
-        
-        $this->enrollments = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->where('status', EnrollmentStatus::ACTIVE->value)
-            ->with(['student', 'courseItem'])
-            ->orderBy('id')
-            ->get();
+
+        $enrollmentsQuery = Enrollment::whereIn('course_item_id', $courseItemIds)
+            ->with(['student', 'courseItem', 'payments']);
+
+        // Áp dụng bộ lọc
+        if (!empty($this->filters['enrollmentStatus'])) {
+            $enrollmentsQuery->where('status', $this->filters['enrollmentStatus']);
+        } else {
+            // Mặc định chỉ lấy học viên đang học
+            $enrollmentsQuery->where('status', EnrollmentStatus::ACTIVE->value);
+        }
+
+        if (!empty($this->filters['paymentStatus'])) {
+            $enrollmentsQuery->where('payment_status', $this->filters['paymentStatus']);
+        }
+
+        $this->enrollments = $enrollmentsQuery->orderBy('id')->get();
 
         // Lấy tất cả điểm danh của các khóa học này
         $attendanceQuery = Attendance::whereIn('course_item_id', $courseItemIds);
@@ -60,7 +90,7 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
 
         // Lấy tất cả ngày đã điểm danh (unique)
         $this->attendanceDates = $allAttendances->map(function($attendance) {
-                return $attendance->attendance_date instanceof Carbon 
+                return $attendance->attendance_date instanceof Carbon
                     ? $attendance->attendance_date->format('Y-m-d')
                     : $attendance->attendance_date;
             })
@@ -71,7 +101,7 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
         // Tạo map điểm danh: [enrollment_id][date] = attendance_object
         $this->attendanceMap = [];
         foreach ($allAttendances as $attendance) {
-            $dateKey = $attendance->attendance_date instanceof Carbon 
+            $dateKey = $attendance->attendance_date instanceof Carbon
                 ? $attendance->attendance_date->format('Y-m-d')
                 : $attendance->attendance_date;
             $this->attendanceMap[$attendance->enrollment_id][$dateKey] = $attendance;
@@ -84,13 +114,13 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     private function getAllCourseItemIds(CourseItem $courseItem)
     {
         $ids = [$courseItem->id];
-        
+
         if ($courseItem->children && $courseItem->children->count() > 0) {
             foreach ($courseItem->children as $child) {
                 $ids = array_merge($ids, $this->getAllCourseItemIds($child));
             }
         }
-        
+
         return $ids;
     }
 
@@ -98,10 +128,12 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
     {
         $data = [];
 
-        // Row 1: Header với ngày điểm danh thực tế và cột ghi chú
-        $headerRow = ['Tên học viên'];
+        // Row 1: Header
+        $headerRow = [];
+        foreach ($this->selectedColumns as $column) {
+            $headerRow[] = $this->columnMappings[$column] ?? $column;
+        }
         foreach ($this->attendanceDates as $date) {
-            // Format ngày thành dd/mm/yyyy
             $formattedDate = $date instanceof \Carbon\Carbon
                 ? $date->format('d/m/Y')
                 : \Carbon\Carbon::parse($date)->format('d/m/Y');
@@ -112,28 +144,47 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
 
         // Rows 2+: Dữ liệu học viên
         foreach ($this->enrollments as $enrollment) {
-            $studentName = trim($enrollment->student->first_name . ' ' . $enrollment->student->last_name);
-            $studentRow = [$studentName]; // Tên học viên
+            $studentRow = [];
+            // Thêm các cột thông tin học viên đã chọn
+            foreach ($this->selectedColumns as $column) {
+                $studentRow[] = $this->getStudentColumnValue($enrollment, $column);
+            }
 
+            // Thêm dữ liệu điểm danh
             foreach ($this->attendanceDates as $date) {
                 $attendance = $this->attendanceMap[$enrollment->id][$date] ?? null;
-
-                // Cột điểm danh
                 if ($attendance && $attendance->status === 'present') {
-                    $studentRow[] = 'x'; // Có mặt: dấu x
+                    $studentRow[] = 'x';
                 } else {
-                    $studentRow[] = ''; // Vắng mặt hoặc chưa điểm danh: để trống
+                    $studentRow[] = '';
                 }
-
-                // Cột ghi chú
-                $notes = $attendance ? ($attendance->notes ?? '') : '';
-                $studentRow[] = $notes;
+                $studentRow[] = $attendance->notes ?? '';
             }
 
             $data[] = $studentRow;
         }
 
         return $data;
+    }
+
+    private function getStudentColumnValue(Enrollment $enrollment, $column)
+    {
+        switch ($column) {
+            case 'student_name':
+                return trim($enrollment->student->first_name . ' ' . $enrollment->student->last_name);
+            case 'student_phone':
+                return "'" . $enrollment->student->phone;
+            case 'student_email':
+                return $enrollment->student->email;
+            case 'course_name':
+                return $enrollment->courseItem->name;
+            case 'enrollment_status':
+                return $enrollment->status;
+            case 'payment_status':
+                return $enrollment->payment_status;
+            default:
+                return '';
+        }
     }
 
     public function title(): string
