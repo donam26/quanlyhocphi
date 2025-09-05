@@ -74,12 +74,10 @@ class PaymentController extends Controller
                 'data' => [
                     'data' => $payments->items(),
                     'pagination' => [
-                        'current_page' => $payments->currentPage(),
-                        'per_page' => $payments->perPage(),
+                        'page' => $payments->currentPage(),
+                        'limit' => $payments->perPage(),
                         'total' => $payments->total(),
-                        'last_page' => $payments->lastPage(),
-                        'from' => $payments->firstItem(),
-                        'to' => $payments->lastItem()
+                        'totalPages' => $payments->lastPage()
                     ]
                 ]
             ]);
@@ -982,12 +980,10 @@ class PaymentController extends Controller
                 'data' => [
                     'data' => $paginatedData,
                     'pagination' => [
-                        'current_page' => $page,
-                        'per_page' => $limit,
+                        'page' => $page,
+                        'limit' => $limit,
                         'total' => $total,
-                        'last_page' => ceil($total / $limit),
-                        'from' => $offset + 1,
-                        'to' => min($offset + $limit, $total)
+                        'totalPages' => ceil($total / $limit)
                     ]
                 ]
             ]);

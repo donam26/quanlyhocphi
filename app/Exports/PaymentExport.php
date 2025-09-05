@@ -56,14 +56,16 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
         // Apply filters
         if (!empty($filters['search'])) {
             $search = $filters['search'];
-            $query->whereHas('enrollment.student', function ($q) use ($search) {
-                $q->where('first_name', 'like', "%{$search}%")
-                  ->orWhere('last_name', 'like', "%{$search}%")
-                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$search}%"])
-                  ->orWhere('phone', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%");
-            })->orWhereHas('enrollment.courseItem', function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%");
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('enrollment.student', function ($sq) use ($search) {
+                    $sq->where('first_name', 'like', "%{$search}%")
+                      ->orWhere('last_name', 'like', "%{$search}%")
+                      ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$search}%"])
+                      ->orWhere('phone', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                })->orWhereHas('enrollment.courseItem', function ($sq) use ($search) {
+                    $sq->where('name', 'like', "%{$search}%");
+                });
             });
         }
 
