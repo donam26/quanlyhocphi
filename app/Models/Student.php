@@ -234,8 +234,8 @@ class Student extends Model
                 $q->where('first_name', 'like', "%{$term}%")
                   ->orWhere('last_name', 'like', "%{$term}%")
                   ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$term}%"])
-                  ->orWhere('phone', 'like', "%{$term}%")
-                  ->orWhere('email', 'like', "%{$term}%");
+                  ->orWhere('phone', 'like', "%{$term}%");
+
             });
         }
     }

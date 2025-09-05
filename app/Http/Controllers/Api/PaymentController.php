@@ -63,24 +63,11 @@ class PaymentController extends Controller
             }
 
             // Pagination parameters
-            $page = $request->input('page', 1);
-            $limit = $request->input('limit', 10);
+            $perPage = $request->input('per_page', 15);
 
-            $payments = $query->orderBy('payment_date', 'desc')
-                ->paginate($limit, ['*'], 'page', $page);
+            $payments = $query->orderBy('payment_date', 'desc')->paginate($perPage);
 
-            return response()->json([
-                'success' => true,
-                'data' => [
-                    'data' => $payments->items(),
-                    'pagination' => [
-                        'page' => $payments->currentPage(),
-                        'limit' => $payments->perPage(),
-                        'total' => $payments->total(),
-                        'totalPages' => $payments->lastPage()
-                    ]
-                ]
-            ]);
+            return response()->json($payments);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

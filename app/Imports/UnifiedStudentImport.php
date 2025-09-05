@@ -274,11 +274,12 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         $data['gender'] = $this->normalizeGender($row['gioi_tinh'] ?? $row['gender'] ?? null);
 
         // Địa chỉ
-        $data['address'] = DataNormalizer::normalizeText($row['dia_chi'] ?? $row['address'] ?? null);
+        $data['address'] = DataNormalizer::normalizeText($row['dia_chi_hien_tai'] ?? $row['dia_chi'] ?? $row['address'] ?? null);
 
         // Tỉnh hiện tại
-        if (!empty($row['tinh_hien_tai']) || !empty($row['province'])) {
-            $provinceName = trim($row['tinh_hien_tai'] ?? $row['province']);
+        $currentProvinceName = $row['tinh_hien_tai'] ?? $row['province'] ?? $row['dia_chi_hien_tai'] ?? null;
+        if (!empty($currentProvinceName)) {
+            $provinceName = trim($currentProvinceName);
             $province = Province::where('name', $provinceName)->first();
             if (!$province) {
                 $province = Province::where('name', 'like', "%{$provinceName}%")->first();
@@ -287,8 +288,8 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         }
 
         // Tỉnh nơi sinh
-        if (!empty($row['tinh_noi_sinh']) || !empty($row['place_of_birth_province'])) {
-            $placeOfBirthProvinceName = trim($row['tinh_noi_sinh'] ?? $row['place_of_birth_province']);
+        if (!empty($row['noi_sinh']) || !empty($row['tinh_noi_sinh']) || !empty($row['place_of_birth_province'])) {
+            $placeOfBirthProvinceName = trim($row['noi_sinh'] ?? $row['tinh_noi_sinh'] ?? $row['place_of_birth_province']);
             $placeOfBirthProvince = Province::where('name', $placeOfBirthProvinceName)->first();
             if (!$placeOfBirthProvince) {
                 $placeOfBirthProvince = Province::where('name', 'like', "%{$placeOfBirthProvinceName}%")->first();
