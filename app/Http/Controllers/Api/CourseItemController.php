@@ -1150,8 +1150,16 @@ class CourseItemController extends Controller
             'notes' => 'nullable|string'
         ]);
 
+        // Kiểm tra xem khóa học có thu phí không
+        if (!$courseItem->fee || $courseItem->fee <= 0) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể import học viên vào khóa học miễn phí.'
+            ], 422);
+        }
+
         try {
-            $notes = $request->input('notes', 'Thêm vào danh sách chờ qua import Excel');
+
 
             $import = new \App\Imports\UnifiedStudentImport('create_and_update', $courseItem, 'waiting', 0);
             \Maatwebsite\Excel\Facades\Excel::import($import, $request->file('file'));

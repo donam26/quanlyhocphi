@@ -38,8 +38,7 @@ class PaymentController extends Controller
             if ($request->has('search') && !empty($request->search)) {
                 $searchTerm = $request->search;
                 $query->whereHas('enrollment.student', function($q) use ($searchTerm) {
-                    $q->where('full_name', 'like', "%{$searchTerm}%")
-                      ->orWhere('student_code', 'like', "%{$searchTerm}%")
+                    $q->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchTerm}%"])
                       ->orWhere('phone', 'like', "%{$searchTerm}%");
                 })->orWhereHas('enrollment.courseItem', function($q) use ($searchTerm) {
                     $q->where('name', 'like', "%{$searchTerm}%");
@@ -938,10 +937,11 @@ class PaymentController extends Controller
             $page = $request->input('page', 1);
             $limit = $request->input('limit', 10);
 
-            $courses = $query->paginate($limit, ['*'], 'page', $page);
+            // Get all courses first, then transform and filter
+            $allCourses = $query->get();
 
             // Transform data để thêm thống kê
-            $coursesData = $courses->getCollection()->map(function ($course) {
+            $coursesData = $allCourses->map(function ($course) {
                 $unpaidEnrollments = $course->enrollments->filter(function($enrollment) {
                     if ($enrollment->status !== EnrollmentStatus::ACTIVE) return false;
 
@@ -970,18 +970,20 @@ class PaymentController extends Controller
                 return $course['unpaid_students_count'] > 0;
             })->values();
 
-            // Update the collection with filtered data
-            $courses->setCollection($coursesData);
+            // Manual pagination on filtered data
+            $total = $coursesData->count();
+            $offset = ($page - 1) * $limit;
+            $paginatedData = $coursesData->slice($offset, $limit)->values();
 
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'data' => $coursesData,
+                    'data' => $paginatedData,
                     'pagination' => [
-                        'page' => $courses->currentPage(),
-                        'limit' => $courses->perPage(),
-                        'total' => $courses->total(),
-                        'totalPages' => $courses->lastPage()
+                        'page' => $page,
+                        'limit' => $limit,
+                        'total' => $total,
+                        'totalPages' => ceil($total / $limit)
                     ]
                 ]
             ]);
