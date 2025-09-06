@@ -29,7 +29,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
     protected $discountPercentage;
     protected $importMode;
     protected $autoEnroll;
-    
+
     // Counters
     protected $createdCount = 0;
     protected $updatedCount = 0;
@@ -40,7 +40,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
 
     /**
      * Constructor
-     * 
+     *
      * @param string $importMode 'create_only', 'update_only', 'create_and_update'
      * @param CourseItem|null $courseItem Nếu có thì sẽ tự động ghi danh
      * @param string $enrollmentStatus 'active', 'waiting'
@@ -66,27 +66,40 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         try {
             DB::beginTransaction();
 
+            // Bỏ qua các dòng hướng dẫn hoặc dòng trống
+            $ho_value = $row['ho'] ?? null;
+            if (empty($ho_value) || is_string($ho_value) && (
+                str_contains($ho_value, 'HƯỚNG DẪN NHẬP LIỆU:') ||
+                str_contains($ho_value, 'Các cột BẮT BUỘC:') ||
+                str_contains($ho_value, 'Các cột khác có thể bỏ trống:') ||
+                str_contains($ho_value, 'Email sẽ được tự động tạo nếu bỏ trống')
+            )) {
+                DB::rollBack();
+                return null; // Bỏ qua dòng này
+            }
+
+            // Kiểm tra thủ công sau khi đã bỏ qua các dòng hướng dẫn
+            if (empty($row['ho']) || empty($row['ten'])) {
+                $this->skippedCount++;
+                DB::rollBack();
+                return null; // Bỏ qua vì thiếu dữ liệu bắt buộc
+            }
+
+            Log::debug('Raw row data:', $row);
+
             // Chuẩn hóa dữ liệu học viên
             $studentData = $this->normalizeStudentData($row);
 
-            // Skip empty rows - chỉ cần có họ và tên
-            if (empty($studentData) || empty($studentData['first_name']) || empty($studentData['last_name'])) {
-                DB::rollBack();
-                return null;
-            }
+            Log::debug('Normalized student data:', $studentData);
+
 
             // Tự động generate email nếu không có
             if (empty($studentData['email'])) {
                 $studentData['email'] = $this->generateFakeEmail($studentData['first_name'], $studentData['last_name']);
             }
 
-            // Tìm hoặc tạo học viên
-            $student = $this->findOrCreateStudent($studentData);
-
-            // Nếu có courseItem, thực hiện ghi danh
-            if ($this->autoEnroll && $this->courseItem) {
-                $this->handleEnrollment($student, $row);
-            }
+            // Tìm hoặc tạo học viên và xử lý ghi danh
+            $student = $this->processStudentAndEnrollment($studentData, $row);
 
             DB::commit();
             return $student;
@@ -98,39 +111,43 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         }
     }
 
-    protected function findOrCreateStudent(array $studentData)
+    protected function processStudentAndEnrollment(array $studentData, array $row)
     {
-        // Tìm học viên theo số điện thoại hoặc email
-        $existingStudent = null;
+        // 1. Tìm học viên
+        $student = null;
         if (!empty($studentData['phone'])) {
-            $existingStudent = Student::where('phone', $studentData['phone'])->first();
+            $student = Student::where('phone', $studentData['phone'])->first();
         }
-        if (!$existingStudent && !empty($studentData['email'])) {
-            $existingStudent = Student::where('email', $studentData['email'])->first();
+        if (!$student && !empty($studentData['email'])) {
+            $student = Student::where('email', $studentData['email'])->first();
         }
 
-        if ($existingStudent) {
-            // Nếu đã tồn tại
+        // 2. Xử lý tạo/cập nhật học viên
+        if ($student) {
+            // Học viên đã tồn tại
             if ($this->importMode === 'create_only') {
                 $this->skippedCount++;
-                return $existingStudent;
+            } else {
+                $student->update($studentData);
+                $this->updatedCount++;
             }
-
-            // Cập nhật thông tin
-            $existingStudent->update($studentData);
-            $this->updatedCount++;
-            return $existingStudent;
         } else {
-            // Tạo mới
+            // Học viên mới
             if ($this->importMode === 'update_only') {
                 $this->skippedCount++;
-                return null;
+                return null; // Không tạo mới và không ghi danh
+            } else {
+                $student = Student::create($studentData);
+                $this->createdCount++;
             }
-
-            $student = Student::create($studentData);
-            $this->createdCount++;
-            return $student;
         }
+
+        // 3. Xử lý ghi danh (luôn chạy nếu có courseItem và học viên hợp lệ)
+        if ($this->autoEnroll && $this->courseItem && $student) {
+            $this->handleEnrollment($student, $row);
+        }
+
+        return $student;
     }
 
     protected function handleEnrollment(Student $student, array $row)
@@ -158,7 +175,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         $originalFee = $this->courseItem->fee;
         $discountAmount = ($originalFee * $this->discountPercentage) / 100;
         $finalFee = $originalFee - $discountAmount;
-        
+
         // Ngày ghi danh
         $enrollmentDate = now();
         if (isset($row['ngay_ghi_danh']) || isset($row['enrollment_date'])) {
@@ -168,7 +185,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
                 $enrollmentDate = Carbon::parse($parsedDate);
             }
         }
-        
+
         return Enrollment::create([
             'student_id' => $student->id,
             'course_item_id' => $this->courseItem->id,
@@ -189,17 +206,17 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         // Chuyển đổi tiếng Việt sang không dấu
         $firstName = $this->removeVietnameseAccents($firstName);
         $lastName = $this->removeVietnameseAccents($lastName);
-        
+
         // Tạo email với format: ten.ho.random@gmail.com
         $randomNumber = rand(1000, 9999);
         $email = strtolower($lastName . '.' . $firstName . '.' . $randomNumber . '@gmail.com');
-        
+
         // Đảm bảo email unique
         while (Student::where('email', $email)->exists()) {
             $randomNumber = rand(1000, 9999);
             $email = strtolower($lastName . '.' . $firstName . '.' . $randomNumber . '@gmail.com');
         }
-        
+
         return $email;
     }
 
@@ -217,7 +234,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
             'ỳ', 'ý', 'ỵ', 'ỷ', 'ỹ',
             'đ'
         ];
-        
+
         $noAccents = [
             'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a', 'a',
             'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e', 'e',
@@ -227,20 +244,20 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
             'y', 'y', 'y', 'y', 'y',
             'd'
         ];
-        
+
         return str_replace($accents, $noAccents, $str);
     }
 
     public function rules(): array
     {
         return [
-            // Chỉ yêu cầu họ và tên, các trường khác có thể bỏ trống
-            'ho' => 'required|string|min:1',
-            'ten' => 'required|string|min:1',
+            // Nới lỏng rule để validator không chặn các dòng hướng dẫn
+            'ho' => 'nullable|string',
+            'ten' => 'nullable|string',
             'so_dien_thoai' => 'nullable',
             'phone' => 'nullable',
             'email' => 'nullable|email',
-            'ngay_sinh' => 'nullable', // Không validate format, để parseDate xử lý
+            'ngay_sinh' => 'nullable',
             'date_of_birth' => 'nullable',
         ];
     }
@@ -252,7 +269,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
     public function getSkippedCount() { return $this->skippedCount; }
     public function getErrors() { return $this->errors; }
     public function getTotalRowsProcessed() { return $this->totalRowsProcessed; }
-    
+
     // Alias methods for backward compatibility
     public function getImportedCount() { return $this->enrolledCount; }
 
@@ -312,10 +329,11 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
 
         // Thông tin bổ sung
         $data['current_workplace'] = DataNormalizer::normalizeText($row['noi_cong_tac'] ?? $row['current_workplace'] ?? null);
-        $data['accounting_experience_years'] = isset($row['kinh_nghiem_ke_toan']) && is_numeric($row['kinh_nghiem_ke_toan'])
-            ? (int)$row['kinh_nghiem_ke_toan'] : null;
-        $data['education_level'] = $this->normalizeEducationLevel($row['trinh_do_hoc_van'] ?? $row['education_level'] ?? null);
-        $data['hard_copy_documents'] = $this->normalizeHardCopyDocuments($row['ho_so_ban_cung'] ?? $row['hard_copy_documents'] ?? null);
+        $data['accounting_experience_years'] = $this->normalizeAccountingExperience(
+            $row['kinh_nghiem_ke_toan'] ?? $row['accounting_experience_years'] ?? null
+        );
+        $data['education_level'] = DataNormalizer::normalizeEducationLevel($row['trinh_do_hoc_van'] ?? $row['education_level'] ?? null);
+        $data['hard_copy_documents'] = DataNormalizer::normalizeHardCopyDocuments($row['ho_so_ban_cung'] ?? $row['hard_copy_documents'] ?? null);
         $data['training_specialization'] = DataNormalizer::normalizeText($row['chuyen_mon_dao_tao'] ?? $row['training_specialization'] ?? null);
 
         // Thông tin công ty
@@ -488,34 +506,36 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         return 'other';
     }
 
-    protected function normalizeEducationLevel($level)
+
+
+    protected function normalizeAccountingExperience($experience)
     {
-        if (empty($level)) return null;
+        if (empty($experience)) return null;
 
-        $level = strtolower(trim($level));
-
-        $mapping = [
-            'trung cấp' => 'vocational',
-            'cao đẳng' => 'associate',
-            'đại học' => 'bachelor',
-            'thạc sĩ' => 'master',
-            'vb2' => 'secondary'
-        ];
-
-        return $mapping[$level] ?? null;
-    }
-
-    protected function normalizeHardCopyDocuments($status)
-    {
-        if (empty($status)) return null;
-
-        $status = strtolower(trim($status));
-
-        if (in_array($status, ['đã nộp', 'da nop', 'submitted', 'có', 'co', 'yes', '1'])) {
-            return 'submitted';
+        // Nếu đã là số thì return luôn
+        if (is_numeric($experience)) {
+            $years = (int)$experience;
+            return $years >= 0 ? $years : null;
         }
 
-        return 'not_submitted';
+        // Xử lý chuỗi text
+        $experience = strtolower(trim($experience));
+
+        // Loại bỏ các ký tự không cần thiết và extract số
+        $experience = preg_replace('/[^\d\s]/', ' ', $experience);
+        $numbers = preg_split('/\s+/', trim($experience));
+
+        foreach ($numbers as $num) {
+            if (is_numeric($num)) {
+                $years = (int)$num;
+                // Chỉ chấp nhận số hợp lý (0-50 năm)
+                if ($years >= 0 && $years <= 50) {
+                    return $years;
+                }
+            }
+        }
+
+        return null;
     }
 
     protected function normalizeSource($source)

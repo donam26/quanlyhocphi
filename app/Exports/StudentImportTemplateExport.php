@@ -22,37 +22,8 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
 
     public function array(): array
     {
-        if (empty($this->templateData)) {
-            // Trả về dữ liệu mẫu với header đơn giản
-            return [
-                [
-                    "'Nguyễn Văn", // ho - format as text
-                    "'A", // ten - format as text
-                    "'0901234567", // so_dien_thoai - format as text
-                    "'123456789012", // cccd - format as text
-                    'nguyenvana@example.com', // email
-                    "'12/2/1990", // ngay_sinh - format as text
-                    'Nam', // gioi_tinh
-                    'Hồ Chí Minh', // dia_chi_hien_tai
-                    'Hà Nội', // noi_sinh
-                    'Kinh', // dan_toc
-                    'Việt Nam', // quoc_tich
-                    'Công ty ABC', // noi_cong_tac
-                    "'5", // kinh_nghiem_ke_toan - format as text
-                    'Kế toán', // chuyen_mon_dao_tao
-                    'Đã nộp', // ho_so_ban_cung
-                    'Đại học', // trinh_do_hoc_van
-                    'Công ty TNHH ABC', // ten_cong_ty
-                    "'0123456789", // ma_so_thue - format as text
-                    'ketoan@abc.com', // email_hoa_don
-                    '456 Đường XYZ, Quận 2', // dia_chi_cong_ty
-                    'facebook', // nguon
-                    'Ghi chú mẫu' // ghi_chu
-                ]
-            ];
-        }
-
-        return $this->templateData;
+        // Trả về một mảng rỗng, chỉ để export header và styles
+        return [];
     }
 
     public function headings(): array
@@ -94,9 +65,10 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
         $sheet->setCellValue('A9', '• gioi_tinh: Nam, Nữ hoặc để trống');
         $sheet->setCellValue('A10', '• ho_so_ban_cung: "Đã nộp", "Chưa nộp" hoặc để trống');
         $sheet->setCellValue('A11', '• trinh_do_hoc_van: "Đại học", "Cao đẳng", "Trung cấp", "Thạc sĩ", "VB2"');
-        $sheet->setCellValue('A12', '• nguon: "facebook", "zalo", "website", "linkedin", "tiktok", "friends"');
-        $sheet->setCellValue('A13', '• tinh_hien_tai, tinh_noi_sinh: Tên đầy đủ (ví dụ: "Hồ Chí Minh", "Hà Nội")');
-        $sheet->setCellValue('A14', '• Tất cả số điện thoại, CCCD, MST sẽ được format về text để tránh lỗi hiển thị');
+        $sheet->setCellValue('A12', '• kinh_nghiem_ke_toan: Số năm (ví dụ: 5, 10) hoặc để trống');
+        $sheet->setCellValue('A13', '• nguon: "facebook", "zalo", "website", "linkedin", "tiktok", "friends"');
+        $sheet->setCellValue('A14', '• tinh_hien_tai, tinh_noi_sinh: Tên đầy đủ (ví dụ: "Hồ Chí Minh", "Hà Nội")');
+        $sheet->setCellValue('A15', '• Tất cả số điện thoại, CCCD, MST sẽ được format về text để tránh lỗi hiển thị');
 
         return [
             // Style cho header
@@ -127,7 +99,7 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
                 ]
             ],
             // Style cho hướng dẫn
-            'A4:A12' => [
+            'A4:A15' => [
                 'font' => [
                     'size' => 10,
                     'color' => ['rgb' => '0066CC']

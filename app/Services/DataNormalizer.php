@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Carbon\Carbon;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class DataNormalizer
 {
@@ -35,7 +36,7 @@ class DataNormalizer
 
         // Chuẩn hóa string
         $dateString = trim((string) $dateValue);
-        
+
         // Các định dạng ngày phổ biến
         $formats = [
             'd/m/Y',     // 12/2/2004, 12/02/2004
@@ -135,10 +136,10 @@ class DataNormalizer
 
         // Chuyển về string và loại bỏ khoảng trắng
         $number = trim((string) $numberValue);
-        
+
         // Loại bỏ các ký tự không phải số
         $number = preg_replace('/[^0-9]/', '', $number);
-        
+
         return $number ? (int) $number : null;
     }
 
@@ -152,12 +153,12 @@ class DataNormalizer
         }
 
         $email = trim((string) $emailValue);
-        
+
         // Kiểm tra định dạng email cơ bản
         if (filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return strtolower($email);
         }
-        
+
         return null;
     }
 
@@ -171,10 +172,10 @@ class DataNormalizer
         }
 
         $text = trim((string) $textValue);
-        
+
         // Loại bỏ khoảng trắng thừa
         $text = preg_replace('/\s+/', ' ', $text);
-        
+
         return $text ?: null;
     }
 
@@ -188,19 +189,19 @@ class DataNormalizer
         }
 
         $gender = strtolower(trim((string) $genderValue));
-        
+
         // Mapping các giá trị
         $maleValues = ['nam', 'male', 'boy', 'm', '1', 'true'];
         $femaleValues = ['nữ', 'nu', 'female', 'girl', 'f', '0', 'false'];
-        
+
         if (in_array($gender, $maleValues)) {
             return 'male';
         }
-        
+
         if (in_array($gender, $femaleValues)) {
             return 'female';
         }
-        
+
         return 'other';
     }
 
@@ -213,25 +214,27 @@ class DataNormalizer
             return null;
         }
 
-        $education = strtolower(trim((string) $educationValue));
-        
-        // Mapping các giá trị
-        $mappings = [
-            'vocational' => ['trung cấp', 'tc', 'vocational'],
-            'associate' => ['cao đẳng', 'cđ', 'associate'],
-            'bachelor' => ['đại học', 'đh', 'bachelor', 'cử nhân'],
-            'master' => ['thạc sĩ', 'ths', 'master'],
-            'secondary' => ['trung học', 'thpt', 'secondary', 'vb2']
-        ];
-        
-        foreach ($mappings as $key => $values) {
-            foreach ($values as $value) {
-                if (str_contains($education, $value)) {
-                    return $key;
-                }
-            }
+        Log::debug('normalizeEducationLevel - Input:', [$educationValue]);
+        $normalized = self::removeAccents(trim((string) $educationValue));
+        Log::debug('normalizeEducationLevel - Normalized value:', [$normalized]);
+
+        if (str_contains($normalized, 'trung cap')) {
+            return 'vocational';
         }
-        
+        if (str_contains($normalized, 'cao dang') || str_contains($normalized, 'college')) {
+            return 'associate';
+        }
+        if (str_contains($normalized, 'dai hoc') || str_contains($normalized, 'university') || str_contains($normalized, 'cu nhan')) {
+            return 'bachelor';
+        }
+        if (str_contains($normalized, 'thac si') || str_contains($normalized, 'master')) {
+            return 'master';
+        }
+        if (str_contains($normalized, 'vb2') || str_contains($normalized, 'van bang 2') || str_contains($normalized, 'secondary')) {
+            return 'secondary';
+        }
+
+        Log::warning('normalizeEducationLevel - No match found for:', [$normalized]);
         return null;
     }
 
@@ -245,7 +248,7 @@ class DataNormalizer
         }
 
         $source = strtolower(trim((string) $sourceValue));
-        
+
         // Mapping các giá trị
         $mappings = [
             'facebook' => ['facebook', 'fb'],
@@ -255,7 +258,7 @@ class DataNormalizer
             'tiktok' => ['tiktok', 'tik tok'],
             'friend_referral' => ['bạn bè', 'giới thiệu', 'friend', 'referral']
         ];
-        
+
         foreach ($mappings as $key => $values) {
             foreach ($values as $value) {
                 if (str_contains($source, $value)) {
@@ -263,7 +266,7 @@ class DataNormalizer
                 }
             }
         }
-        
+
         return null;
     }
 
@@ -272,23 +275,55 @@ class DataNormalizer
      */
     public static function normalizeHardCopyDocuments($statusValue)
     {
-        if (empty($statusValue)) {
+        if (is_null($statusValue) || $statusValue === '') {
             return null;
         }
 
-        $status = strtolower(trim((string) $statusValue));
-        
-        $submittedValues = ['đã nộp', 'submitted', 'có', 'yes', '1', 'true'];
-        $notSubmittedValues = ['chưa nộp', 'not_submitted', 'không', 'no', '0', 'false'];
-        
-        if (in_array($status, $submittedValues)) {
+        Log::debug('normalizeHardCopyDocuments - Input:', [$statusValue]);
+        $normalized = self::removeAccents(trim((string) $statusValue));
+        Log::debug('normalizeHardCopyDocuments - Normalized value:', [$normalized]);
+
+        $submittedValues = ['da nop', 'submitted', 'co', 'yes', '1', 'true', 'roi'];
+        if (in_array($normalized, $submittedValues) || str_contains($normalized, 'da nop')) {
             return 'submitted';
         }
-        
-        if (in_array($status, $notSubmittedValues)) {
+
+        $notSubmittedValues = ['chua nop', 'not submitted', 'khong', 'no', '0', 'false', 'chua'];
+        if (in_array($normalized, $notSubmittedValues) || str_contains($normalized, 'chua nop')) {
             return 'not_submitted';
         }
-        
+
+        Log::warning('normalizeHardCopyDocuments - No match found for:', [$normalized]);
         return null;
     }
+
+    /**
+     * Loại bỏ dấu tiếng Việt khỏi chuỗi
+     */
+    public static function removeAccents($str)
+    {
+        if (empty($str)) return '';
+
+        // 1. Chuyển tất cả về chữ thường
+        $str = mb_strtolower((string) $str, 'UTF-8');
+
+        // 2. Tạo bảng thay thế ký tự
+        $map = [
+            'a' => 'á|à|ả|ã|ạ|ă|ắ|ằ|ẳ|ẵ|ặ|â|ấ|ầ|ẩ|ẫ|ậ',
+            'd' => 'đ',
+            'e' => 'é|è|ẻ|ẽ|ẹ|ê|ế|ề|ể|ễ|ệ',
+            'i' => 'í|ì|ỉ|ĩ|ị',
+            'o' => 'ó|ò|ỏ|õ|ọ|ô|ố|ồ|ổ|ỗ|ộ|ơ|ớ|ờ|ở|ỡ|ợ',
+            'u' => 'ú|ù|ủ|ũ|ụ|ư|ứ|ừ|ử|ữ|ự',
+            'y' => 'ý|ỳ|ỷ|ỹ|ỵ',
+        ];
+
+        foreach ($map as $replacement => $pattern) {
+            $str = preg_replace("/($pattern)/", $replacement, $str);
+        }
+
+        return $str;
+    }
 }
+
+
