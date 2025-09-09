@@ -74,6 +74,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/region/{region}', [StudentController::class, 'byRegion']);
     });
 
+        // Trash management
+        Route::get('/trashed', [StudentController::class, 'trashed']);
+        Route::post('/{id}/restore', [StudentController::class, 'restore']);
+        Route::delete('/{id}/force-delete', [StudentController::class, 'forceDelete']);
+        Route::post('/bulk-restore', [StudentController::class, 'bulkRestore']);
+        Route::post('/bulk-force-delete', [StudentController::class, 'bulkForceDelete']);
+
+
     // Course Items API
     Route::prefix('course-items')->group(function () {
         // Search and filter (must be before parameterized routes)
@@ -113,6 +121,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{courseItem}/import-students-to-waiting', [CourseItemController::class, 'importStudentsToWaiting']);
         Route::post('/{courseItem}/export-students', [CourseItemController::class, 'exportStudents']);
 
+
+        // Trash management
+        Route::get('/trashed', [CourseItemController::class, 'trashed']);
+        Route::post('/{id}/restore', [CourseItemController::class, 'restore']);
+        Route::delete('/{id}/force-delete', [CourseItemController::class, 'forceDelete']);
+
         // Waiting list
         Route::get('/{courseItem}/waiting-list', [CourseItemController::class, 'waitingList']);
         Route::get('/{courseItem}/waiting-count', [CourseItemController::class, 'waitingCount']);
@@ -140,6 +154,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/{enrollment}', [EnrollmentController::class, 'destroy']);
 
         // Enrollment actions
+
+        // Trash management
+        Route::get('/trashed', [EnrollmentController::class, 'trashed']);
+        Route::post('/{id}/restore', [EnrollmentController::class, 'restore']);
+        Route::delete('/{id}/force-delete', [EnrollmentController::class, 'forceDelete']);
+
         Route::post('/{enrollment}/confirm-waiting', [EnrollmentController::class, 'confirmFromWaiting']);
         Route::post('/{enrollment}/cancel', [EnrollmentController::class, 'cancel']);
         Route::post('/{enrollment}/move-to-waiting', [EnrollmentController::class, 'moveToWaiting']);
@@ -182,6 +202,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/{payment}', [PaymentController::class, 'update']);
         Route::delete('/{payment}', [PaymentController::class, 'destroy']);
 
+
+        // Trash management
+        Route::get('/trashed', [PaymentController::class, 'trashed']);
+        Route::post('/{id}/restore', [PaymentController::class, 'restore']);
+        Route::delete('/{id}/force-delete', [PaymentController::class, 'forceDelete']);
+
         // Payment actions
         Route::post('/{payment}/confirm', [PaymentController::class, 'confirmPayment']);
         Route::post('/{payment}/cancel', [PaymentController::class, 'cancelPayment']);
@@ -211,6 +237,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::prefix('attendance')->group(function () {
         Route::get('/', [AttendanceController::class, 'index']);
         Route::post('/', [AttendanceController::class, 'store']);
+
+
+        // Trash management
+        Route::get('/trashed', [AttendanceController::class, 'trashed']);
+        Route::post('/{id}/restore', [AttendanceController::class, 'restore']);
+        Route::delete('/{id}/force-delete', [AttendanceController::class, 'forceDelete']);
 
 
         // Tree and course structure

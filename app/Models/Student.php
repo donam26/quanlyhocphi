@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Date;
 use App\Enums\StudentSource;
 
 class Student extends Model
 {
-    use HasFactory, Date;
+    use HasFactory, Date, SoftDeletes;
 
     protected $fillable = [
         'first_name',

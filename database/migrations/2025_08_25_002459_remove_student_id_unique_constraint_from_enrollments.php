@@ -12,8 +12,13 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('enrollments', function (Blueprint $table) {
-            // Xóa unique constraint trên student_id để cho phép học viên có nhiều enrollment
-            $table->dropUnique('enrollments_student_id_unique');
+            // Kiểm tra xem constraint có tồn tại không trước khi xóa
+            $sm = Schema::getConnection()->getDoctrineSchemaManager();
+            $indexes = $sm->listTableIndexes('enrollments');
+
+            if (array_key_exists('enrollments_student_id_unique', $indexes)) {
+                $table->dropUnique('enrollments_student_id_unique');
+            }
         });
     }
 

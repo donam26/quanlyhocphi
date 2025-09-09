@@ -28,29 +28,29 @@ class AttendanceController extends Controller
     {
         try {
             $query = Attendance::with(['enrollment.student', 'enrollment.courseItem']);
-            
+
             // Filters
             if ($request->has('course_item_id')) {
                 $query->where('course_item_id', $request->course_item_id);
             }
-            
+
             if ($request->has('student_id')) {
                 $query->whereHas('enrollment', function ($q) use ($request) {
                     $q->where('student_id', $request->student_id);
                 });
             }
-            
+
             if ($request->has('attendance_date')) {
                 $query->whereDate('attendance_date', $request->attendance_date);
             }
-            
+
             if ($request->has('status')) {
                 $query->where('status', $request->status);
             }
-            
+
             $attendances = $query->orderBy('attendance_date', 'desc')
                 ->paginate($request->input('per_page', 15));
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $attendances
@@ -76,9 +76,9 @@ class AttendanceController extends Controller
                 'status' => 'required|in:present,absent,late',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $attendance = Attendance::create($validated);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $attendance->load(['enrollment.student', 'enrollment.courseItem']),
@@ -121,9 +121,9 @@ class AttendanceController extends Controller
                 'status' => 'sometimes|in:present,absent,late',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $attendance->update($validated);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $attendance->load(['enrollment.student', 'enrollment.courseItem']),
@@ -144,7 +144,7 @@ class AttendanceController extends Controller
     {
         try {
             $attendance->delete();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Điểm danh đã được xóa thành công'
@@ -167,7 +167,7 @@ class AttendanceController extends Controller
                 ->with(['enrollment.student'])
                 ->orderBy('attendance_date', 'desc')
                 ->get();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $attendances
@@ -203,7 +203,7 @@ class AttendanceController extends Controller
 
             $attendanceDate = Carbon::parse($validated['attendance_date']);
             $createdAttendances = [];
-            
+
             foreach ($validated['attendances'] as $attendanceData) {
                 // Lấy enrollment để biết course_item_id thực tế
                 $enrollment = \App\Models\Enrollment::find($attendanceData['enrollment_id']);
@@ -231,7 +231,7 @@ class AttendanceController extends Controller
                 \Log::info('Saved attendance: ' . $attendance->id . ', status: ' . $attendance->status);
                 $createdAttendances[] = $attendance->load(['enrollment.student']);
             }
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $createdAttendances,
@@ -328,10 +328,10 @@ class AttendanceController extends Controller
                 'attendance_date' => 'required|date',
                 'mark_all_as' => 'required|in:present,absent,late'
             ]);
-            
+
             $courseItem = CourseItem::findOrFail($validated['course_item_id']);
             $enrollments = $courseItem->enrollments()->where('status', 'active')->get();
-            
+
             $attendances = [];
             foreach ($enrollments as $enrollment) {
                 $attendance = Attendance::updateOrCreate(
@@ -344,10 +344,10 @@ class AttendanceController extends Controller
                         'status' => $validated['mark_all_as']
                     ]
                 );
-                
+
                 $attendances[] = $attendance->load(['enrollment.student']);
             }
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $attendances,

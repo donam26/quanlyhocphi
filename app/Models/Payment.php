@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Date;
 use App\Traits\Auditable;
 
 class Payment extends Model
 {
-    use HasFactory, Date, Auditable;
+    use HasFactory, Date, Auditable, SoftDeletes;
 
     protected $fillable = [
         'enrollment_id',

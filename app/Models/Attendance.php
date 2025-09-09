@@ -4,12 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
 use App\Traits\Date;
 
 class Attendance extends Model
 {
-    use HasFactory, Date;
+    use HasFactory, Date, SoftDeletes;
 
     protected $fillable = [
         'enrollment_id',

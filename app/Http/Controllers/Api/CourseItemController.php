@@ -37,7 +37,7 @@ class CourseItemController extends Controller
         if ($request->has('status') && $request->status) {
             $query->where('status', $request->status);
         }
-        
+
         // Filter by learning method
         if ($request->has('learning_method') && $request->learning_method) {
             $query->where('learning_method', $request->learning_method);

@@ -217,20 +217,15 @@ class EnrollmentService
     public function deleteEnrollment(Enrollment $enrollment)
     {
         DB::beginTransaction();
-        
+
         try {
-            // Xóa các thanh toán liên quan
+            // Xóa mềm các thanh toán và điểm danh liên quan
             $enrollment->payments()->delete();
-            
-            // Xóa các điểm danh liên quan
             $enrollment->attendances()->delete();
-            
-            // Xóa tiến độ lộ trình liên quan trực tiếp từ bảng
-            LearningPathProgress::where('enrollment_id', $enrollment->id)->delete();
-            
-            // Xóa ghi danh
+
+            // Xóa mềm ghi danh
             $enrollment->delete();
-            
+
             DB::commit();
             return true;
         } catch (\Exception $e) {

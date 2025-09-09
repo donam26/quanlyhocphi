@@ -4,13 +4,14 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Date;
 use App\Enums\EnrollmentStatus;
 use App\Models\LearningPathProgress;
 
 class Enrollment extends Model
 {
-    use HasFactory, Date;
+    use HasFactory, Date, SoftDeletes;
 
     protected $fillable = [
         'student_id',

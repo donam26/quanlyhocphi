@@ -246,44 +246,28 @@ class CourseItemService
     private function deleteRecursively($courseItem)
     {
         DB::beginTransaction();
-        
+
         try {
             // Lấy tất cả các con trực tiếp
             $children = $courseItem->children;
-            
-            // Xóa đệ quy từng con
+
+            // Xóa mềm đệ quy từng con
             foreach ($children as $child) {
                 $this->deleteRecursively($child);
             }
-            
-            // Xóa các lộ trình học tập và tiến độ liên quan
-            $learningPaths = LearningPath::where('course_item_id', $courseItem->id)->get();
-            foreach ($learningPaths as $path) {
-                LearningPathProgress::where('learning_path_id', $path->id)->delete();
-                $path->delete();
+
+            // Xóa mềm các ghi danh liên quan. Vì Enrollment, Payment, Attendance
+            // đã dùng SoftDeletes, các lệnh delete() sẽ là xóa mềm.
+            $enrollments = Enrollment::where('course_item_id', $courseItem->id)->get();
+            foreach ($enrollments as $enrollment) {
+                $enrollment->payments()->delete();
+                $enrollment->attendances()->delete();
+                $enrollment->delete();
             }
-            
-            // Xóa các ghi danh liên quan đến khóa học này nếu là nút lá
-            if ($courseItem->is_leaf) {
-                $enrollments = Enrollment::where('course_item_id', $courseItem->id)->get();
-                foreach ($enrollments as $enrollment) {
-                    // Xóa các thanh toán liên quan
-                    $enrollment->payments()->delete();
 
-                    // Xóa các điểm danh liên quan
-                    $enrollment->attendances()->delete();
-
-                    // Xóa tiến độ lộ trình liên quan trực tiếp từ bảng
-                    LearningPathProgress::where('enrollment_id', $enrollment->id)->delete();
-
-                    // Xóa ghi danh
-                    $enrollment->delete();
-                }
-            }
-            
-            // Xóa item hiện tại
+            // Cuối cùng, xóa mềm khóa học
             $courseItem->delete();
-            
+
             DB::commit();
             return true;
         } catch (\Exception $e) {

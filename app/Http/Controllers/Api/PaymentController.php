@@ -90,9 +90,9 @@ class PaymentController extends Controller
                 'transaction_reference' => 'nullable|string',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $payment = $this->paymentService->createPayment($validated);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payment->load(['enrollment.student', 'enrollment.courseItem']),
@@ -138,9 +138,9 @@ class PaymentController extends Controller
                 'status' => 'sometimes|in:pending,confirmed,cancelled',
                 'notes' => 'nullable|string'
             ]);
-            
+
             $payment->update($validated);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payment->load(['enrollment.student', 'enrollment.courseItem']),
@@ -161,7 +161,7 @@ class PaymentController extends Controller
     {
         try {
             $payment->delete();
-            
+
             return response()->json([
                 'success' => true,
                 'message' => 'Thanh toán đã được xóa thành công'
@@ -181,7 +181,7 @@ class PaymentController extends Controller
     {
         try {
             $payment->update(['status' => 'confirmed']);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payment->load(['enrollment.student', 'enrollment.courseItem']),
@@ -202,7 +202,7 @@ class PaymentController extends Controller
     {
         try {
             $payment->update(['status' => 'cancelled']);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payment->load(['enrollment.student', 'enrollment.courseItem']),
@@ -227,7 +227,7 @@ class PaymentController extends Controller
                 'status' => 'cancelled',
                 'notes' => ($payment->notes ?? '') . ' [REFUNDED: ' . now() . ']'
             ]);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payment->load(['enrollment.student', 'enrollment.courseItem']),
@@ -250,7 +250,7 @@ class PaymentController extends Controller
             $payments = Payment::whereHas('enrollment', function ($query) use ($student) {
                 $query->where('student_id', $student->id);
             })->with(['enrollment.courseItem'])->orderBy('payment_date', 'desc')->get();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payments
@@ -272,7 +272,7 @@ class PaymentController extends Controller
             $payments = Payment::whereHas('enrollment', function ($query) use ($courseItem) {
                 $query->where('course_item_id', $courseItem->id);
             })->with(['enrollment.student'])->orderBy('payment_date', 'desc')->get();
-            
+
             return response()->json([
                 'success' => true,
                 'data' => $payments
