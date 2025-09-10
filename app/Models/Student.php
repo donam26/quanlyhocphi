@@ -73,7 +73,7 @@ class Student extends Model
      */
     public function ethnicity()
     {
-        return $this->belongsTo(Ethnicity::class);
+        return $this->belongsTo(\App\Models\Ethnicity::class, 'ethnicity_id');
     }
 
     /**

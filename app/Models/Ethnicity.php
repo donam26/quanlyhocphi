@@ -24,7 +24,7 @@ class Ethnicity extends Model
      */
     public function students()
     {
-        return $this->hasMany(Student::class, 'nation', 'name');
+        return $this->hasMany(Student::class, 'ethnicity_id', 'id');
     }
     
     /**

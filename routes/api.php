@@ -56,6 +56,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/', [StudentController::class, 'store']);
         Route::get('/{student}', [StudentController::class, 'show']);
         Route::put('/{student}', [StudentController::class, 'update']);
+        Route::patch('/{student}/notes', [StudentController::class, 'updateNotes']);
         Route::delete('/{student}', [StudentController::class, 'destroy']);
 
         // Student relationships
@@ -136,6 +137,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{courseItem}/learning-paths', [CourseItemController::class, 'saveLearningPaths']);
     });
 
+        Route::post('/attendance/preview-matrix', [AttendanceController::class, 'previewMatrix']);
     // Enrollments API
     Route::prefix('enrollments')->group(function () {
         // Statistics and overview (phải đặt trước routes có parameter)

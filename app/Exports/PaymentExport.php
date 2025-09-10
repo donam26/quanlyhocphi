@@ -31,27 +31,48 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'student_name' => 'Họ và tên học viên',
+            // Student Basic
+            'student_name' => 'Họ và tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
             'citizen_id' => 'Số CCCD/CMND',
+            'student_date_of_birth' => 'Ngày sinh',
+            'student_gender' => 'Giới tính',
+
+            // Student Address
+            'student_province' => 'Địa chỉ hiện tại',
+            'place_of_birth_province' => 'Nơi sinh',
+            'ethnicity' => 'Dân tộc',
+
+            // Student Professional
+            'student_workplace' => 'Nơi công tác',
+
+            // Course
             'course_name' => 'Khóa học',
+
+            // Payment
             'payment_date' => 'Ngày thanh toán',
-            'amount' => 'Số tiền (VNĐ)',
+            'amount' => 'Số tiền',
             'payment_method' => 'Phương thức thanh toán',
             'status' => 'Trạng thái',
-            'transaction_reference' => 'Mã giao dịch',
+
+            // Enrollment
             'enrollment_date' => 'Ngày ghi danh',
-            'final_fee' => 'Học phí (VNĐ)',
-            'notes' => 'Ghi chú',
-            'student_address' => 'Địa chỉ học viên',
-            'student_workplace' => 'Nơi công tác'
+            'final_fee' => 'Học phí',
+
+            // System
+            'notes' => 'Ghi chú'
         ];
     }
 
     protected function loadPayments($filters)
     {
-        $query = Payment::with(['enrollment.student.province', 'enrollment.courseItem']);
+        $query = Payment::with([
+            'enrollment.student.province',
+            'enrollment.student.placeOfBirthProvince',
+            'enrollment.student.ethnicity',
+            'enrollment.courseItem'
+        ]);
 
         // Apply filters
         if (!empty($filters['search'])) {
@@ -123,31 +144,58 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
     {
         $row = [];
         $student = $payment->enrollment->student ?? null;
-        $courseItem = $payment->enrollment->courseItem ?? null;
-        
+        $enrollment = $payment->enrollment ?? null;
+        $courseItem = $enrollment->courseItem ?? null;
+
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
+                // Student Basic
                 case 'student_name':
                     $row[] = $student->full_name ?? '';
                     break;
                 case 'student_phone':
-                    $row[] = "'" . ($student->phone ?? ''); // Format as text
+                    $row[] = "'" . ($student->phone ?? '');
                     break;
                 case 'student_email':
                     $row[] = $student->email ?? '';
                     break;
                 case 'citizen_id':
-                    $row[] = "'" . ($student->citizen_id ?? ''); // Format as text
+                    $row[] = "'" . ($student->citizen_id ?? '');
                     break;
+                case 'student_date_of_birth':
+                    $row[] = $student && $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';
+                    break;
+                case 'student_gender':
+                    $row[] = $student ? $this->formatGender($student->gender) : '';
+                    break;
+
+                // Student Address
+                case 'student_province':
+                    $row[] = $student && $student->province ? $student->province->name : '';
+                    break;
+                case 'place_of_birth_province':
+                    $row[] = $student && $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
+                    break;
+                case 'ethnicity':
+                    $row[] = $student && $student->ethnicity ? $student->ethnicity->name : '';
+                    break;
+
+                // Student Professional
+                case 'student_workplace':
+                    $row[] = $student->current_workplace ?? '';
+                    break;
+
+                // Course
                 case 'course_name':
                     $row[] = $courseItem->name ?? '';
                     break;
+
+                // Payment
                 case 'payment_date':
-                    $row[] = $payment->payment_date ? 
-                        Carbon::parse($payment->payment_date)->format('d/m/Y') : '';
+                    $row[] = $payment->payment_date ? Carbon::parse($payment->payment_date)->format('d/m/Y') : '';
                     break;
                 case 'amount':
-                    $row[] = "'" . number_format($payment->amount, 0, ',', '.'); // Format as text
+                    $row[] = $payment->amount;
                     break;
                 case 'payment_method':
                     $row[] = $this->formatPaymentMethod($payment->payment_method);
@@ -155,33 +203,42 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                 case 'status':
                     $row[] = $this->formatStatus($payment->status);
                     break;
-                case 'transaction_reference':
-                    $row[] = $payment->transaction_reference ?? '';
-                    break;
+
+
+                // Enrollment
                 case 'enrollment_date':
-                    $row[] = $payment->enrollment->enrollment_date ? 
-                        $payment->enrollment->enrollment_date->format('d/m/Y') : '';
+                    $row[] = $enrollment && $enrollment->enrollment_date ? $enrollment->enrollment_date->format('d/m/Y') : '';
                     break;
                 case 'final_fee':
-                    $row[] = $payment->enrollment ?
-                        "'" . number_format($payment->enrollment->final_fee, 0, ',', '.') : ''; // Format as text
+                    $row[] = $enrollment->final_fee ?? null;
                     break;
+
+                // System
                 case 'notes':
                     $row[] = $payment->notes ?? '';
                     break;
-                case 'student_address':
-                    $row[] = $student->address ?? '';
-                    break;
-                case 'student_workplace':
-                    $row[] = $student->current_workplace ?? '';
-                    break;
+
                 default:
                     $row[] = '';
                     break;
             }
         }
-        
+
         return $row;
+    }
+
+    protected function formatGender($gender)
+    {
+        switch ($gender) {
+            case 'male':
+                return 'Nam';
+            case 'female':
+                return 'Nữ';
+            case 'other':
+                return 'Khác';
+            default:
+                return '';
+        }
     }
 
     protected function formatPaymentMethod($method)

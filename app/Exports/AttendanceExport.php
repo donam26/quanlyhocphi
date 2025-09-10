@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
+
 use Maatwebsite\Excel\Concerns\WithTitle;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
@@ -49,7 +50,10 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             // Thông tin học viên bổ sung
             'student_address' => 'Địa chỉ học viên',
             'student_workplace' => 'Nơi công tác',
-            'student_province' => 'Địa chỉ hiện tại',
+            'current_workplace' => 'Nơi công tác hiện tại',
+            'student_province' => 'Tỉnh/Thành phố',
+            'place_of_birth_province' => 'Nơi sinh',
+            'ethnicity' => 'Dân tộc',
             'student_gender' => 'Giới tính',
             'student_date_of_birth' => 'Ngày sinh',
             'education_level' => 'Trình độ học vấn',
@@ -65,10 +69,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             // Thông tin ghi danh
             'enrollment_date' => 'Ngày ghi danh',
             'enrollment_status' => 'Trạng thái ghi danh',
-            'final_fee' => 'Học phí',
-            'paid_amount' => 'Đã thanh toán',
-            'remaining_amount' => 'Còn lại',
-            'payment_status' => 'Trạng thái thanh toán'
+            'course_name' => 'Tên khóa học'
         ];
     }
 
@@ -80,6 +81,8 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
 
         $query = Attendance::with([
             'enrollment.student.province',
+            'enrollment.student.ethnicity',
+            'enrollment.student.placeOfBirthProvince',
             'enrollment.courseItem',
             'enrollment.payments'
         ])->whereIn('course_item_id', $courseIds);
@@ -172,6 +175,14 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                 case 'student_province':
                     $row[] = $student->province ? $student->province->name : '';
                     break;
+                case 'place_of_birth_province':
+                    $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
+                    break;
+                case 'ethnicity':
+                    // Workaround: Query ethnicity directly since relationship has issues
+                    $ethnicity = $student->ethnicity_id ? \App\Models\Ethnicity::find($student->ethnicity_id) : null;
+                    $row[] = $ethnicity ? $ethnicity->name : '';
+                    break;
                 case 'student_gender':
                     $row[] = $this->formatGender($student->gender);
                     break;
@@ -209,23 +220,22 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                         $enrollment->enrollment_date->format('d/m/Y') : '';
                     break;
                 case 'enrollment_status':
-                    $row[] = $this->formatEnrollmentStatus($enrollment->status);
+                    $status = $enrollment->status;
+                    $statusValue = $status instanceof \App\Enums\EnrollmentStatus ? $status->value : $status;
+                    $formattedStatus = '';
+                    switch ($statusValue) {
+                        case 'waiting': $formattedStatus = 'Chờ xác nhận'; break;
+                        case 'active': $formattedStatus = 'Đang học'; break;
+                        case 'completed': $formattedStatus = 'Hoàn thành'; break;
+                        case 'cancelled': $formattedStatus = 'Đã hủy'; break;
+                        default: $formattedStatus = $statusValue;
+                    }
+                    $row[] = $formattedStatus;
                     break;
-                case 'final_fee':
-                    $row[] = number_format($enrollment->final_fee, 0, ',', '.');
+                case 'course_name':
+                    $row[] = $enrollment->courseItem->name;
                     break;
-                case 'paid_amount':
-                    $paidAmount = $enrollment->payments->where('status', 'confirmed')->sum('amount');
-                    $row[] = number_format($paidAmount, 0, ',', '.');
-                    break;
-                case 'remaining_amount':
-                    $paidAmount = $enrollment->payments->where('status', 'confirmed')->sum('amount');
-                    $remaining = $enrollment->final_fee - $paidAmount;
-                    $row[] = number_format($remaining, 0, ',', '.');
-                    break;
-                case 'payment_status':
-                    $row[] = $this->formatPaymentStatus($enrollment->payment_status);
-                    break;
+
                 default:
                     $row[] = '';
             }
@@ -250,7 +260,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
     public function title(): string
     {
         $title = 'Điểm danh - ' . $this->courseItem->name;
-        
+
         if ($this->startDate || $this->endDate) {
             $title .= ' (';
             if ($this->startDate) {
@@ -262,7 +272,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             }
             $title .= ')';
         }
-        
+
         return $title;
     }
 

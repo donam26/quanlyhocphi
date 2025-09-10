@@ -559,6 +559,42 @@ class AttendanceController extends Controller
     }
 
     /**
+     * API: Lấy dữ liệu điểm danh dạng ma trận để xem trước
+     */
+    public function previewMatrix(Request $request)
+    {
+        try {
+            $request->validate([
+                'course_item_id' => 'required|exists:course_items,id',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date',
+                'columns' => 'sometimes|array',
+            ]);
+
+            $courseItem = CourseItem::findOrFail($request->course_item_id);
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            $columns = $request->input('columns', []);
+            $filters = $request->only(['enrollmentStatus', 'paymentStatus']);
+
+            // Sử dụng logic tương tự như AttendanceMatrixExport để lấy dữ liệu
+            $exporter = new \App\Exports\AttendanceMatrixExport($courseItem, $startDate, $endDate, $columns, $filters);
+            $data = $exporter->getPreviewData(); // Giả sử có method này
+
+            return response()->json([
+                'success' => true,
+                'data' => $data
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy dữ liệu xem trước: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    /**
      * API: Lấy cây khóa học cho điểm danh
      */
     public function getAttendanceTree()

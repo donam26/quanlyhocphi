@@ -18,7 +18,7 @@ class StudentController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Student::query();
+        $query = Student::with(['province', 'placeOfBirthProvince', 'ethnicity']);
 
         // Search - xử lý cả 'search' và 'q' parameter
         $searchTerm = $request->get('search') ?: $request->get('q');
@@ -59,7 +59,7 @@ class StudentController extends Controller
 
         // Paginate
         $perPage = $request->get('per_page', 15);
-        $students = $query->with(['province', 'ethnicity', 'enrollments.courseItem'])
+        $students = $query->with(['enrollments.courseItem'])
             ->withCount(['enrollments', 'payments'])
             ->paginate($perPage);
 
@@ -409,6 +409,43 @@ class StudentController extends Controller
             \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null;
 
         return response()->json($student);
+    }
+
+    /**
+     * Update student notes only
+     */
+    public function updateNotes(Request $request, Student $student)
+    {
+        try {
+            $rules = [
+                'notes' => 'nullable|string',
+            ];
+
+            $validator = Validator::make($request->all(), $rules);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Dữ liệu không hợp lệ',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $student->update(['notes' => $request->notes]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật ghi chú thành công',
+                'data' => $student
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi cập nhật ghi chú: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**

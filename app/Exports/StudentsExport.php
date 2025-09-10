@@ -26,19 +26,19 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'full_name' => 'Họ và tên',
+            'student_name' => 'Họ và tên',
             'first_name' => 'Họ',
             'last_name' => 'Tên',
-            'phone' => 'Số điện thoại',
+            'student_phone' => 'Số điện thoại',
             'citizen_id' => 'Số CCCD/CMND',
-            'email' => 'Email',
+            'student_email' => 'Email',
             'course_name' => 'Khóa học cụ thể',
             'course_path' => 'Đường dẫn khóa học',
-            'date_of_birth' => 'Ngày sinh',
-            'gender' => 'Giới tính',
-            'province' => 'Địa chỉ hiện tại',
+            'student_date_of_birth' => 'Ngày sinh',
+            'student_gender' => 'Giới tính',
+            'student_province' => 'Địa chỉ hiện tại',
             'place_of_birth_province' => 'Nơi sinh',
-            'ethnicity' => 'Dân tộc',
+                                    'ethnicity' => 'Dân tộc',
             'nation' => 'Quốc tịch',
             'address' => 'Địa chỉ',
             'current_workplace' => 'Nơi công tác',
@@ -80,7 +80,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
         
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
-                case 'full_name':
+                case 'student_name':
                     $row[] = $student->full_name;
                     break;
                 case 'first_name':
@@ -89,13 +89,13 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                 case 'last_name':
                     $row[] = $student->last_name;
                     break;
-                case 'phone':
+                case 'student_phone':
                     $row[] = "'" . $student->phone; // Thêm ' để Excel hiểu là text
                     break;
                 case 'citizen_id':
                     $row[] = "'" . $student->citizen_id; // Thêm ' để Excel hiểu là text
                     break;
-                case 'email':
+                case 'student_email':
                     $row[] = $student->email;
                     break;
                 case 'course_name':
@@ -108,13 +108,13 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $enrollment = $student->enrollments->first();
                     $row[] = $enrollment && $enrollment->courseItem ? $enrollment->courseItem->path : '';
                     break;
-                case 'date_of_birth':
+                case 'student_date_of_birth':
                     $row[] = $student->date_of_birth ? $student->date_of_birth->format('d/m/Y') : '';
                     break;
-                case 'gender':
+                case 'student_gender':
                     $row[] = $this->formatGender($student->gender);
                     break;
-                case 'province':
+                case 'student_province':
                     $row[] = $student->province ? $student->province->name : '';
                     break;
                 case 'place_of_birth_province':

@@ -47,6 +47,11 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
             'student_name' => 'Họ và tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
+            'date_of_birth' => 'Ngày sinh',
+            'gender' => 'Giới tính',
+            'province' => 'Tỉnh/Thành phố',
+            'place_of_birth_province' => 'Nơi sinh',
+            'ethnicity' => 'Dân tộc',
             'course_name' => 'Tên khóa học',
             'enrollment_status' => 'Trạng thái ghi danh',
             'payment_status' => 'Trạng thái thanh toán',
@@ -59,7 +64,13 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
         $courseItemIds = $this->getAllCourseItemIds($this->courseItem);
 
         $enrollmentsQuery = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->with(['student', 'courseItem', 'payments']);
+            ->with([
+                'student.province',
+                'student.placeOfBirthProvince',
+                'student.ethnicity',
+                'courseItem',
+                'payments'
+            ]);
 
         // Áp dụng bộ lọc
         if (!empty($this->filters['enrollmentStatus'])) {
@@ -124,6 +135,28 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
         return $ids;
     }
 
+    public function getPreviewData()
+    {
+        $data = $this->array(); // Reuse the array generation logic
+
+        if (empty($data)) {
+            return [
+                'headers' => [],
+                'rows' => [],
+                'course_name' => $this->courseItem->name,
+            ];
+        }
+
+        $headers = array_shift($data); // Extract header row
+        $rows = $data;
+
+        return [
+            'headers' => $headers,
+            'rows' => $rows,
+            'course_name' => $this->courseItem->name,
+        ];
+    }
+
     public function array(): array
     {
         $data = [];
@@ -179,9 +212,19 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
             case 'course_name':
                 return $enrollment->courseItem->name;
             case 'enrollment_status':
-                return $enrollment->status;
+                return $enrollment->status instanceof \App\Enums\EnrollmentStatus ? $enrollment->status->value : $enrollment->status;
             case 'payment_status':
-                return $enrollment->payment_status;
+                return $enrollment->payment_status instanceof \App\Enums\PaymentStatus ? $enrollment->payment_status->value : $enrollment->payment_status;
+            case 'date_of_birth':
+                return $enrollment->student->date_of_birth ? Carbon::parse($enrollment->student->date_of_birth)->format('d/m/Y') : '';
+            case 'gender':
+                return $enrollment->student->gender === 'male' ? 'Nam' : ($enrollment->student->gender === 'female' ? 'Nữ' : 'Khác');
+            case 'province':
+                return $enrollment->student->province->name ?? '';
+            case 'place_of_birth_province':
+                return $enrollment->student->placeOfBirthProvince->name ?? '';
+            case 'ethnicity':
+                return $enrollment->student->ethnicity->name ?? '';
             default:
                 return '';
         }
