@@ -196,4 +196,64 @@ class Enrollment extends Model
         return $query->where('status', EnrollmentStatus::WAITING->value);
     }
 
+    /**
+     * Scope cho ghi danh đang hoạt động
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', EnrollmentStatus::ACTIVE->value);
+    }
+
+    /**
+     * Scope cho ghi danh đã hoàn thành
+     */
+    public function scopeCompleted($query)
+    {
+        return $query->where('status', EnrollmentStatus::COMPLETED->value);
+    }
+
+    /**
+     * Scope lọc theo khóa học
+     */
+    public function scopeByCourse($query, $courseId)
+    {
+        return $query->where('course_item_id', $courseId);
+    }
+
+    /**
+     * Scope lọc theo học viên
+     */
+    public function scopeByStudent($query, $studentId)
+    {
+        return $query->where('student_id', $studentId);
+    }
+
+    /**
+     * Scope lọc theo khoảng thời gian ghi danh
+     */
+    public function scopeByDateRange($query, $startDate, $endDate)
+    {
+        return $query->whereBetween('enrollment_date', [$startDate, $endDate]);
+    }
+
+    /**
+     * Scope với thông tin thanh toán (optimized)
+     */
+    public function scopeWithPaymentInfo($query)
+    {
+        return $query->with(['payments' => function($q) {
+            $q->where('status', 'confirmed')->orderBy('payment_date', 'desc');
+        }]);
+    }
+
+    /**
+     * Scope cho các enrollment cần liên hệ (chưa thanh toán đủ)
+     */
+    public function scopeNeedsContact($query)
+    {
+        return $query->whereHas('student', function($q) {
+            // Logic để xác định học viên cần liên hệ
+        })->active();
+    }
+
 }

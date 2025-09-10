@@ -222,23 +222,59 @@ class Student extends Model
     }
 
     /**
-     * Scope tìm kiếm theo tên hoặc số điện thoại
+     * Scope tìm kiếm theo tên hoặc số điện thoại (Optimized version)
      */
     public function scopeSearch($query, $term)
     {
-        if (preg_match('/^\d+$/', $term)) {
-            // Nếu term chỉ chứa số, tìm kiếm chính xác theo số điện thoại
-            return $query->where('phone', 'like', "%{$term}%");
-        } else {
-            // Ngược lại, tìm kiếm theo họ, tên hoặc số điện thoại
-            return $query->where(function($q) use ($term) {
-                $q->where('first_name', 'like', "%{$term}%")
-                  ->orWhere('last_name', 'like', "%{$term}%")
-                  ->orWhereRaw("CONCAT(IFNULL(first_name, ''), ' ', IFNULL(last_name, '')) LIKE ?", ["%{$term}%"])
-                  ->orWhere('phone', 'like', "%{$term}%");
-
-            });
+        if (empty($term)) {
+            return $query;
         }
+
+        // Nếu term chỉ chứa số, tìm kiếm theo số điện thoại
+        if (preg_match('/^\d+$/', $term)) {
+            return $query->where('phone', 'like', "%{$term}%");
+        }
+
+        // Nếu term có độ dài >= 3, sử dụng fulltext search (nhanh hơn)
+        if (strlen($term) >= 3) {
+            return $query->whereRaw("MATCH(first_name, last_name, email, phone) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
+        }
+
+        // Fallback cho term ngắn, sử dụng index thông thường
+        return $query->where(function($q) use ($term) {
+            $q->where('first_name', 'like', "{$term}%")  // Sử dụng prefix search để tận dụng index
+              ->orWhere('last_name', 'like', "{$term}%")
+              ->orWhere('phone', 'like', "%{$term}%")
+              ->orWhere('email', 'like', "{$term}%");
+        });
+    }
+
+    /**
+     * Scope tìm kiếm nâng cao với fulltext
+     */
+    public function scopeFulltextSearch($query, $term)
+    {
+        if (empty($term) || strlen($term) < 3) {
+            return $query;
+        }
+
+        return $query->whereRaw("MATCH(first_name, last_name, email, phone) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
+    }
+
+    /**
+     * Scope tìm kiếm theo nơi làm việc
+     */
+    public function scopeSearchWorkplace($query, $term)
+    {
+        if (empty($term)) {
+            return $query;
+        }
+
+        if (strlen($term) >= 3) {
+            return $query->whereRaw("MATCH(current_workplace, training_specialization) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
+        }
+
+        return $query->where('current_workplace', 'like', "%{$term}%");
     }
 
     /**
