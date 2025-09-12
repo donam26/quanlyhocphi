@@ -21,7 +21,7 @@ class EnrollmentService
         if (isset($filters['status'])) {
             $query->where('status', $filters['status']);
             
-            // Nếu là status waiting và cần lọc theo cần liên hệ
+            // N?u l� status waiting v� c?n l?c theo c?n li�n h?
             if ($filters['status'] === EnrollmentStatus::WAITING->value && isset($filters['needs_contact']) && $filters['needs_contact']) {
                 $query->whereNull('notes');
             }
@@ -31,7 +31,7 @@ class EnrollmentService
             $query->where('course_item_id', $filters['course_item_id']);
         }
 
-        // Hỗ trợ filter nhiều khóa học (cho khóa cha)
+        // H? tr? filter nhi?u kh�a h?c (cho kh�a cha)
         if (isset($filters['course_item_ids']) && is_array($filters['course_item_ids'])) {
             $query->whereIn('course_item_id', $filters['course_item_ids']);
         }
@@ -93,50 +93,95 @@ class EnrollmentService
     public function createEnrollment(array $data)
     {
         DB::beginTransaction();
-        
+
         try {
-            // Tính học phí sau khi giảm giá
-            $courseItem = CourseItem::findOrFail($data['course_item_id']);
+            // Ki?m tra xem c� enrollment d� b? soft delete kh�ng
+            $existingEnrollment = Enrollment::withTrashed()
+                ->where('student_id', $data['student_id'])
+                ->where('course_item_id', $data['course_item_id'])
+                ->first();
 
-            $originalFee = $courseItem->fee;
-            $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : 0;
-            $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0;
+            if ($existingEnrollment && $existingEnrollment->trashed()) {
+                // Kh�i ph?c enrollment cu thay v� t?o m?i
+                $existingEnrollment->restore();
 
-            // Tính discount từ percentage trước
-            $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+                // C?p nh?t th�ng tin m?i
+                $courseItem = CourseItem::findOrFail($data['course_item_id']);
+                $originalFee = $courseItem->fee;
+                $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : 0;
+                $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0;
 
-            // Tổng discount = percentage discount + fixed discount amount
-            $totalDiscount = $percentageDiscount + $discountAmount;
+                // T�nh discount t? percentage tru?c
+                $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+                $totalDiscount = $percentageDiscount + $discountAmount;
+                $finalFee = max(0, $originalFee - $totalDiscount);
 
-            // Final fee = original fee - total discount (không được âm)
-            $finalFee = max(0, $originalFee - $totalDiscount);
+                // X? l� custom_fields
+                $customFields = null;
+                if ($courseItem->is_special && $courseItem->custom_fields) {
+                    $customFields = $courseItem->custom_fields;
+                } elseif (isset($data['custom_fields'])) {
+                    $customFields = $data['custom_fields'];
+                }
 
-            // Lưu discount_amount thực tế (bao gồm cả percentage và fixed amount)
-            $data['discount_amount'] = $totalDiscount;
-            $data['final_fee'] = $finalFee;
+                $existingEnrollment->update([
+                    'enrollment_date' => $data['enrollment_date'] ?? now(),
+                    'final_fee' => $finalFee,
+                    'discount_percentage' => $data['discount_percentage'] ?? 0,
+                    'discount_amount' => $discountAmount,
+                    'status' => $data['status'] ?? EnrollmentStatus::ACTIVE,
+                    'notes' => $data['notes'] ?? null,
+                    'custom_fields' => $customFields,
+                    'cancelled_at' => null, // Reset cancelled_at
+                    'previous_status' => null,
+                    'last_status_change' => now()
+                ]);
 
-            // Xử lý custom_fields: tự động sao chép từ khóa học đặc biệt
-            $customFields = null;
-            if ($courseItem->is_special && $courseItem->custom_fields) {
-                $customFields = $courseItem->custom_fields;
-            } elseif (isset($data['custom_fields'])) {
-                $customFields = $data['custom_fields'];
+                $enrollment = $existingEnrollment;
+            } else {
+                // T?o enrollment m?i
+                $courseItem = CourseItem::findOrFail($data['course_item_id']);
+
+                $originalFee = $courseItem->fee;
+                $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : 0;
+                $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0;
+
+                // T�nh discount t? percentage tru?c
+                $percentageDiscount = ($originalFee * $discountPercentage) / 100;
+
+                // T?ng discount = percentage discount + fixed discount amount
+                $totalDiscount = $percentageDiscount + $discountAmount;
+
+                // Final fee = original fee - total discount (kh�ng du?c �m)
+                $finalFee = max(0, $originalFee - $totalDiscount);
+
+                // Luu discount_amount th?c t? (bao g?m c? percentage v� fixed amount)
+                $data['discount_amount'] = $totalDiscount;
+                $data['final_fee'] = $finalFee;
+
+                // X? l� custom_fields: t? d?ng sao ch�p t? kh�a h?c d?c bi?t
+                $customFields = null;
+                if ($courseItem->is_special && $courseItem->custom_fields) {
+                    $customFields = $courseItem->custom_fields;
+                } elseif (isset($data['custom_fields'])) {
+                    $customFields = $data['custom_fields'];
+                }
+
+                // T?o ghi danh
+                $enrollment = Enrollment::create([
+                    'student_id' => $data['student_id'],
+                    'course_item_id' => $data['course_item_id'],
+                    'enrollment_date' => $data['enrollment_date'] ?? now(),
+                    'final_fee' => $finalFee,
+                    'discount_percentage' => $data['discount_percentage'] ?? 0,
+                    'discount_amount' => $discountAmount,
+                    'status' => $data['status'] ?? EnrollmentStatus::ACTIVE,
+                    'notes' => $data['notes'] ?? null,
+                    'custom_fields' => $customFields
+                ]);
             }
-
-            // Tạo ghi danh
-            $enrollment = Enrollment::create([
-                'student_id' => $data['student_id'],
-                'course_item_id' => $data['course_item_id'],
-                'enrollment_date' => $data['enrollment_date'] ?? now(),
-                'final_fee' => $finalFee,
-                'discount_percentage' => $data['discount_percentage'] ?? 0,
-                'discount_amount' => $discountAmount,
-                'status' => $data['status'] ?? EnrollmentStatus::ACTIVE,
-                'notes' => $data['notes'] ?? null,
-                'custom_fields' => $customFields
-            ]);
             
-            // Tạo thanh toán ban đầu nếu có
+            // T?o thanh to�n ban d?u n?u c�
             if (isset($data['payment_amount']) && $data['payment_amount'] > 0) {
                 Payment::create([
                     'enrollment_id' => $enrollment->id,
@@ -144,7 +189,7 @@ class EnrollmentService
                     'payment_method' => $data['payment_method'] ?? 'cash',
                     'payment_date' => $data['payment_date'] ?? now(),
                     'status' => 'confirmed',
-                    'notes' => $data['payment_notes'] ?? 'Thanh toán khi ghi danh'
+                    'notes' => $data['payment_notes'] ?? 'Thanh to�n khi ghi danh'
                 ]);
             }
             
@@ -167,32 +212,32 @@ class EnrollmentService
                 'data_to_update' => $data
             ]);
 
-            // Tính học phí sau khi giảm giá nếu có thay đổi
+            // T�nh h?c ph� sau khi gi?m gi� n?u c� thay d?i
             if (isset($data['discount_percentage']) || isset($data['discount_amount']) || isset($data['final_fee'])) {
                 $courseItem = $enrollment->courseItem;
                 $originalFee = $courseItem->fee;
 
-                // Lấy giá trị discount từ data hoặc giữ nguyên giá trị cũ
+                // L?y gi� tr? discount t? data ho?c gi? nguy�n gi� tr? cu
                 $discountPercentage = isset($data['discount_percentage']) ? (float)$data['discount_percentage'] : $enrollment->discount_percentage;
-                $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0; // Reset về 0 nếu không có trong data
+                $discountAmount = isset($data['discount_amount']) ? (float)$data['discount_amount'] : 0; // Reset v? 0 n?u kh�ng c� trong data
 
-                // Nếu có final_fee trong data, sử dụng trực tiếp (trường hợp manual override)
+                // N?u c� final_fee trong data, s? d?ng tr?c ti?p (tru?ng h?p manual override)
                 if (isset($data['final_fee'])) {
                     $finalFee = (float)$data['final_fee'];
-                    // Tính ngược discount_amount từ final_fee
+                    // T�nh ngu?c discount_amount t? final_fee
                     $totalDiscount = max(0, $originalFee - $finalFee);
                     $data['discount_amount'] = $totalDiscount;
                 } else {
-                    // Tính discount từ percentage trước
+                    // T�nh discount t? percentage tru?c
                     $percentageDiscount = ($originalFee * $discountPercentage) / 100;
 
-                    // Tổng discount = percentage discount + fixed discount amount
+                    // T?ng discount = percentage discount + fixed discount amount
                     $totalDiscount = $percentageDiscount + $discountAmount;
 
-                    // Final fee = original fee - total discount (không được âm)
+                    // Final fee = original fee - total discount (kh�ng du?c �m)
                     $finalFee = max(0, $originalFee - $totalDiscount);
 
-                    // Lưu discount_amount thực tế và final_fee
+                    // Luu discount_amount th?c t? v� final_fee
                     $data['discount_amount'] = $totalDiscount;
                     $data['final_fee'] = $finalFee;
                 }
@@ -219,11 +264,11 @@ class EnrollmentService
         DB::beginTransaction();
 
         try {
-            // Xóa mềm các thanh toán và điểm danh liên quan
+            // X�a m?m c�c thanh to�n v� di?m danh li�n quan
             $enrollment->payments()->delete();
             $enrollment->attendances()->delete();
 
-            // Xóa mềm ghi danh
+            // X�a m?m ghi danh
             $enrollment->delete();
 
             DB::commit();
@@ -610,16 +655,16 @@ class EnrollmentService
     {
         // Check if enrollment can be transferred
         if ($enrollment->status === EnrollmentStatus::COMPLETED->value) {
-            throw new \Exception('Không thể chuyển khóa học đã hoàn thành');
+            throw new \Exception('Kh�ng th? chuy?n kh�a h?c d� ho�n th�nh');
         }
 
         if ($enrollment->status === EnrollmentStatus::CANCELLED->value) {
-            throw new \Exception('Không thể chuyển khóa học đã hủy');
+            throw new \Exception('Kh�ng th? chuy?n kh�a h?c d� h?y');
         }
 
         // Check if target course is active
         if (!$targetCourse->isActive()) {
-            throw new \Exception('Khóa học đích không còn hoạt động');
+            throw new \Exception('Kh�a h?c d�ch kh�ng c�n ho?t d?ng');
         }
 
         // Check if student already has active enrollment in target course
@@ -629,12 +674,12 @@ class EnrollmentService
             ->first();
 
         if ($activeEnrollment) {
-            throw new \Exception('Học viên đã có enrollment đang hoạt động trong khóa học này');
+            throw new \Exception('H?c vi�n d� c� enrollment dang ho?t d?ng trong kh�a h?c n�y');
         }
 
         // Validate refund policy if applicable
         if (isset($data['refund_policy']) && !in_array($data['refund_policy'], ['full', 'partial', 'none', 'credit'])) {
-            throw new \Exception('Chính sách hoàn tiền không hợp lệ');
+            throw new \Exception('Ch�nh s�ch ho�n ti?n kh�ng h?p l?');
         }
     }
 
@@ -692,11 +737,11 @@ class EnrollmentService
     private function determineTransferType($totalPaid, $newFinalFee, $feeDifference)
     {
         if ($feeDifference > 0) {
-            return 'additional_payment_required'; // Cần đóng thêm
+            return 'additional_payment_required'; // C?n d�ng th�m
         } elseif ($feeDifference < 0) {
-            return 'refund_required'; // Cần hoàn tiền
+            return 'refund_required'; // C?n ho�n ti?n
         } else {
-            return 'equal_transfer'; // Chuyển đổi trực tiếp
+            return 'equal_transfer'; // Chuy?n d?i tr?c ti?p
         }
     }
 
@@ -712,7 +757,7 @@ class EnrollmentService
                 $actions[] = [
                     'type' => 'additional_payment',
                     'amount' => abs($feeDifference),
-                    'description' => 'Học viên cần đóng thêm ' . number_format(abs($feeDifference)) . ' VND'
+                    'description' => 'H?c vi�n c?n d�ng th�m ' . number_format(abs($feeDifference)) . ' VND'
                 ];
                 break;
 
@@ -722,19 +767,19 @@ class EnrollmentService
                     $actions[] = [
                         'type' => 'cash_refund',
                         'amount' => abs($feeDifference),
-                        'description' => 'Hoàn tiền mặt ' . number_format(abs($feeDifference)) . ' VND'
+                        'description' => 'Ho�n ti?n m?t ' . number_format(abs($feeDifference)) . ' VND'
                     ];
                 } elseif ($refundPolicy === 'credit') {
                     $actions[] = [
                         'type' => 'credit_balance',
                         'amount' => abs($feeDifference),
-                        'description' => 'Tạo credit balance ' . number_format(abs($feeDifference)) . ' VND'
+                        'description' => 'T?o credit balance ' . number_format(abs($feeDifference)) . ' VND'
                     ];
                 } elseif ($refundPolicy === 'none') {
                     $actions[] = [
                         'type' => 'no_refund',
                         'amount' => abs($feeDifference),
-                        'description' => 'Không hoàn tiền, số tiền thừa sẽ được ghi nhận'
+                        'description' => 'Kh�ng ho�n ti?n, s? ti?n th?a s? du?c ghi nh?n'
                     ];
                 }
                 break;
@@ -743,7 +788,7 @@ class EnrollmentService
                 $actions[] = [
                     'type' => 'direct_transfer',
                     'amount' => 0,
-                    'description' => 'Chuyển khóa học trực tiếp, không cần điều chỉnh thanh toán'
+                    'description' => 'Chuy?n kh�a h?c tr?c ti?p, kh�ng c?n di?u ch?nh thanh to�n'
                 ];
                 break;
         }
@@ -776,7 +821,7 @@ class EnrollmentService
                     [
                         'transfer_from_enrollment_id' => $oldEnrollment->id,
                         'transfer_date' => now()->toDateString(),
-                        'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học',
+                        'transfer_reason' => $data['reason'] ?? 'Chuy?n kh�a h?c',
                         'payment_calculation' => $paymentCalculation,
                         'reactivated_at' => now()->toDateTimeString()
                     ]
@@ -799,7 +844,7 @@ class EnrollmentService
             'custom_fields' => [
                 'transfer_from_enrollment_id' => $oldEnrollment->id,
                 'transfer_date' => now()->toDateString(),
-                'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học',
+                'transfer_reason' => $data['reason'] ?? 'Chuy?n kh�a h?c',
                 'payment_calculation' => $paymentCalculation
             ]
         ]);
@@ -852,7 +897,7 @@ class EnrollmentService
                 'payment_method' => $data['payment_method'] ?? 'cash',
                 'payment_date' => $data['payment_date'] ?? now(),
                 'status' => 'pending',
-                'notes' => 'Thanh toán bổ sung do chuyển khóa học - ' . $action['description']
+                'notes' => 'Thanh to�n b? sung do chuy?n kh�a h?c - ' . $action['description']
             ]);
         }
     }
@@ -869,7 +914,7 @@ class EnrollmentService
             'payment_method' => 'refund',
             'payment_date' => now(),
             'status' => 'confirmed',
-            'notes' => 'Hoàn tiền do chuyển khóa học - ' . $action['description'],
+            'notes' => 'Ho�n ti?n do chuy?n kh�a h?c - ' . $action['description'],
             'transaction_reference' => 'REFUND-' . $oldEnrollment->id . '-' . time()
         ]);
     }
@@ -886,7 +931,7 @@ class EnrollmentService
             'payment_method' => 'cash', // Changed from 'credit' to 'cash'
             'payment_date' => now(),
             'status' => 'confirmed',
-            'notes' => 'Credit balance do chuyển khóa học - ' . $action['description'],
+            'notes' => 'Credit balance do chuy?n kh�a h?c - ' . $action['description'],
             'transaction_reference' => 'CREDIT-' . time()
         ]);
     }
@@ -898,7 +943,7 @@ class EnrollmentService
     {
         // Just record the overpayment in notes
         $newEnrollment->update([
-            'notes' => $newEnrollment->notes . "\n\nGhi chú: " . $action['description']
+            'notes' => $newEnrollment->notes . "\n\nGhi ch�: " . $action['description']
         ]);
     }
 
@@ -917,7 +962,7 @@ class EnrollmentService
                 'payment_method' => $payment->payment_method,
                 'payment_date' => $payment->payment_date,
                 'status' => 'confirmed',
-                'notes' => 'Chuyển từ enrollment #' . $oldEnrollment->id . ' - ' . $payment->notes,
+                'notes' => 'Chuy?n t? enrollment #' . $oldEnrollment->id . ' - ' . $payment->notes,
                 'transaction_reference' => $payment->transaction_reference
             ]);
         }
@@ -935,35 +980,35 @@ class EnrollmentService
             ->first();
 
         if ($existingEnrollment) {
-            $notes = "CHUYỂN KHÓA HỌC (TÁI KÍCH HOẠT)\n";
-            $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
-            $notes .= "Sang: " . $targetCourse->name . " (Tái kích hoạt enrollment cũ)\n";
-            $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
-            $notes .= "Enrollment cũ ID: " . $existingEnrollment->id . " (Status: " . $existingEnrollment->status . ")\n";
+            $notes = "CHUY?N KH�A H?C (T�I K�CH HO?T)\n";
+            $notes .= "T?: " . $oldEnrollment->courseItem->name . "\n";
+            $notes .= "Sang: " . $targetCourse->name . " (T�i k�ch ho?t enrollment cu)\n";
+            $notes .= "Ng�y chuy?n: " . now()->format('d/m/Y H:i') . "\n";
+            $notes .= "Enrollment cu ID: " . $existingEnrollment->id . " (Status: " . $existingEnrollment->status . ")\n";
         } else {
-            $notes = "CHUYỂN KHÓA HỌC\n";
-            $notes .= "Từ: " . $oldEnrollment->courseItem->name . "\n";
+            $notes = "CHUY?N KH�A H?C\n";
+            $notes .= "T?: " . $oldEnrollment->courseItem->name . "\n";
             $notes .= "Sang: " . $targetCourse->name . "\n";
-            $notes .= "Ngày chuyển: " . now()->format('d/m/Y H:i') . "\n";
+            $notes .= "Ng�y chuy?n: " . now()->format('d/m/Y H:i') . "\n";
         }
 
         if (isset($data['reason'])) {
-            $notes .= "Lý do: " . $data['reason'] . "\n";
+            $notes .= "L� do: " . $data['reason'] . "\n";
         }
 
-        $notes .= "\nTHÔNG TIN THANH TOÁN:\n";
-        $notes .= "Học phí cũ: " . number_format($paymentCalculation['old_fee']) . " VND\n";
-        $notes .= "Học phí mới: " . number_format($paymentCalculation['new_final_fee']) . " VND\n";
-        $notes .= "Đã thanh toán: " . number_format($paymentCalculation['total_paid']) . " VND\n";
+        $notes .= "\nTH�NG TIN THANH TO�N:\n";
+        $notes .= "H?c ph� cu: " . number_format($paymentCalculation['old_fee']) . " VND\n";
+        $notes .= "H?c ph� m?i: " . number_format($paymentCalculation['new_final_fee']) . " VND\n";
+        $notes .= "�� thanh to�n: " . number_format($paymentCalculation['total_paid']) . " VND\n";
 
         if ($paymentCalculation['fee_difference'] > 0) {
-            $notes .= "Cần đóng thêm: " . number_format($paymentCalculation['fee_difference']) . " VND\n";
+            $notes .= "C?n d�ng th�m: " . number_format($paymentCalculation['fee_difference']) . " VND\n";
         } elseif ($paymentCalculation['fee_difference'] < 0) {
-            $notes .= "Thừa thanh toán: " . number_format(abs($paymentCalculation['fee_difference'])) . " VND\n";
+            $notes .= "Th?a thanh to�n: " . number_format(abs($paymentCalculation['fee_difference'])) . " VND\n";
         }
 
         if (isset($data['notes'])) {
-            $notes .= "\nGhi chú thêm: " . $data['notes'];
+            $notes .= "\nGhi ch� th�m: " . $data['notes'];
         }
 
         return $notes;
@@ -978,11 +1023,11 @@ class EnrollmentService
         $enrollment->update([
             'status' => EnrollmentStatus::CANCELLED->value,
             'cancelled_at' => now(),
-            'notes' => ($enrollment->notes ?? '') . "\n\nĐã chuyển sang khóa học: " . $targetCourse->name . " vào " . now()->format('d/m/Y H:i'),
+            'notes' => ($enrollment->notes ?? '') . "\n\n�� chuy?n sang kh�a h?c: " . $targetCourse->name . " v�o " . now()->format('d/m/Y H:i'),
             'custom_fields' => array_merge($enrollment->custom_fields ?? [], [
                 'transferred_to_course_id' => $targetCourse->id,
                 'transfer_date' => now()->toDateString(),
-                'transfer_reason' => $data['reason'] ?? 'Chuyển khóa học'
+                'transfer_reason' => $data['reason'] ?? 'Chuy?n kh�a h?c'
             ])
         ]);
 
@@ -991,7 +1036,7 @@ class EnrollmentService
             ->where('status', 'pending')
             ->update([
                 'status' => 'cancelled',
-                'notes' => 'Hủy do chuyển khóa học'
+                'notes' => 'H?y do chuy?n kh�a h?c'
             ]);
     }
 
@@ -1103,15 +1148,15 @@ class EnrollmentService
         // Headers
         fputcsv($file, [
             'ID',
-            'Học viên',
-            'Số điện thoại',
-            'Khóa học',
-            'Ngày ghi danh',
-            'Trạng thái',
-            'Học phí',
-            'Chiết khấu (%)',
-            'Học phí cuối',
-            'Ghi chú'
+            'H?c vi�n',
+            'S? di?n tho?i',
+            'Kh�a h?c',
+            'Ng�y ghi danh',
+            'Tr?ng th�i',
+            'H?c ph�',
+            'Chi?t kh?u (%)',
+            'H?c ph� cu?i',
+            'Ghi ch�'
         ]);
 
         // Data
