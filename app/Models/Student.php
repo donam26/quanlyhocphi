@@ -230,22 +230,37 @@ class Student extends Model
             return $query;
         }
 
-        // Nếu term chỉ chứa số, tìm kiếm theo số điện thoại
+        // Trim and sanitize the search term
+        $term = trim($term);
+
+        // Nếu term chỉ chứa số, tìm kiếm theo SĐT hoặc CCCD
         if (preg_match('/^\d+$/', $term)) {
-            return $query->where('phone', 'like', "%{$term}%");
+            return $query->where(function ($q) use ($term) {
+                $q->where('phone', 'like', "%{$term}%")
+                  ->orWhere('citizen_id', 'like', "%{$term}%");
+            });
         }
 
-        // Nếu term có độ dài >= 3, sử dụng fulltext search (nhanh hơn)
-        if (strlen($term) >= 3) {
-            return $query->whereRaw("MATCH(first_name, last_name, email, phone) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
-        }
+        // Tách chuỗi tìm kiếm thành các từ
+        $searchWords = explode(' ', $term);
+        $searchWords = array_filter($searchWords); // Bỏ các phần tử rỗng
 
-        // Fallback cho term ngắn, sử dụng index thông thường
-        return $query->where(function($q) use ($term) {
-            $q->where('first_name', 'like', "{$term}%")  // Sử dụng prefix search để tận dụng index
-              ->orWhere('last_name', 'like', "{$term}%")
-              ->orWhere('phone', 'like', "%{$term}%")
-              ->orWhere('email', 'like', "{$term}%");
+        // Xây dựng câu truy vấn tìm kiếm cho từng từ trong tên
+        return $query->where(function ($q) use ($searchWords, $term) {
+            // Ưu tiên tìm kiếm email và SĐT với cả chuỗi gốc
+            $q->orWhere('email', 'like', "%{$term}%")
+              ->orWhere('phone', 'like', "%{$term}%");
+
+            // Xây dựng truy vấn phức tạp cho tên
+            $q->orWhere(function ($nameQuery) use ($searchWords) {
+                $nameQuery->where(function ($subQuery) use ($searchWords) {
+                    // Yêu cầu TẤT CẢ các từ phải có mặt trong họ tên đầy đủ
+                    foreach ($searchWords as $word) {
+                        // Sử dụng CONCAT để tìm kiếm trên họ và tên đầy đủ
+                        $subQuery->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$word}%"]);
+                    }
+                });
+            });
         });
     }
 

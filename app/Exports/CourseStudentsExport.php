@@ -43,12 +43,14 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'student_date_of_birth' => 'Ngày sinh',
             'student_gender' => 'Giới tính',
             'student_province' => 'Địa chỉ hiện tại',
+            'place_of_birth_province' => 'Nơi sinh',
+            'ethnicity' => 'Dân tộc',
             'student_address' => 'Địa chỉ',
-            'student_workplace' => 'Nơi công tác',
+            'current_workplace' => 'Nơi công tác',
 
             // Thông tin học vấn và kinh nghiệm
-            'student_experience' => 'Kinh nghiệm kế toán (năm)',
-            'student_education' => 'Trình độ học vấn',
+            'accounting_experience_years' => 'Kinh nghiệm kế toán (năm)',
+            'education_level' => 'Trình độ học vấn',
             'training_specialization' => 'Chuyên môn đào tạo',
             'hard_copy_documents' => 'Hồ sơ bản cứng',
 
@@ -61,7 +63,8 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             // Thông tin ghi danh và thanh toán
             'enrollment_date' => 'Ngày ghi danh',
             'enrollment_status' => 'Trạng thái ghi danh',
-            'final_fee' => 'Học phí',
+            'course_fee' => 'Học phí khóa học',
+            'final_fee' => 'Học phí sau chiết khấu',
             'discount_percentage' => 'Chiết khấu (%)',
             'discount_amount' => 'Số tiền chiết khấu',
             'total_paid' => 'Đã thanh toán',
@@ -86,7 +89,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
 
         // Query enrollments từ tất cả khóa học (cha + con)
         $query = Enrollment::whereIn('course_item_id', $courseItemIds)
-            ->with(['student.province', 'payments', 'courseItem']);
+            ->with(['student.province', 'student.placeOfBirthProvince', 'student.ethnicity', 'payments', 'courseItem']);
 
         // Apply filters
         if (!empty($this->filters['status'])) {
@@ -159,13 +162,19 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                 case 'student_province':
                     $row[] = $student->province ? $student->province->name : '';
                     break;
-                case 'student_workplace':
-                    $row[] = $student->current_workplace;
+                case 'place_of_birth_province':
+                    $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
                     break;
-                case 'student_experience':
-                    $row[] = $student->accounting_experience_years;
+                case 'ethnicity':
+                    $row[] = $student->ethnicity ? $student->ethnicity->name : '';
                     break;
-                case 'student_education':
+                case 'current_workplace':
+                    $row[] = $student->current_workplace ?? '';
+                    break;
+                case 'accounting_experience_years':
+                    $row[] = $student->accounting_experience_years ?? '';
+                    break;
+                case 'education_level':
                     $row[] = $this->formatEducationLevel($student->education_level);
                     break;
                 case 'training_specialization':
@@ -195,8 +204,11 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                 case 'enrollment_status':
                     $row[] = $this->formatEnrollmentStatus($enrollment->status->value ?? $enrollment->status);
                     break;
+                case 'course_fee':
+                    $row[] = "'" . number_format($enrollment->courseItem->fee, 0, ',', '.'); // Học phí gốc của khóa học
+                    break;
                 case 'final_fee':
-                    $row[] = "'" . number_format($enrollment->final_fee, 0, ',', '.'); // Format as text
+                    $row[] = "'" . number_format($enrollment->final_fee, 0, ',', '.'); // Học phí sau chiết khấu
                     break;
                 case 'discount_percentage':
                     $row[] = "'" . $enrollment->discount_percentage . '%'; // Format as text

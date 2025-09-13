@@ -62,10 +62,40 @@ class PaymentController extends Controller
                 $query->whereDate('payment_date', '<=', $request->end_date);
             }
 
+            // Sorting parameters
+            $sortBy = $request->input('sort_by', 'payment_date');
+            $sortOrder = $request->input('sort_order', 'desc');
+
+            // Validate sort fields to prevent SQL injection
+            $allowedSortFields = [
+                'payment_date',
+                'amount',
+                'status',
+                'payment_method'
+            ];
+
+            if (!in_array($sortBy, $allowedSortFields)) {
+                $sortBy = 'payment_date';
+            }
+
+            $sortOrder = in_array(strtolower($sortOrder), ['asc', 'desc']) ? strtolower($sortOrder) : 'desc';
+
+            // Apply sorting
+            if ($sortBy === 'student_name') {
+                // For student name sorting, we need to join tables
+                $query->join('enrollments', 'payments.enrollment_id', '=', 'enrollments.id')
+                      ->join('students', 'enrollments.student_id', '=', 'students.id')
+                      ->orderBy('students.first_name', $sortOrder)
+                      ->orderBy('students.last_name', $sortOrder)
+                      ->select('payments.*');
+            } else {
+                $query->orderBy($sortBy, $sortOrder);
+            }
+
             // Pagination parameters
             $perPage = $request->input('per_page', 15);
 
-            $payments = $query->orderBy('payment_date', 'desc')->paginate($perPage);
+            $payments = $query->paginate($perPage);
 
             return response()->json($payments);
         } catch (\Exception $e) {
@@ -153,6 +183,32 @@ class PaymentController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * API: Cập nhật ghi chú thanh toán
+     */
+    public function updateNotes(Request $request, Payment $payment)
+    {
+        try {
+            $validated = $request->validate([
+                'notes' => 'nullable|string|max:1000'
+            ]);
+
+            $payment->update(['notes' => $validated['notes']]);
+
+            return response()->json([
+                'success' => true,
+                'data' => $payment->fresh(),
+                'message' => 'Ghi chú thanh toán đã được cập nhật thành công'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi cập nhật ghi chú: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
 
     /**
      * API: Xóa thanh toán
@@ -920,6 +976,18 @@ class PaymentController extends Controller
                 });
             }
 
+            // Sorting parameters
+            $sortBy = $request->input('sort_by', 'name');
+            $sortOrder = $request->input('sort_order', 'asc');
+
+            // Validate sort fields
+            $allowedSortFields = ['name', 'total_students', 'unpaid_students_count', 'total_debt'];
+            if (!in_array($sortBy, $allowedSortFields)) {
+                $sortBy = 'name';
+            }
+
+            $sortOrder = in_array(strtolower($sortOrder), ['asc', 'desc']) ? strtolower($sortOrder) : 'asc';
+
             // Pagination parameters
             $page = $request->input('page', 1);
             $limit = $request->input('per_page', $request->input('limit', 15));
@@ -957,7 +1025,12 @@ class PaymentController extends Controller
                 return $course['unpaid_students_count'] > 0;
             })->values();
 
-            // Manual pagination on filtered data
+            // Apply sorting to transformed data
+            $coursesData = $coursesData->sortBy(function($course) use ($sortBy) {
+                return $course[$sortBy];
+            }, SORT_REGULAR, $sortOrder === 'desc')->values();
+
+            // Manual pagination on filtered and sorted data
             $total = $coursesData->count();
             $offset = ($page - 1) * $limit;
             $paginatedData = $coursesData->slice($offset, $limit)->values();

@@ -156,7 +156,7 @@ class LearningPathController extends Controller
             $overallProgress = $totalCourses > 0 ? ($completedCourses / $totalCourses) * 100 : 0;
 
             // Thống kê theo ngành
-            $majorBreakdown = $coursesWithProgress->groupBy('major')->map(function($courses, $major) {
+            $majorBreakdown = $coursesWithProgress->groupBy('major')->map(function($courses) {
                 $total = $courses->count();
                 $completed = $courses->where('progress_percentage', 100)->count();
 
@@ -189,7 +189,7 @@ class LearningPathController extends Controller
         try {
             DB::beginTransaction();
 
-            $course = CourseItem::findOrFail($courseId);
+            CourseItem::findOrFail($courseId);
 
             LearningPath::where('course_item_id', $courseId)
                 ->update(['is_completed' => true]);
@@ -215,7 +215,7 @@ class LearningPathController extends Controller
         try {
             DB::beginTransaction();
 
-            $course = CourseItem::findOrFail($courseId);
+            CourseItem::findOrFail($courseId);
 
             LearningPath::where('course_item_id', $courseId)
                 ->update(['is_completed' => false]);
@@ -234,41 +234,70 @@ class LearningPathController extends Controller
         }
     }
 
-    public function getEnrollmentsGroupedByParent(Request $request)
+        public function getEnrollmentsGroupedByParent(Request $request)
     {
         $user = $request->user();
-        $studentId = null;
 
-        if ($user->isAdmin() && $request->has('student_id')) {
-            $studentId = $request->input('student_id');
-        } elseif ($user->student) {
-            $studentId = $user->student->id;
-        } else if ($user->isAdmin()) {
-            // Fallback for admin to see some data for testing
-            $firstStudent = \App\Models\Student::first();
-            if ($firstStudent) {
-                $studentId = $firstStudent->id;
-            }
+        // Define recursive relationship for eager loading all parents
+        $withParents = ['learningPaths'];
+        for ($i = 0; $i < 10; $i++) { // Assuming max 10 levels of depth
+            $withParents[] = rtrim(str_repeat('parent.', $i + 1), '.');
         }
 
+        // Admin sees all courses with learning paths
+        if ($user->isAdmin()) {
+            // Lấy tất cả các khóa học có lộ trình, không phân biệt cha con
+            $courses = CourseItem::whereHas('learningPaths')
+                ->with($withParents)
+                ->get();
+
+            $grouped = [];
+            foreach ($courses as $course) {
+                $parent = $course->getRootParent();
+                if (!isset($grouped[$parent->id])) {
+                    $grouped[$parent->id] = [
+                        'parent_id' => $parent->id,
+                        'parent_name' => $parent->name,
+                        'courses' => [],
+                    ];
+                }
+
+                $totalSteps = $course->learningPaths->count();
+                $completedSteps = $course->learningPaths->where('is_completed', true)->count();
+                $progress = $totalSteps > 0 ? ($completedSteps / $totalSteps) * 100 : 0;
+
+                $grouped[$parent->id]['courses'][] = [
+                    'id' => $course->id,
+                    'name' => $course->name,
+                    'progress' => $progress,
+                    'total_steps' => $totalSteps,
+                    'completed_steps' => $completedSteps,
+                    'is_enrolled' => true, // For admin view, assume all are relevant
+                ];
+            }
+            return response()->json(array_values($grouped));
+        }
+
+        // Student sees their own enrolled courses with learning paths
+        $studentId = $user->student->id ?? null;
         if (!$studentId) {
             return response()->json([]);
         }
 
-        // Lấy tất cả các khóa học con (is_leaf = 1) có lộ trình học tập
-        $courses = CourseItem::where('is_leaf', 1)
-            ->whereHas('learningPaths')
-            ->with(['parent.parent', 'learningPaths'])
+        $enrollments = Enrollment::where('student_id', $studentId)
+            ->whereHas('courseItem.learningPaths')
+            ->with(['courseItem' => function ($query) use ($withParents) {
+                $query->with($withParents);
+            }])
             ->get();
 
-        // Lấy danh sách ghi danh của học viên để tra cứu
-        $studentEnrollments = Enrollment::where('student_id', $studentId)
-            ->pluck('course_item_id')
-            ->flip(); // flip để tra cứu O(1)
+        if ($enrollments->isEmpty()) {
+            return response()->json([]);
+        }
 
         $grouped = [];
-
-        foreach ($courses as $course) {
+        foreach ($enrollments as $enrollment) {
+            $course = $enrollment->courseItem;
             $parent = $course->getRootParent();
 
             if (!isset($grouped[$parent->id])) {
@@ -280,40 +309,20 @@ class LearningPathController extends Controller
             }
 
             $totalSteps = $course->learningPaths->count();
-            $completedSteps = 0;
-            $progress = 0;
-            $isEnrolled = isset($studentEnrollments[$course->id]);
+            $completedSteps = $course->learningPaths->where('is_completed', true)->count();
+            $progress = $totalSteps > 0 ? ($completedSteps / $totalSteps) * 100 : 0;
 
-            // Chỉ tính tiến độ nếu học viên đã ghi danh
-            if ($isEnrolled) {
-                // Cần lấy đúng tiến độ của student, logic này cần được điều chỉnh
-                // Tạm thời tính toán dựa trên learning paths chung
-                $completedSteps = $course->learningPaths->where('is_completed', true)->count();
-                if ($totalSteps > 0) {
-                    $progress = ($completedSteps / $totalSteps) * 100;
-                }
-            }
-
-            // Thêm khóa học vào danh sách nếu nó có lộ trình
-            if ($totalSteps > 0) {
-                $grouped[$parent->id]['courses'][] = [
-                    'id' => $course->id,
-                    'name' => $course->name,
-                    'progress' => $progress,
-                    'total_steps' => $totalSteps,
-                    'completed_steps' => $completedSteps,
-                    'is_enrolled' => $isEnrolled,
-                    // 'enrollment_id' => $isEnrolled ? $studentEnrollments[$course->id] : null, // Cần lấy enrollment id đúng
-                ];
-            }
+            $grouped[$parent->id]['courses'][] = [
+                'id' => $course->id,
+                'name' => $course->name,
+                'progress' => $progress,
+                'total_steps' => $totalSteps,
+                'completed_steps' => $completedSteps,
+                'is_enrolled' => true,
+            ];
         }
 
-        // Lọc ra các group không có course nào
-        $filteredGroups = array_filter($grouped, function ($group) {
-            return !empty($group['courses']);
-        });
-
-        return response()->json(array_values($filteredGroups));
+        return response()->json(array_values($grouped));
     }
 
     /**

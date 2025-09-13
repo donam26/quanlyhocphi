@@ -9,10 +9,12 @@ use App\Models\Enrollment;
 use App\Models\Payment;
 use App\Models\CourseItem;
 use App\Enums\EnrollmentStatus;
+use App\Traits\PaymentStatusTrait;
 use Illuminate\Support\Facades\Validator;
 
 class StudentController extends Controller
 {
+    use PaymentStatusTrait;
     /**
      * Display a listing of students
      */
@@ -1101,16 +1103,7 @@ class StudentController extends Controller
         }
     }
 
-    /**
-     * Get payment status
-     */
-    private function getPaymentStatus($totalFee, $paidAmount)
-    {
-        if ($totalFee == 0) return 'no_fee';
-        if ($paidAmount >= $totalFee) return 'paid';
-        if ($paidAmount > 0) return 'partial';
-        return 'unpaid';
-    }
+
 
     /**
      * Đếm tổng số dòng trong file Excel

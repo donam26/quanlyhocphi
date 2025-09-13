@@ -7,6 +7,7 @@ use App\Models\Enrollment;
 use App\Models\CourseItem;
 use App\Services\EnrollmentService;
 use App\Enums\EnrollmentStatus;
+use App\Traits\PaymentStatusTrait;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Log;
@@ -15,6 +16,8 @@ use App\Rules\ValidDiscountRule;
 
 class EnrollmentController extends Controller
 {
+    use PaymentStatusTrait;
+    use PaymentStatusTrait;
     protected $enrollmentService;
 
     public function __construct(EnrollmentService $enrollmentService)
@@ -34,6 +37,17 @@ class EnrollmentController extends Controller
             ]);
 
             $enrollments = $this->enrollmentService->getEnrollments($filters);
+
+            // Add payment_status to each enrollment
+            $enrollments->through(function ($enrollment) {
+                $totalFee = $enrollment->final_fee;
+                $paidAmount = $enrollment->payments
+                    ->where('status', 'confirmed')
+                    ->sum('amount');
+
+                $enrollment->payment_status = $this->getPaymentStatus($totalFee, $paidAmount);
+                return $enrollment;
+            });
 
             return response()->json([
                 'success' => true,
@@ -595,7 +609,7 @@ class EnrollmentController extends Controller
                     'final_fee' => $enrollment->final_fee,
                     'total_paid' => $totalPaid,
                     'remaining_amount' => $remaining,
-                    'payment_status' => $remaining > 0 ? 'unpaid' : 'paid',
+                    'payment_status' => $this->getPaymentStatus($enrollment->final_fee, $totalPaid),
                     'payment_percentage' => $enrollment->final_fee > 0 ? round(($totalPaid / $enrollment->final_fee) * 100, 2) : 0,
                     'status' => $enrollment->status,
                     'last_payment_date' => $enrollment->payments->where('status', 'confirmed')->sortByDesc('payment_date')->first()?->payment_date?->format('d/m/Y'),
@@ -684,4 +698,6 @@ class EnrollmentController extends Controller
             }
         }
     }
+
+
 }

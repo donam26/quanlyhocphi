@@ -203,6 +203,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/{payment}', [PaymentController::class, 'show']);
         Route::put('/{payment}', [PaymentController::class, 'update']);
         Route::delete('/{payment}', [PaymentController::class, 'destroy']);
+        Route::patch('/{payment}/notes', [PaymentController::class, 'updateNotes']);
 
 
         // Trash management
