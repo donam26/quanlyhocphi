@@ -34,7 +34,8 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
     {
         $this->columnMappings = [
             // Thông tin cơ bản
-            'student_name' => 'Họ và tên',
+            'student_last_name' => 'Họ',
+            'student_first_name' => 'Tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
             'citizen_id' => 'Số CCCD/CMND',
@@ -43,7 +44,7 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
             'student_date_of_birth' => 'Ngày sinh',
             'student_gender' => 'Giới tính',
             'student_province' => 'Địa chỉ hiện tại',
-            'place_of_birth_province' => 'Nơi sinh',
+                        'place_of_birth_province' => 'Nơi sinh',
             'ethnicity' => 'Dân tộc',
             'student_address' => 'Địa chỉ',
             'current_workplace' => 'Nơi công tác',
@@ -132,8 +133,11 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
         
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
-                case 'student_name':
-                    $row[] = $student->full_name;
+                case 'student_last_name':
+                    $row[] = $student->first_name; // Note: first_name in DB is Họ
+                    break;
+                case 'student_first_name':
+                    $row[] = $student->last_name; // Note: last_name in DB is Tên
                     break;
                 case 'student_phone':
                     $row[] = "'" . $student->phone; // Thêm ' để Excel hiểu là text
@@ -162,8 +166,11 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                 case 'student_province':
                     $row[] = $student->province ? $student->province->name : '';
                     break;
-                case 'place_of_birth_province':
+                                case 'place_of_birth_province':
                     $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
+                    break;
+                case 'ethnicity':
+                    $row[] = $student->ethnicity ? $student->ethnicity->name : '';
                     break;
                 case 'ethnicity':
                     $row[] = $student->ethnicity ? $student->ethnicity->name : '';

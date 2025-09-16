@@ -275,7 +275,19 @@ class LearningPathController extends Controller
                     'is_enrolled' => true, // For admin view, assume all are relevant
                 ];
             }
-            return response()->json(array_values($grouped));
+                        // Lọc bỏ các khóa học đã hoàn thành 100%
+            foreach ($grouped as &$group) {
+                $group['courses'] = array_values(array_filter($group['courses'], function ($course) {
+                    return $course['progress'] < 100;
+                }));
+            }
+
+            // Lọc bỏ các nhóm rỗng sau khi đã lọc khóa học
+            $filteredGrouped = array_values(array_filter($grouped, function ($group) {
+                return !empty($group['courses']);
+            }));
+
+            return response()->json($filteredGrouped);
         }
 
         // Student sees their own enrolled courses with learning paths
@@ -322,7 +334,19 @@ class LearningPathController extends Controller
             ];
         }
 
-        return response()->json(array_values($grouped));
+                // Lọc bỏ các khóa học đã hoàn thành 100%
+        foreach ($grouped as &$group) {
+            $group['courses'] = array_values(array_filter($group['courses'], function ($course) {
+                return $course['progress'] < 100;
+            }));
+        }
+
+        // Lọc bỏ các nhóm rỗng sau khi đã lọc khóa học
+        $filteredGrouped = array_values(array_filter($grouped, function ($group) {
+            return !empty($group['courses']);
+        }));
+
+        return response()->json($filteredGrouped);
     }
 
     /**

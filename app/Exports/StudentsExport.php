@@ -26,9 +26,8 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'student_name' => 'Họ và tên',
-            'first_name' => 'Họ',
-            'last_name' => 'Tên',
+            'student_last_name' => 'Họ',
+            'student_first_name' => 'Tên',
             'student_phone' => 'Số điện thoại',
             'citizen_id' => 'Số CCCD/CMND',
             'student_email' => 'Email',
@@ -80,13 +79,10 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
         
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
-                case 'student_name':
-                    $row[] = $student->full_name;
-                    break;
-                case 'first_name':
+                case 'student_last_name':
                     $row[] = $student->first_name;
                     break;
-                case 'last_name':
+                case 'student_first_name':
                     $row[] = $student->last_name;
                     break;
                 case 'student_phone':

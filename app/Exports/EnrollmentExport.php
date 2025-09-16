@@ -13,7 +13,7 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use Carbon\Carbon;
+
 
 class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize, WithTitle
 {
@@ -31,7 +31,8 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'student_name' => 'Họ và tên học viên',
+            'student_last_name' => 'Họ',
+            'student_first_name' => 'Tên',
             'student_phone' => 'Số điện thoại',
             'student_citizen_id' => 'Số CCCD/CMND',
             'student_email' => 'Email',
@@ -121,8 +122,11 @@ class EnrollmentExport implements FromCollection, WithHeadings, WithMapping, Wit
         
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
-                case 'student_name':
-                    $row[] = $student->full_name ?? '';
+                case 'student_last_name':
+                    $row[] = $student->first_name ?? '';
+                    break;
+                case 'student_first_name':
+                    $row[] = $student->last_name ?? '';
                     break;
                 case 'student_phone':
                     $row[] = "'" . ($student->phone ?? ''); // Thêm ' để Excel hiểu là text
