@@ -32,7 +32,8 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
     {
         $this->columnMappings = [
             // Student Basic
-            'student_name' => 'Họ và tên',
+            'student_last_name' => 'Họ',
+            'student_first_name' => 'Tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
             'citizen_id' => 'Số CCCD/CMND',
@@ -150,8 +151,11 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
                 // Student Basic
-                case 'student_name':
-                    $row[] = $student->full_name ?? '';
+                case 'student_last_name':
+                    $row[] = $student->first_name ?? '';
+                    break;
+                case 'student_first_name':
+                    $row[] = $student->last_name ?? '';
                     break;
                 case 'student_phone':
                     $row[] = "'" . ($student->phone ?? '');
@@ -177,7 +181,15 @@ class PaymentExport implements FromCollection, WithHeadings, WithMapping, WithSt
                     $row[] = $student && $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
                     break;
                 case 'ethnicity':
-                    $row[] = $student && $student->ethnicity ? $student->ethnicity->name : '';
+                    $ethnicityName = '';
+                    if ($student && $student->ethnicity) {
+                        $ethnicityName = $student->ethnicity->name;
+                    } elseif ($student && $student->ethnicity_id) {
+                        // Fallback: Query directly if relationship is not loaded
+                        $ethnicity = \App\Models\Ethnicity::find($student->ethnicity_id);
+                        $ethnicityName = $ethnicity ? $ethnicity->name : 'Không xác định';
+                    }
+                    $row[] = $ethnicityName;
                     break;
 
                 // Student Professional

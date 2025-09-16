@@ -9,6 +9,7 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use Illuminate\Support\Facades\Log;
 
 class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
 {
@@ -55,6 +56,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
             'enrollments_count' => 'Số khóa học',
             'total_paid' => 'Tổng đã thanh toán',
             'total_fee' => 'Tổng học phí',
+            'remaining_amount' => 'Số tiền còn lại',
             'payment_status' => 'Trạng thái thanh toán'
         ];
     }
@@ -117,7 +119,25 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
                     break;
                 case 'ethnicity':
-                    $row[] = $student->ethnicity ? $student->ethnicity->name : '';
+                    // Debug logging để kiểm tra dữ liệu
+                    Log::debug('Ethnicity export debug', [
+                        'student_id' => $student->id,
+                        'ethnicity_id' => $student->ethnicity_id,
+                        'ethnicity_loaded' => $student->relationLoaded('ethnicity'),
+                        'ethnicity_exists' => $student->ethnicity ? true : false,
+                        'ethnicity_name' => $student->ethnicity ? $student->ethnicity->name : null
+                    ]);
+
+                    $ethnicityName = '';
+                    if ($student->ethnicity_id && $student->ethnicity) {
+                        $ethnicityName = $student->ethnicity->name;
+                    } elseif ($student->ethnicity_id && !$student->ethnicity) {
+                        // Nếu có ethnicity_id nhưng không load được relationship
+                        $ethnicity = \App\Models\Ethnicity::find($student->ethnicity_id);
+                        $ethnicityName = $ethnicity ? $ethnicity->name : 'Không xác định';
+                    }
+
+                    $row[] = $ethnicityName;
                     break;
                 case 'address':
                     $row[] = $student->address;
@@ -166,6 +186,9 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     break;
                 case 'total_fee':
                     $row[] = "'" . number_format($student->getTotalFeeAmount(), 0, ',', '.'); // Format as text
+                    break;
+                case 'remaining_amount':
+                    $row[] = "'" . number_format($student->getRemainingAmount(), 0, ',', '.'); // Format as text
                     break;
                 case 'payment_status':
                     $row[] = $this->getPaymentStatus($student);

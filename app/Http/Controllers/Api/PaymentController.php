@@ -507,7 +507,7 @@ class PaymentController extends Controller
             ]);
 
             $columns = $request->input('columns', [
-                'student_name', 'student_phone', 'course_name',
+                'student_last_name', 'student_first_name', 'student_phone', 'student_email', 'ethnicity', 'course_name',
                 'payment_date', 'amount', 'payment_method', 'status'
             ]);
 

@@ -1074,7 +1074,8 @@ class CourseItemController extends Controller
             ]);
 
             $columns = $request->input('columns', [
-                'student_name', 'student_phone', 'student_email', 'course_name', 'course_path',
+                'student_last_name', 'student_first_name', 'student_phone', 'student_email',
+                'student_date_of_birth', 'student_gender', 'student_province', 'ethnicity',
                 'enrollment_date', 'enrollment_status', 'final_fee', 'total_paid', 'remaining_amount', 'payment_status'
             ]);
 

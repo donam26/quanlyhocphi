@@ -170,10 +170,14 @@ class CourseStudentsExport implements FromCollection, WithHeadings, WithMapping,
                     $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
                     break;
                 case 'ethnicity':
-                    $row[] = $student->ethnicity ? $student->ethnicity->name : '';
-                    break;
-                case 'ethnicity':
-                    $row[] = $student->ethnicity ? $student->ethnicity->name : '';
+                    $ethnicityName = '';
+                    if ($student && $student->ethnicity) {
+                        $ethnicityName = $student->ethnicity->name;
+                    } elseif ($student && $student->ethnicity_id) {
+                        $ethnicity = \App\Models\Ethnicity::find($student->ethnicity_id);
+                        $ethnicityName = $ethnicity ? $ethnicity->name : 'Không xác định';
+                    }
+                    $row[] = $ethnicityName;
                     break;
                 case 'current_workplace':
                     $row[] = $student->current_workplace ?? '';

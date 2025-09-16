@@ -39,7 +39,8 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
     protected function initializeColumnMappings()
     {
         $this->columnMappings = [
-            'student_name' => 'Họ và tên học viên',
+            'student_last_name' => 'Họ',
+            'student_first_name' => 'Tên',
             'student_phone' => 'Số điện thoại',
             'student_email' => 'Email',
             'citizen_id' => 'Số CCCD/CMND',
@@ -69,7 +70,12 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             // Thông tin ghi danh
             'enrollment_date' => 'Ngày ghi danh',
             'enrollment_status' => 'Trạng thái ghi danh',
-            'course_name' => 'Tên khóa học'
+            'course_name' => 'Tên khóa học',
+
+            // Payment Info
+            'total_paid' => 'Đã thanh toán',
+            'remaining_amount' => 'Còn lại',
+            'payment_status' => 'Trạng thái thanh toán'
         ];
     }
 
@@ -142,8 +148,11 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
 
         foreach ($this->selectedColumns as $column) {
             switch ($column) {
-                case 'student_name':
-                    $row[] = $student->full_name;
+                case 'student_last_name':
+                    $row[] = $student->first_name ?? '';
+                    break;
+                case 'student_first_name':
+                    $row[] = $student->last_name ?? '';
                     break;
                 case 'student_phone':
                     $row[] = "'" . $student->phone; // Format as text
@@ -234,6 +243,17 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                     break;
                 case 'course_name':
                     $row[] = $enrollment->courseItem->name;
+                    break;
+
+                // Payment Info
+                case 'total_paid':
+                    $row[] = "'" . number_format($enrollment->getTotalPaidAmount(), 0, ',', '.');
+                    break;
+                case 'remaining_amount':
+                    $row[] = "'" . number_format($enrollment->getRemainingAmount(), 0, ',', '.');
+                    break;
+                case 'payment_status':
+                    $row[] = $this->getPaymentStatus($enrollment);
                     break;
 
                 default:
@@ -332,5 +352,26 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             default:
                 return $status;
         }
+    }
+
+    protected function getPaymentStatus($enrollment)
+    {
+        if (!$enrollment) {
+            return 'Không có thông tin';
+        }
+
+        $remaining = $enrollment->getRemainingAmount();
+        $totalPaid = $enrollment->getTotalPaidAmount();
+
+        if ($enrollment->final_fee == 0) {
+            return 'Không có học phí';
+        }
+        if ($remaining <= 0) {
+            return 'Đã thanh toán đủ';
+        }
+        if ($totalPaid > 0) {
+            return 'Thanh toán một phần';
+        }
+        return 'Chưa thanh toán';
     }
 }

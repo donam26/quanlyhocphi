@@ -1054,8 +1054,9 @@ class StudentController extends Controller
 
             // Default columns if none provided
             $columns = $request->input('columns', [
-                'full_name', 'phone', 'email', 'date_of_birth', 'gender',
-                'province', 'current_workplace', 'accounting_experience_years',
+                'student_last_name', 'student_first_name', 'student_phone', 'student_email',
+                'student_date_of_birth', 'student_gender', 'student_province',
+                'ethnicity', 'current_workplace', 'accounting_experience_years',
                 'education_level', 'source', 'created_at'
             ]);
 
