@@ -1359,6 +1359,229 @@ class PaymentController extends Controller
     }
 
     /**
+     * API: Lấy danh sách khóa học đã thanh toán đủ (lịch sử)
+     */
+    public function getFullyPaidCourses(Request $request)
+    {
+        try {
+            $query = CourseItem::with(['enrollments.student', 'enrollments.payments'])
+                ->whereHas('enrollments', function($q) {
+                    $q->whereIn('status', [EnrollmentStatus::ACTIVE, EnrollmentStatus::COMPLETED])
+                      ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") >= enrollments.final_fee');
+                });
+
+            // Filters
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->where('name', 'like', "%{$search}%");
+            }
+
+            if ($request->has('completion_date_from')) {
+                $query->whereHas('enrollments.payments', function($q) use ($request) {
+                    $q->where('status', 'confirmed')
+                      ->whereDate('payment_date', '>=', $request->completion_date_from);
+                });
+            }
+
+            if ($request->has('completion_date_to')) {
+                $query->whereHas('enrollments.payments', function($q) use ($request) {
+                    $q->where('status', 'confirmed')
+                      ->whereDate('payment_date', '<=', $request->completion_date_to);
+                });
+            }
+
+            // Sorting parameters
+            $sortBy = $request->input('sort_by', 'completion_date');
+            $sortOrder = $request->input('sort_order', 'desc');
+
+            // Validate sort fields
+            $allowedSortFields = ['name', 'total_students', 'total_revenue', 'completion_date'];
+            if (!in_array($sortBy, $allowedSortFields)) {
+                $sortBy = 'completion_date';
+            }
+
+            $sortOrder = in_array(strtolower($sortOrder), ['asc', 'desc']) ? strtolower($sortOrder) : 'desc';
+
+            // Pagination parameters
+            $page = $request->input('page', 1);
+            $limit = $request->input('per_page', $request->input('limit', 15));
+
+            // Get all courses first, then transform and filter
+            $allCourses = $query->get();
+
+            // Transform data để thêm thống kê
+            $coursesData = $allCourses->map(function ($course) {
+                $fullyPaidEnrollments = $course->enrollments->filter(function($enrollment) {
+                    if (!in_array($enrollment->status, [EnrollmentStatus::ACTIVE, EnrollmentStatus::COMPLETED])) {
+                        return false;
+                    }
+
+                    $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                    return $totalPaid >= $enrollment->final_fee;
+                });
+
+                $totalStudents = $fullyPaidEnrollments->count();
+                $totalRevenue = $fullyPaidEnrollments->sum('final_fee');
+
+                // Tìm ngày hoàn thành thanh toán gần nhất
+                $lastCompletionDate = null;
+                foreach ($fullyPaidEnrollments as $enrollment) {
+                    $enrollmentPaid = 0;
+                    $completionDate = null;
+
+                    foreach ($enrollment->payments->where('status', 'confirmed')->sortBy('payment_date') as $payment) {
+                        $enrollmentPaid += $payment->amount;
+                        if ($enrollmentPaid >= $enrollment->final_fee) {
+                            $completionDate = $payment->payment_date;
+                            break;
+                        }
+                    }
+
+                    if ($completionDate && (!$lastCompletionDate || $completionDate > $lastCompletionDate)) {
+                        $lastCompletionDate = $completionDate;
+                    }
+                }
+
+                return [
+                    'id' => $course->id,
+                    'name' => $course->name,
+                    'path' => $course->path ?? $course->name,
+                    'total_students' => $totalStudents,
+                    'total_revenue' => $totalRevenue,
+                    'completion_date' => $lastCompletionDate ? $lastCompletionDate->format('Y-m-d') : null,
+                    'completion_date_formatted' => $lastCompletionDate ? $lastCompletionDate->format('d/m/Y') : 'N/A',
+                    'average_fee' => $totalStudents > 0 ? round($totalRevenue / $totalStudents, 0) : 0,
+                ];
+            })->filter(function($course) {
+                return $course['total_students'] > 0;
+            })->values();
+
+            // Apply sorting to transformed data
+            $coursesData = $coursesData->sortBy(function($course) use ($sortBy) {
+                if ($sortBy === 'completion_date') {
+                    return $course['completion_date'] ?? '1900-01-01';
+                }
+                return $course[$sortBy];
+            }, SORT_REGULAR, $sortOrder === 'desc')->values();
+
+            // Manual pagination on filtered and sorted data
+            $total = $coursesData->count();
+            $offset = ($page - 1) * $limit;
+            $paginatedData = $coursesData->slice($offset, $limit)->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'data' => $paginatedData,
+                    'pagination' => [
+                        'page' => $page,
+                        'limit' => $limit,
+                        'total' => $total,
+                        'totalPages' => ceil($total / $limit)
+                    ]
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy danh sách lớp đã thanh toán đủ: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Lấy chi tiết lịch sử thanh toán của lớp đã hoàn thành
+     */
+    public function getFullyPaidCourseHistory(Request $request, $courseId)
+    {
+        try {
+            $course = CourseItem::with(['enrollments.student', 'enrollments.payments'])
+                ->findOrFail($courseId);
+
+            $fullyPaidEnrollments = $course->enrollments->filter(function($enrollment) {
+                if (!in_array($enrollment->status, [EnrollmentStatus::ACTIVE, EnrollmentStatus::COMPLETED])) {
+                    return false;
+                }
+
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+                return $totalPaid >= $enrollment->final_fee;
+            });
+
+            // Transform data
+            $studentsData = $fullyPaidEnrollments->map(function ($enrollment) {
+                $totalPaid = $enrollment->payments->where('status', 'confirmed')->sum('amount');
+
+                // Tìm ngày hoàn thành thanh toán
+                $enrollmentPaid = 0;
+                $completionDate = null;
+                $paymentHistory = [];
+
+                foreach ($enrollment->payments->where('status', 'confirmed')->sortBy('payment_date') as $payment) {
+                    $enrollmentPaid += $payment->amount;
+                    $paymentHistory[] = [
+                        'id' => $payment->id,
+                        'amount' => $payment->amount,
+                        'payment_date' => $payment->payment_date->format('d/m/Y'),
+                        'payment_method' => $payment->payment_method,
+                        'notes' => $payment->notes
+                    ];
+
+                    if ($enrollmentPaid >= $enrollment->final_fee && !$completionDate) {
+                        $completionDate = $payment->payment_date;
+                    }
+                }
+
+                return [
+                    'id' => $enrollment->id,
+                    'student' => [
+                        'id' => $enrollment->student->id,
+                        'full_name' => $enrollment->student->full_name,
+                        'phone' => $enrollment->student->phone,
+                        'email' => $enrollment->student->email,
+                    ],
+                    'enrollment_date' => $enrollment->enrollment_date->format('d/m/Y'),
+                    'final_fee' => $enrollment->final_fee,
+                    'total_paid' => $totalPaid,
+                    'overpaid_amount' => $totalPaid - $enrollment->final_fee,
+                    'completion_date' => $completionDate ? $completionDate->format('d/m/Y') : 'N/A',
+                    'payment_duration_days' => $completionDate ? $enrollment->enrollment_date->diffInDays($completionDate) : null,
+                    'payment_history' => $paymentHistory,
+                    'status' => $enrollment->status,
+                ];
+            })->values();
+
+            // Thống kê tổng quan
+            $summary = [
+                'total_students' => $studentsData->count(),
+                'total_revenue' => $studentsData->sum('final_fee'),
+                'total_collected' => $studentsData->sum('total_paid'),
+                'total_overpaid' => $studentsData->sum('overpaid_amount'),
+                'average_fee' => $studentsData->count() > 0 ? round($studentsData->sum('final_fee') / $studentsData->count(), 0) : 0,
+                'average_completion_days' => $studentsData->where('payment_duration_days', '!=', null)->avg('payment_duration_days'),
+                'completion_rate' => '100%' // Vì đây là lớp đã thanh toán đủ
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'course' => [
+                        'id' => $course->id,
+                        'name' => $course->name,
+                        'path' => $course->path ?? $course->name,
+                    ],
+                    'students' => $studentsData,
+                    'summary' => $summary
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi lấy lịch sử lớp học: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * API: Detect suspicious payment patterns
      */
     public function detectSuspiciousPatterns(Request $request)

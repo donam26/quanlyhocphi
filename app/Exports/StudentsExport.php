@@ -119,15 +119,6 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                     $row[] = $student->placeOfBirthProvince ? $student->placeOfBirthProvince->name : '';
                     break;
                 case 'ethnicity':
-                    // Debug logging để kiểm tra dữ liệu
-                    Log::debug('Ethnicity export debug', [
-                        'student_id' => $student->id,
-                        'ethnicity_id' => $student->ethnicity_id,
-                        'ethnicity_loaded' => $student->relationLoaded('ethnicity'),
-                        'ethnicity_exists' => $student->ethnicity ? true : false,
-                        'ethnicity_name' => $student->ethnicity ? $student->ethnicity->name : null
-                    ]);
-
                     $ethnicityName = '';
                     if ($student->ethnicity_id && $student->ethnicity) {
                         $ethnicityName = $student->ethnicity->name;

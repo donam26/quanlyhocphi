@@ -185,6 +185,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/courses-with-unpaid', [PaymentController::class, 'getCoursesWithUnpaidStudents']);
         Route::get('/course/{courseId}/unpaid-students', [PaymentController::class, 'getCourseUnpaidStudents']);
 
+        // History and fully paid courses
+        Route::get('/fully-paid-courses', [PaymentController::class, 'getFullyPaidCourses']);
+        Route::get('/fully-paid-courses/{courseId}/history', [PaymentController::class, 'getFullyPaidCourseHistory']);
+
         // Reminder endpoints
         Route::post('/send-bulk-reminders', [PaymentController::class, 'sendBulkReminders']);
         Route::post('/send-course-reminders', [PaymentController::class, 'sendCourseReminders']);
@@ -228,6 +232,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/monthly-report', [PaymentController::class, 'monthlyReport']);
         Route::get('/batches', [PaymentController::class, 'getUserBatches']);
         Route::get('/batches/{batchId}/stats', [PaymentController::class, 'getBatchStats']);
+
+
 
         // Reconciliation
         Route::post('/reconcile', [PaymentController::class, 'reconcilePayments']);
