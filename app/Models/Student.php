@@ -222,7 +222,7 @@ class Student extends Model
     }
 
     /**
-     * Scope tìm kiếm theo tên hoặc số điện thoại (Optimized version)
+     * Scope tìm kiếm theo tên hoặc số điện thoại (Improved version)
      */
     public function scopeSearch($query, $term)
     {
@@ -245,22 +245,36 @@ class Student extends Model
         $searchWords = explode(' ', $term);
         $searchWords = array_filter($searchWords); // Bỏ các phần tử rỗng
 
-        // Xây dựng câu truy vấn tìm kiếm cho từng từ trong tên
         return $query->where(function ($q) use ($searchWords, $term) {
             // Ưu tiên tìm kiếm email và SĐT với cả chuỗi gốc
             $q->orWhere('email', 'like', "%{$term}%")
-              ->orWhere('phone', 'like', "%{$term}%");
+              ->orWhere('phone', 'like', "%{$term}%")
+              ->orWhere('citizen_id', 'like', "%{$term}%");
 
-            // Xây dựng truy vấn phức tạp cho tên
-            $q->orWhere(function ($nameQuery) use ($searchWords) {
-                $nameQuery->where(function ($subQuery) use ($searchWords) {
-                    // Yêu cầu TẤT CẢ các từ phải có mặt trong họ tên đầy đủ
+            // Tìm kiếm trong họ tên đầy đủ
+            $q->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$term}%"]);
+
+            // Tìm kiếm riêng lẻ trong first_name và last_name
+            $q->orWhere('first_name', 'like', "%{$term}%")
+              ->orWhere('last_name', 'like', "%{$term}%");
+
+            // Nếu có nhiều từ, tìm kiếm linh hoạt hơn
+            if (count($searchWords) > 1) {
+                // Tìm kiếm với logic OR cho từng từ (thay vì AND)
+                $q->orWhere(function ($nameQuery) use ($searchWords) {
                     foreach ($searchWords as $word) {
-                        // Sử dụng CONCAT để tìm kiếm trên họ và tên đầy đủ
-                        $subQuery->whereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$word}%"]);
+                        $nameQuery->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$word}%"]);
                     }
                 });
-            });
+
+                // Tìm kiếm từng từ trong first_name hoặc last_name
+                $q->orWhere(function ($nameQuery) use ($searchWords) {
+                    foreach ($searchWords as $word) {
+                        $nameQuery->orWhere('first_name', 'like', "%{$word}%")
+                                  ->orWhere('last_name', 'like', "%{$word}%");
+                    }
+                });
+            }
         });
     }
 
@@ -274,6 +288,34 @@ class Student extends Model
         }
 
         return $query->whereRaw("MATCH(first_name, last_name, email, phone) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
+    }
+
+    /**
+     * Scope tìm kiếm thông minh - kết hợp nhiều phương pháp
+     */
+    public function scopeSmartSearch($query, $term)
+    {
+        if (empty($term)) {
+            return $query;
+        }
+
+        $term = trim($term);
+
+        // Nếu term ngắn (< 3 ký tự), chỉ dùng LIKE search
+        if (strlen($term) < 3) {
+            return $query->search($term);
+        }
+
+        // Kết hợp cả fulltext và LIKE search
+        return $query->where(function ($q) use ($term) {
+            // Thử fulltext search trước (nhanh hơn)
+            $q->whereRaw("MATCH(first_name, last_name, email, phone) AGAINST(? IN BOOLEAN MODE)", ["+{$term}*"]);
+
+            // Fallback về LIKE search nếu fulltext không có kết quả
+            $q->orWhere(function ($subQuery) use ($term) {
+                $subQuery->search($term);
+            });
+        });
     }
 
     /**

@@ -695,6 +695,14 @@ class StudentController extends Controller
                 ->orderBy('enrollment_date', 'desc')
                 ->get();
 
+            // Add payment info to each enrollment
+            $enrollments->transform(function ($enrollment) {
+                $enrollment->paid_amount = $enrollment->getTotalPaidAmount();
+                $enrollment->remaining_amount = $enrollment->getRemainingAmount();
+                $enrollment->payment_status = $enrollment->isFullyPaid() ? 'Đã thanh toán đủ' : 'Còn thiếu';
+                return $enrollment;
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => $enrollments,
@@ -738,15 +746,27 @@ class StudentController extends Controller
         $student->formatted_date_of_birth = $student->date_of_birth ?
             \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null;
 
-        // Calculate totals
-        $totalFee = $student->enrollments()->sum('final_fee');
-        $paidAmount = Payment::whereHas('enrollment', function ($q) use ($student) {
-            $q->where('student_id', $student->id);
-        })->where('status', 'confirmed')->sum('amount');
+        // Calculate totals for active enrollments only
+        $activeEnrollments = $student->enrollments->filter(function ($enrollment) {
+            return in_array($enrollment->status->value, ['active', 'enrolled']);
+        });
+
+        $totalFee = $activeEnrollments->sum('final_fee');
+        $paidAmount = $activeEnrollments->sum(function ($enrollment) {
+            return $enrollment->payments->where('status', 'confirmed')->sum('amount');
+        });
+
+        // Add payment info to each enrollment
+        $student->enrollments->transform(function ($enrollment) {
+            $enrollment->paid_amount = $enrollment->getTotalPaidAmount();
+            $enrollment->remaining_amount = $enrollment->getRemainingAmount();
+            $enrollment->payment_status = $enrollment->isFullyPaid() ? 'Đã thanh toán đủ' : 'Còn thiếu';
+            return $enrollment;
+        });
 
         $student->total_fee = $totalFee;
         $student->paid_amount = $paidAmount;
-        $student->remaining_amount = $totalFee - $paidAmount;
+        $student->remaining_amount = max(0, $totalFee - $paidAmount);
 
         return response()->json($student);
     }
