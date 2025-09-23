@@ -66,17 +66,33 @@ class StudentController extends Controller
             ->paginate($perPage);
 
         // Add computed fields
-        $students->through(function ($student) {
+        foreach ($students as $student) {
             $student->full_name = $student->first_name . ' ' . $student->last_name;
             $student->formatted_date_of_birth = $student->date_of_birth ?
                 \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null;
 
             // Get active enrollments and waiting list
             $activeEnrollments = $student->enrollments->filter(function ($enrollment) {
-                return in_array($enrollment->status->value, ['active', 'enrolled']);
+                try {
+                    $statusValue = $enrollment->status instanceof \App\Enums\EnrollmentStatus
+                        ? $enrollment->status->value
+                        : $enrollment->status;
+                    return in_array($statusValue, ['active', 'enrolled']);
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error processing enrollment status: ' . $e->getMessage());
+                    return false;
+                }
             });
             $waitingEnrollments = $student->enrollments->filter(function ($enrollment) {
-                return $enrollment->status->value === 'waiting';
+                try {
+                    $statusValue = $enrollment->status instanceof \App\Enums\EnrollmentStatus
+                        ? $enrollment->status->value
+                        : $enrollment->status;
+                    return $statusValue === 'waiting';
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error processing enrollment status: ' . $e->getMessage());
+                    return false;
+                }
             });
 
             // Prepare enrolled courses info
@@ -131,8 +147,7 @@ class StudentController extends Controller
                 $student->payment_status = null;
             }
 
-            return $student;
-        });
+        }
 
         return response()->json($students);
     }

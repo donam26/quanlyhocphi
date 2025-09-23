@@ -112,6 +112,11 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
             $query->whereHas('enrollment', function($q) {
                 $q->where('status', $this->filters['enrollmentStatus']);
             });
+        } else {
+            // Mặc định chỉ lấy học viên đang học, không bao gồm danh sách chờ
+            $query->whereHas('enrollment', function($q) {
+                $q->where('status', \App\Enums\EnrollmentStatus::ACTIVE->value);
+            });
         }
 
         // Payment status filter

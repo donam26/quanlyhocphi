@@ -241,40 +241,19 @@ class Student extends Model
             });
         }
 
-        // Tách chuỗi tìm kiếm thành các từ
-        $searchWords = explode(' ', $term);
-        $searchWords = array_filter($searchWords); // Bỏ các phần tử rỗng
+        // Nếu term chứa @ thì tìm kiếm email
+        if (strpos($term, '@') !== false) {
+            return $query->where('email', 'like', "%{$term}%");
+        }
 
-        return $query->where(function ($q) use ($searchWords, $term) {
-            // Ưu tiên tìm kiếm email và SĐT với cả chuỗi gốc
-            $q->orWhere('email', 'like', "%{$term}%")
-              ->orWhere('phone', 'like', "%{$term}%")
-              ->orWhere('citizen_id', 'like', "%{$term}%");
+        // Tìm kiếm chính xác trong họ tên (BINARY để tránh collation issues)
+        $lowerTerm = strtolower($term);
+        $upperTerm = ucfirst($lowerTerm);
 
-            // Tìm kiếm trong họ tên đầy đủ
-            $q->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$term}%"]);
-
-            // Tìm kiếm riêng lẻ trong first_name và last_name
-            $q->orWhere('first_name', 'like', "%{$term}%")
-              ->orWhere('last_name', 'like', "%{$term}%");
-
-            // Nếu có nhiều từ, tìm kiếm linh hoạt hơn
-            if (count($searchWords) > 1) {
-                // Tìm kiếm với logic OR cho từng từ (thay vì AND)
-                $q->orWhere(function ($nameQuery) use ($searchWords) {
-                    foreach ($searchWords as $word) {
-                        $nameQuery->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$word}%"]);
-                    }
-                });
-
-                // Tìm kiếm từng từ trong first_name hoặc last_name
-                $q->orWhere(function ($nameQuery) use ($searchWords) {
-                    foreach ($searchWords as $word) {
-                        $nameQuery->orWhere('first_name', 'like', "%{$word}%")
-                                  ->orWhere('last_name', 'like', "%{$word}%");
-                    }
-                });
-            }
+        return $query->where(function ($q) use ($lowerTerm, $upperTerm) {
+            $q->whereRaw("(BINARY CONCAT(first_name, ' ', last_name) LIKE ? OR BINARY CONCAT(first_name, ' ', last_name) LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"])
+              ->orWhereRaw("(BINARY first_name LIKE ? OR BINARY first_name LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"])
+              ->orWhereRaw("(BINARY last_name LIKE ? OR BINARY last_name LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"]);
         });
     }
 

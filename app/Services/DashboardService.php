@@ -16,25 +16,53 @@ class DashboardService
     /**
      * Lấy dữ liệu tổng quan cho dashboard
      */
-    public function getSummary()
+    public function getSummary($timeRange = 'total')
     {
-        // Tổng số học viên
-        $totalStudents = Student::count();
-        
+        // Base query cho enrollments theo timeRange
+        $enrollmentQuery = function($status) use ($timeRange) {
+            $query = Enrollment::where('status', $status);
+
+            if ($timeRange !== 'total') {
+                $today = now();
+                switch($timeRange) {
+                    case 'day':
+                        $query->whereDate('enrollment_date', $today);
+                        break;
+                    case 'month':
+                        $query->whereYear('enrollment_date', $today->year)
+                              ->whereMonth('enrollment_date', $today->month);
+                        break;
+                    case 'quarter':
+                        $startQuarter = $today->copy()->startOfQuarter();
+                        $endQuarter = $today->copy()->endOfQuarter();
+                        $query->whereBetween('enrollment_date', [$startQuarter, $endQuarter]);
+                        break;
+                    case 'year':
+                        $query->whereYear('enrollment_date', $today->year);
+                        break;
+                }
+            }
+
+            return $query->distinct('student_id')->count('student_id');
+        };
+
+        // Tổng số học viên đang học (DISTINCT student_id)
+        $activeEnrollments = $enrollmentQuery(EnrollmentStatus::ACTIVE);
+
+        // Tổng số học viên đang chờ (DISTINCT student_id)
+        $waitingsCount = $enrollmentQuery(EnrollmentStatus::WAITING);
+
+        // Tổng số học viên = Đang học + Đang chờ (để đồng bộ logic)
+        $totalStudents = $activeEnrollments + $waitingsCount;
+
         // Học viên mới trong tháng
         $newStudents = Student::whereMonth('created_at', now()->month)
             ->whereYear('created_at', now()->year)
             ->count();
-            
+
         // Tổng số khóa học
         $totalCourses = CourseItem::where('is_leaf', true)->count();
-        
-        // Tổng số ghi danh đang hoạt động
-        $activeEnrollments = Enrollment::where('status', EnrollmentStatus::ACTIVE)->count();
-        
-        // Tổng số ghi danh đang chờ
-        $waitingsCount = Enrollment::where('status', EnrollmentStatus::WAITING)->count();
-        
+
         // Tổng doanh thu
         $totalRevenue = Payment::where('status', 'confirmed')->sum('amount');
         
@@ -81,13 +109,19 @@ class DashboardService
         $groupBy = '';
         
         switch($range) {
+            case 'total':
+                // Tất cả thời gian - không group by
+                $labels['total'] = 'Tổng';
+                $groupBy = null; // Không group by
+                break;
+
             case 'day':
                 // Ngày trong tuần gần đây
                 $startDate = $today->copy()->subDays($limit - 1)->startOfDay();
                 $query->whereDate('payment_date', '>=', $startDate);
                 $query->addSelect(DB::raw('DATE(payment_date) as date_group'));
                 $groupBy = 'date_group';
-                
+
                 // Tạo labels cho các ngày
                 for ($i = $limit - 1; $i >= 0; $i--) {
                     $date = $today->copy()->subDays($i);
@@ -139,14 +173,24 @@ class DashboardService
         }
         
         // Thực hiện truy vấn
-        $results = $query->groupBy($groupBy)->orderBy($groupBy)->get();
+        if ($groupBy) {
+            $results = $query->groupBy($groupBy)->orderBy($groupBy)->get();
+        } else {
+            // Trường hợp 'total' - không group by
+            $results = $query->get();
+        }
         
         // Khởi tạo mảng dữ liệu
         $data = array_fill_keys(array_keys($labels), 0);
         
         // Đổ dữ liệu vào mảng
         foreach ($results as $result) {
-            $data[$result->date_group] = (float) $result->revenue;
+            if ($groupBy) {
+                $data[$result->date_group] = (float) $result->revenue;
+            } else {
+                // Trường hợp 'total'
+                $data['total'] = (float) $result->revenue;
+            }
         }
         
         // Tính tổng doanh thu cho giai đoạn
@@ -164,13 +208,13 @@ class DashboardService
     }
     
     /**
-     * Lấy doanh thu và tỉ trọng theo khóa học
+     * Lấy doanh thu và tỉ trọng theo ngành (khóa cha lớn nhất)
      */
     public function getRevenueByCoursesWithRatio($range = 'day', $limit = 10)
     {
         $today = now();
         $startDate = null;
-        
+
         switch($range) {
             case 'day':
                 $startDate = $today->copy()->startOfDay();
@@ -184,41 +228,85 @@ class DashboardService
             case 'year':
                 $startDate = $today->copy()->startOfYear();
                 break;
+            case 'total':
+                $startDate = null;
+                break;
             default:
                 $startDate = $today->copy()->startOfDay();
         }
-        
-        // Lấy dữ liệu doanh thu theo khóa học
-        $courses = CourseItem::withCount(['enrollments as revenue' => function ($query) use ($startDate) {
-                $query->select(DB::raw('COALESCE(SUM(p.amount), 0)'))
-                    ->join('payments as p', 'enrollments.id', '=', 'p.enrollment_id')
-                    ->where('p.status', 'confirmed')
-                    ->where('p.payment_date', '>=', $startDate);
-            }])
-            ->having('revenue', '>', 0)
-            ->orderBy('revenue', 'desc')
-            ->take($limit)
+
+        // Lấy doanh thu theo ngành (khóa cha lớn nhất)
+        // Sử dụng PHP để tìm khóa cha lớn nhất thay vì SQL phức tạp
+        $payments = DB::table('payments as p')
+            ->join('enrollments as e', 'p.enrollment_id', '=', 'e.id')
+            ->join('course_items as ci', 'e.course_item_id', '=', 'ci.id')
+            ->where('p.status', 'confirmed');
+
+        if ($startDate) {
+            $payments->where('p.payment_date', '>=', $startDate);
+        }
+
+        $paymentData = $payments
+            ->select('ci.id as course_id', 'ci.name as course_name', 'ci.parent_id', 'p.amount')
             ->get();
-        
-        // Tính tổng doanh thu của tất cả khóa học trong khoảng thời gian
-        $totalRevenue = Payment::where('status', 'confirmed')
-            ->whereDate('payment_date', '>=', $startDate)
-            ->sum('amount');
-            
-        $courseData = $courses->map(function($course) use ($totalRevenue) {
-            $ratio = $totalRevenue > 0 ? round(($course->revenue / $totalRevenue) * 100, 2) : 0;
-            return [
-                'id' => $course->id,
-                'name' => $course->name,
-                'revenue' => $course->revenue,
+
+        // Lấy tất cả khóa học để tìm khóa cha
+        $allCourses = CourseItem::select('id', 'name', 'parent_id')->get()->keyBy('id');
+
+        // Tính doanh thu theo ngành
+        $revenueByCategory = [];
+
+        foreach ($paymentData as $payment) {
+            // Tìm khóa cha lớn nhất
+            $rootCourse = $this->findRootCourse($payment->course_id, $allCourses);
+            $categoryName = $rootCourse ? $rootCourse->name : 'Không xác định';
+
+            if (!isset($revenueByCategory[$categoryName])) {
+                $revenueByCategory[$categoryName] = 0;
+            }
+            $revenueByCategory[$categoryName] += $payment->amount;
+        }
+
+        // Sắp xếp theo doanh thu giảm dần và lấy top
+        arsort($revenueByCategory);
+        $revenueByCategory = array_slice($revenueByCategory, 0, $limit, true);
+
+        // Tính tổng doanh thu
+        $totalRevenue = array_sum($revenueByCategory);
+
+        $categoryData = [];
+        foreach ($revenueByCategory as $categoryName => $revenue) {
+            $ratio = $totalRevenue > 0 ? round(($revenue / $totalRevenue) * 100, 2) : 0;
+            $categoryData[] = [
+                'name' => $categoryName,
+                'revenue' => $revenue,
                 'ratio' => $ratio
             ];
-        });
-        
+        }
+
         return [
-            'data' => $courseData->toArray(),
+            'data' => $categoryData,
             'total' => $totalRevenue
         ];
+    }
+
+    /**
+     * Tìm khóa cha lớn nhất (root) của một khóa học
+     */
+    private function findRootCourse($courseId, $allCourses)
+    {
+        $course = $allCourses->get($courseId);
+        if (!$course) {
+            return null;
+        }
+
+        // Nếu không có parent, đây là root
+        if (!$course->parent_id) {
+            return $course;
+        }
+
+        // Đệ quy tìm parent
+        return $this->findRootCourse($course->parent_id, $allCourses);
     }
     
     /**
@@ -284,32 +372,36 @@ class DashboardService
      */
     public function getStudentsByGender($range = 'total')
     {
-        $query = Student::select('gender', DB::raw('count(*) as count'));
-        
-        // Lọc theo khoảng thời gian nếu cần
+        // Đếm học viên theo giới tính từ enrollments ACTIVE và WAITING để đồng bộ với tổng
+        $query = DB::table('students')
+            ->join('enrollments', 'students.id', '=', 'enrollments.student_id')
+            ->select('students.gender', DB::raw('COUNT(DISTINCT students.id) as count'))
+            ->whereIn('enrollments.status', [EnrollmentStatus::ACTIVE, EnrollmentStatus::WAITING]);
+
+        // Lọc theo khoảng thời gian nếu cần (dựa trên enrollment_date)
         if ($range !== 'total') {
             $today = now();
-            
+
             switch($range) {
                 case 'day':
-                    $query->whereDate('created_at', $today);
+                    $query->whereDate('enrollments.enrollment_date', $today);
                     break;
                 case 'month':
-                    $query->whereYear('created_at', $today->year)
-                        ->whereMonth('created_at', $today->month);
+                    $query->whereYear('enrollments.enrollment_date', $today->year)
+                          ->whereMonth('enrollments.enrollment_date', $today->month);
                     break;
                 case 'quarter':
                     $startQuarter = $today->copy()->startOfQuarter();
                     $endQuarter = $today->copy()->endOfQuarter();
-                    $query->whereBetween('created_at', [$startQuarter, $endQuarter]);
+                    $query->whereBetween('enrollments.enrollment_date', [$startQuarter, $endQuarter]);
                     break;
                 case 'year':
-                    $query->whereYear('created_at', $today->year);
+                    $query->whereYear('enrollments.enrollment_date', $today->year);
                     break;
             }
         }
-        
-        $results = $query->groupBy('gender')->get();
+
+        $results = $query->groupBy('students.gender')->get();
         
         // Khởi tạo mảng với giá trị mặc định
         $genderData = [
@@ -320,8 +412,9 @@ class DashboardService
         
         // Cập nhật dữ liệu từ kết quả truy vấn
         foreach ($results as $result) {
-            if (isset($genderData[$result->gender])) {
-                $genderData[$result->gender] = $result->count;
+            $gender = $result->gender ?? 'other'; // Xử lý NULL gender
+            if (isset($genderData[$gender])) {
+                $genderData[$gender] = $result->count;
             }
         }
         
@@ -345,99 +438,28 @@ class DashboardService
     }
     
     /**
-     * Lấy thống kê học viên theo độ tuổi
+     * Lấy thống kê học viên theo độ tuổi (<18, 18-45, >45)
      */
     public function getStudentsByAgeGroup($range = 'total', $courseItemId = null)
     {
-        $query = Student::selectRaw('
-            CASE 
-                WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) < 18 THEN "under_18"
-                WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 18 AND 22 THEN "18_22"
-                WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 23 AND 35 THEN "23_35"
-                WHEN TIMESTAMPDIFF(YEAR, date_of_birth, CURDATE()) BETWEEN 36 AND 50 THEN "36_50"
-                ELSE "over_50"
-            END as age_group, 
-            COUNT(*) as count
-        ');
+        // Đếm học viên theo độ tuổi từ enrollments ACTIVE và WAITING để đồng bộ với tổng
+        $query = DB::table('students')
+            ->join('enrollments', 'students.id', '=', 'enrollments.student_id')
+            ->select(DB::raw('
+                CASE
+                    WHEN students.date_of_birth IS NULL THEN "unknown"
+                    WHEN TIMESTAMPDIFF(YEAR, students.date_of_birth, CURDATE()) < 18 THEN "under_18"
+                    WHEN TIMESTAMPDIFF(YEAR, students.date_of_birth, CURDATE()) BETWEEN 18 AND 45 THEN "18_45"
+                    ELSE "over_45"
+                END as age_group,
+                COUNT(DISTINCT students.id) as count
+            '))
+            ->whereIn('enrollments.status', [EnrollmentStatus::ACTIVE, EnrollmentStatus::WAITING]);
         
         // Lọc theo khoảng thời gian nếu cần
         if ($range !== 'total') {
             $today = now();
-            
-            switch($range) {
-                case 'day':
-                    $query->whereDate('created_at', $today);
-                    break;
-                case 'month':
-                    $query->whereYear('created_at', $today->year)
-                        ->whereMonth('created_at', $today->month);
-                    break;
-                case 'quarter':
-                    $startQuarter = $today->copy()->startOfQuarter();
-                    $endQuarter = $today->copy()->endOfQuarter();
-                    $query->whereBetween('created_at', [$startQuarter, $endQuarter]);
-                    break;
-                case 'year':
-                    $query->whereYear('created_at', $today->year);
-                    break;
-            }
-        }
-        
-        // Lọc theo khóa học nếu có
-        if ($courseItemId) {
-            $query->whereHas('enrollments', function ($q) use ($courseItemId) {
-                $q->where('course_item_id', $courseItemId);
-            });
-        }
-        
-        $results = $query->groupBy('age_group')->get();
-        
-        // Khởi tạo mảng với giá trị mặc định
-        $ageGroupData = [
-            'under_18' => 0,
-            '18_22' => 0,
-            '23_35' => 0,
-            '36_50' => 0,
-            'over_50' => 0
-        ];
-        
-        // Cập nhật dữ liệu từ kết quả truy vấn
-        foreach ($results as $result) {
-            if (isset($ageGroupData[$result->age_group])) {
-                $ageGroupData[$result->age_group] = $result->count;
-            }
-        }
-        
-        // Tính tổng số lượng
-        $total = array_sum($ageGroupData);
-        
-        // Tính tỉ lệ phần trăm
-        $ageGroupRatio = [];
-        foreach ($ageGroupData as $ageGroup => $count) {
-            $ageGroupRatio[$ageGroup] = $total > 0 ? round(($count / $total) * 100, 2) : 0;
-        }
-        
-        return [
-            'labels' => ['<18', '18-22', '23-35', '36-50', '>50'],
-            'data' => array_values($ageGroupData),
-            'ratio' => array_values($ageGroupRatio),
-            'total' => $total
-        ];
-    }
-    
-    /**
-     * Lấy thống kê học viên theo phương thức học (online/offline)
-     */
-    public function getStudentsByLearningMode($range = 'total', $courseItemId = null)
-    {
-        $query = DB::table('enrollments')
-            ->join('course_items', 'enrollments.course_item_id', '=', 'course_items.id')
-            ->select(DB::raw('COALESCE(course_items.learning_method, "unknown") as learning_mode, COUNT(DISTINCT enrollments.student_id) as count'))
-            ->where('enrollments.status', EnrollmentStatus::ACTIVE);
 
-        // Lọc theo khoảng thời gian nếu cần
-        if ($range !== 'total') {
-            $today = now();
             switch($range) {
                 case 'day':
                     $query->whereDate('enrollments.enrollment_date', $today);
@@ -462,7 +484,92 @@ class DashboardService
             $query->where('enrollments.course_item_id', $courseItemId);
         }
 
-        $results = $query->groupBy('learning_mode')->get();
+        $results = $query->groupBy('age_group')->get();
+        
+        // Khởi tạo mảng với giá trị mặc định
+        $ageGroupData = [
+            'under_18' => 0,
+            '18_45' => 0,
+            'over_45' => 0,
+            'unknown' => 0
+        ];
+
+        // Cập nhật dữ liệu từ kết quả truy vấn
+        foreach ($results as $result) {
+            if (isset($ageGroupData[$result->age_group])) {
+                $ageGroupData[$result->age_group] = $result->count;
+            }
+        }
+
+        // Tính tổng số lượng
+        $total = array_sum($ageGroupData);
+
+        return [
+            'data' => [
+                ['name' => 'Dưới 18 tuổi', 'count' => $ageGroupData['under_18']],
+                ['name' => 'Từ 18 đến 45 tuổi', 'count' => $ageGroupData['18_45']],
+                ['name' => 'Trên 45 tuổi', 'count' => $ageGroupData['over_45']],
+                ['name' => 'Không xác định', 'count' => $ageGroupData['unknown']]
+            ],
+            'total' => $total
+        ];
+    }
+    
+    /**
+     * Lấy thống kê học viên theo phương thức học (online/offline)
+     * Đảm bảo mỗi học viên chỉ được đếm 1 lần cho mỗi learning_mode
+     */
+    public function getStudentsByLearningMode($range = 'total', $courseItemId = null)
+    {
+        // Sử dụng subquery để lấy learning_mode ưu tiên cho mỗi học viên
+        // Nếu học viên có nhiều enrollment với cùng learning_method, chỉ đếm 1 lần
+        $subquery = DB::table('enrollments')
+            ->join('course_items', 'enrollments.course_item_id', '=', 'course_items.id')
+            ->select('enrollments.student_id', DB::raw('COALESCE(course_items.learning_method, "unknown") as learning_mode'))
+            ->whereIn('enrollments.status', [EnrollmentStatus::ACTIVE, EnrollmentStatus::WAITING]);
+
+        // Lọc theo khoảng thời gian nếu cần
+        if ($range !== 'total') {
+            $today = now();
+            switch($range) {
+                case 'day':
+                    $subquery->whereDate('enrollments.enrollment_date', $today);
+                    break;
+                case 'month':
+                    $subquery->whereYear('enrollments.enrollment_date', $today->year)
+                        ->whereMonth('enrollments.enrollment_date', $today->month);
+                    break;
+                case 'quarter':
+                    $startQuarter = $today->copy()->startOfQuarter();
+                    $endQuarter = $today->copy()->endOfQuarter();
+                    $subquery->whereBetween('enrollments.enrollment_date', [$startQuarter, $endQuarter]);
+                    break;
+                case 'year':
+                    $subquery->whereYear('enrollments.enrollment_date', $today->year);
+                    break;
+            }
+        }
+
+        // Lọc theo khóa học nếu có
+        if ($courseItemId) {
+            $subquery->where('enrollments.course_item_id', $courseItemId);
+        }
+
+        // Lấy danh sách distinct student_id và learning_mode
+        $distinctStudentModes = $subquery
+            ->groupBy('enrollments.student_id', 'learning_mode')
+            ->get();
+
+        // Đếm số học viên cho mỗi learning_mode
+        $results = $distinctStudentModes
+            ->groupBy('learning_mode')
+            ->map(function($group, $mode) {
+                return (object) [
+                    'learning_mode' => $mode,
+                    'count' => $group->count()
+                ];
+            })
+            ->values();
 
         // Khởi tạo mảng với giá trị mặc định
         $learningModeData = [
@@ -858,7 +965,7 @@ class DashboardService
     public function getDashboardData($timeRange = 'day')
     {
         return [
-            'summary' => $this->getSummary(),
+            'summary' => $this->getSummary($timeRange),
             'revenue_by_time' => $this->getRevenueByTimeRange($timeRange, 7),
             'revenue_by_courses' => $this->getRevenueByCoursesWithRatio($timeRange),
             'students_by_courses' => $this->getStudentsByCoursesWithRatio($timeRange),

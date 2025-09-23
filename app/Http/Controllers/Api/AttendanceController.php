@@ -718,6 +718,10 @@ class AttendanceController extends Controller
                     'student_name' => $student->full_name,
                     'student_phone' => $student->phone,
                     'student_email' => $student->email,
+                    'student_date_of_birth' => $student->date_of_birth ?
+                        \Carbon\Carbon::parse($student->date_of_birth)->format('Y-m-d') : null,
+                    'student_formatted_date_of_birth' => $student->date_of_birth ?
+                        \Carbon\Carbon::parse($student->date_of_birth)->format('d/m/Y') : null,
                     'enrollment_id' => $enrollment->id,
                     'course_name' => $course ? $course->name : 'Unknown',
                     'course_id' => $enrollment->course_item_id,

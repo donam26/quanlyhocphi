@@ -594,6 +594,9 @@ class EnrollmentService
                 'parent_id' => $course->parent_id,
                 'level' => $course->level,
                 'is_leaf' => $course->is_leaf,
+                'fee' => $course->fee, // Thêm thông tin học phí
+                'status' => $course->status,
+                'learning_method' => $course->learning_method,
                 'waiting_count' => $waitingCount,
                 'children' => []
             ];
