@@ -113,13 +113,17 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
 
     protected function processStudentAndEnrollment(array $studentData, array $row)
     {
-        // 1. Tìm học viên
+        // 1. Tìm học viên (loại trừ đã xóa)
         $student = null;
         if (!empty($studentData['phone'])) {
-            $student = Student::where('phone', $studentData['phone'])->first();
+            $student = Student::where('phone', $studentData['phone'])
+                             ->whereNull('deleted_at')
+                             ->first();
         }
         if (!$student && !empty($studentData['email'])) {
-            $student = Student::where('email', $studentData['email'])->first();
+            $student = Student::where('email', $studentData['email'])
+                             ->whereNull('deleted_at')
+                             ->first();
         }
 
         // 2. Xử lý tạo/cập nhật học viên

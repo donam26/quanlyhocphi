@@ -11,6 +11,7 @@ use App\Models\CourseItem;
 use App\Enums\EnrollmentStatus;
 use App\Traits\PaymentStatusTrait;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 
 class StudentController extends Controller
 {
@@ -335,9 +336,23 @@ class StudentController extends Controller
                 'last_name' => 'required|string|max:255',
                 'date_of_birth' => 'nullable|date',
                 'gender' => 'nullable|in:male,female,other',
-                'phone' => 'nullable|string|max:20|unique:students',
-                'email' => 'nullable|unique:students',
-                'citizen_id' => 'nullable|string|max:20',
+                'phone' => [
+                    'nullable',
+                    'string',
+                    'max:20',
+                    Rule::unique('students')->whereNull('deleted_at')
+                ],
+                'email' => [
+                    'nullable',
+                    'email',
+                    Rule::unique('students')->whereNull('deleted_at')
+                ],
+                'citizen_id' => [
+                    'nullable',
+                    'string',
+                    'max:20',
+                    Rule::unique('students')->whereNull('deleted_at')
+                ],
                 'address' => 'nullable|string|max:500',
                 'province_id' => 'nullable|exists:provinces,id',
                 'place_of_birth_province_id' => 'nullable|exists:provinces,id',
@@ -477,8 +492,23 @@ class StudentController extends Controller
                 'last_name' => 'required|string|max:255',
                 'date_of_birth' => 'nullable|date',
                 'gender' => 'nullable|in:male,female,other',
-                'phone' => "nullable|string|max:20|unique:students,phone,{$student->id}",
-                'email' => "nullable|unique:students,email,{$student->id}",
+                'phone' => [
+                    'nullable',
+                    'string',
+                    'max:20',
+                    Rule::unique('students')->ignore($student->id)->whereNull('deleted_at')
+                ],
+                'email' => [
+                    'nullable',
+                    'email',
+                    Rule::unique('students')->ignore($student->id)->whereNull('deleted_at')
+                ],
+                'citizen_id' => [
+                    'nullable',
+                    'string',
+                    'max:20',
+                    Rule::unique('students')->ignore($student->id)->whereNull('deleted_at')
+                ],
                 'province_id' => 'nullable|exists:provinces,id',
                 'place_of_birth_province_id' => 'nullable|exists:provinces,id',
                 'nation' => 'nullable|string|max:255',

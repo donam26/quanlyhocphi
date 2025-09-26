@@ -45,7 +45,7 @@ class StudentUpdateImport implements ToModel, WithHeadingRow, WithValidation, Sk
             return null;
         }
 
-        $student = Student::where('phone', $phone)->first();
+        $student = Student::where('phone', $phone)->whereNull('deleted_at')->first();
 
         // Nếu không tìm thấy học viên
         if (!$student) {
