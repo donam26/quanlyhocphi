@@ -233,27 +233,32 @@ class Student extends Model
         // Trim and sanitize the search term
         $term = trim($term);
 
-        // Nếu term chỉ chứa số, tìm kiếm theo SĐT hoặc CCCD
-        if (preg_match('/^\d+$/', $term)) {
-            return $query->where(function ($q) use ($term) {
+        return $query->where(function ($q) use ($term) {
+            // Nếu term chỉ chứa số, ưu tiên tìm kiếm theo SĐT hoặc CCCD
+            if (preg_match('/^\d+$/', $term)) {
                 $q->where('phone', 'like', "%{$term}%")
                   ->orWhere('citizen_id', 'like', "%{$term}%");
-            });
-        }
+            }
+            
+            // Nếu term chứa @ thì tìm kiếm email
+            if (strpos($term, '@') !== false) {
+                $q->orWhere('email', 'like', "%{$term}%");
+            }
 
-        // Nếu term chứa @ thì tìm kiếm email
-        if (strpos($term, '@') !== false) {
-            return $query->where('email', 'like', "%{$term}%");
-        }
-
-        // Tìm kiếm chính xác trong họ tên (BINARY để tránh collation issues)
-        $lowerTerm = strtolower($term);
-        $upperTerm = ucfirst($lowerTerm);
-
-        return $query->where(function ($q) use ($lowerTerm, $upperTerm) {
-            $q->whereRaw("(BINARY CONCAT(first_name, ' ', last_name) LIKE ? OR BINARY CONCAT(first_name, ' ', last_name) LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"])
-              ->orWhereRaw("(BINARY first_name LIKE ? OR BINARY first_name LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"])
-              ->orWhereRaw("(BINARY last_name LIKE ? OR BINARY last_name LIKE ?)", ["%{$lowerTerm}%", "%{$upperTerm}%"]);
+            // Tìm kiếm trong họ tên - sử dụng LIKE đơn giản, không dùng BINARY
+            // Hỗ trợ tìm kiếm tiếng Việt có dấu tự nhiên
+            $q->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$term}%"])
+              ->orWhere('first_name', 'like', "%{$term}%")
+              ->orWhere('last_name', 'like', "%{$term}%");
+              
+            // Fallback: tìm kiếm không phân biệt hoa thường
+            $q->orWhereRaw("LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(?)", ["%{$term}%"])
+              ->orWhereRaw("LOWER(first_name) LIKE LOWER(?)", ["%{$term}%"])
+              ->orWhereRaw("LOWER(last_name) LIKE LOWER(?)", ["%{$term}%"]);
+              
+            // Tìm kiếm thêm trong phone và email với OR logic
+            $q->orWhere('phone', 'like', "%{$term}%")
+              ->orWhere('email', 'like', "%{$term}%");
         });
     }
 

@@ -181,18 +181,14 @@ class StudentController extends Controller
     {
         $query = Student::with(['province', 'placeOfBirthProvince', 'ethnicity', 'enrollments.courseItem']);
 
-        // Search by name or phone
+        // Search by name, phone, email using improved search scope
         if ($request->has('q') && $request->q) {
             $searchTerm = $request->q;
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('first_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('last_name', 'like', "%{$searchTerm}%")
-                  ->orWhere('phone', 'like', "%{$searchTerm}%")
-                  ->orWhere('email', 'like', "%{$searchTerm}%")
-                  ->orWhere('current_workplace', 'like', "%{$searchTerm}%")
-                  ->orWhere('training_specialization', 'like', "%{$searchTerm}%")
-                  ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$searchTerm}%"]);
-            });
+            $query->search($searchTerm); // Use the improved search scope
+            
+            // Additional search in workplace and specialization for advanced search
+            $query->orWhere('current_workplace', 'like', "%{$searchTerm}%")
+                  ->orWhere('training_specialization', 'like', "%{$searchTerm}%");
         }
 
         // Filter by gender
