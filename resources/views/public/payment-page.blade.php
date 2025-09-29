@@ -158,15 +158,15 @@
                         <div class="row">
                             <div class="col-md-8">
                                 <label class="form-label">Số tiền thanh toán (VND)</label>
-                                <input type="number" 
-                                       class="form-control amount-input" 
-                                       id="amount" 
-                                       name="amount" 
-                                       min="1000" 
-                                       max="{{ $remaining }}" 
-                                       value="{{ $remaining }}"
+                                <input type="text"
+                                       class="form-control amount-input"
+                                       id="amount"
+                                       name="amount"
+                                       data-min="1000"
+                                       data-max="{{ $remaining }}"
+                                       value="{{ number_format($remaining, 0, ',', '.') }}"
                                        placeholder="Nhập số tiền">
-                                <small class="text-muted">Tối thiểu 1,000 VND - Tối đa {{ number_format($remaining) }} VND</small>
+                                <small class="text-muted">Tối thiểu 1.000 VND - Tối đa {{ number_format($remaining, 0, ',', '.') }} VND</small>
                             </div>
                             <div class="col-md-4 d-flex align-items-end">
                                 <button type="submit" class="btn btn-payment w-100">
@@ -203,17 +203,53 @@
         let currentPaymentId = {{ $pendingPayment ? $pendingPayment->id : 'null' }};
         let checkInterval;
 
+        // Number formatting functions
+        function formatNumber(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        }
+
+        function parseNumber(str) {
+            return parseInt(str.replace(/\./g, '')) || 0;
+        }
+
+        // Initialize amount input formatting
+        document.addEventListener('DOMContentLoaded', function() {
+            const amountInput = document.getElementById('amount');
+
+            // Format on input
+            amountInput.addEventListener('input', function(e) {
+                let value = e.target.value.replace(/\./g, '');
+                if (value && !isNaN(value)) {
+                    e.target.value = formatNumber(value);
+                }
+            });
+
+            // Validate on blur
+            amountInput.addEventListener('blur', function(e) {
+                const value = parseNumber(e.target.value);
+                const min = parseInt(e.target.getAttribute('data-min'));
+                const max = parseInt(e.target.getAttribute('data-max'));
+
+                if (value < min) {
+                    e.target.value = formatNumber(min);
+                } else if (value > max) {
+                    e.target.value = formatNumber(max);
+                }
+            });
+        });
+
         // Form submit
         document.getElementById('paymentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            
-            const amount = document.getElementById('amount').value;
+
+            const amountStr = document.getElementById('amount').value;
+            const amount = parseNumber(amountStr);
             const btn = this.querySelector('button[type="submit"]');
             const btnText = btn.querySelector('.btn-text');
             const loading = btn.querySelector('.loading');
-            
+
             if (!amount || amount < 1000) {
-                alert('Vui lòng nhập số tiền hợp lệ (tối thiểu 1,000 VND)');
+                alert('Vui lòng nhập số tiền hợp lệ (tối thiểu 1.000 VND)');
                 return;
             }
 

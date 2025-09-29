@@ -6,12 +6,15 @@ use Maatwebsite\Excel\Concerns\FromArray;
 use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnWidths;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Font;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\DataValidation;
 
-class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths
+class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles, WithColumnWidths, WithEvents
 {
     protected $templateData;
 
@@ -140,6 +143,110 @@ class StudentImportTemplateExport implements FromArray, WithHeadings, WithStyles
             'T' => 30, // Địa chỉ công ty
             'U' => 15, // Nguồn
             'V' => 20, // Ghi chú
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function(AfterSheet $event) {
+                // Thêm dữ liệu mẫu vào dòng 2
+                $event->sheet->setCellValue('A2', 'Nguyễn Văn');
+                $event->sheet->setCellValue('B2', 'An');
+                $event->sheet->setCellValue('C2', '0901234567');
+                $event->sheet->setCellValue('D2', '123456789012');
+                $event->sheet->setCellValue('E2', 'nguyen.van.an@gmail.com');
+                $event->sheet->setCellValue('F2', '01/01/1990');
+                $event->sheet->setCellValue('G2', 'Nam');
+                $event->sheet->setCellValue('H2', '123 Đường ABC, Quận 1, TP.HCM');
+                $event->sheet->setCellValue('I2', 'Hồ Chí Minh');
+                $event->sheet->setCellValue('J2', 'Kinh');
+                $event->sheet->setCellValue('K2', 'Việt Nam');
+                $event->sheet->setCellValue('L2', 'Công ty TNHH ABC');
+                $event->sheet->setCellValue('M2', '5');
+                $event->sheet->setCellValue('N2', 'Kế toán tài chính');
+                $event->sheet->setCellValue('O2', 'Đã nộp');
+                $event->sheet->setCellValue('P2', 'Đại học');
+                $event->sheet->setCellValue('Q2', 'Công ty TNHH XYZ');
+                $event->sheet->setCellValue('R2', '0123456789');
+                $event->sheet->setCellValue('S2', 'ketoan@company.com');
+                $event->sheet->setCellValue('T2', '456 Đường DEF, Quận 2, TP.HCM');
+                $event->sheet->setCellValue('U2', 'website');
+                $event->sheet->setCellValue('V2', 'Ghi chú mẫu');
+
+                // Freeze header row
+                $event->sheet->freezePane('A2');
+
+                // Auto-fit columns
+                foreach(range('A','V') as $column) {
+                    $event->sheet->getColumnDimension($column)->setAutoSize(false);
+                }
+
+                // Thêm data validation cho các cột có giá trị cố định
+                $sheet = $event->sheet->getDelegate();
+
+                // Dropdown cho cột Giới tính (G)
+                $genderValidation = $sheet->getCell('G2')->getDataValidation();
+                $genderValidation->setType(DataValidation::TYPE_LIST);
+                $genderValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $genderValidation->setAllowBlank(true);
+                $genderValidation->setShowInputMessage(true);
+                $genderValidation->setShowErrorMessage(true);
+                $genderValidation->setShowDropDown(true);
+                $genderValidation->setErrorTitle('Lỗi nhập liệu');
+                $genderValidation->setError('Vui lòng chọn một trong các tùy chọn hoặc để trống');
+                $genderValidation->setPromptTitle('Giới tính');
+                $genderValidation->setPrompt('Chọn giới tính hoặc để trống');
+                $genderValidation->setFormula1('"(Để trống),Nam,Nữ"');
+
+                // Dropdown cho cột Hồ sơ bản cứng (O)
+                $documentValidation = $sheet->getCell('O2')->getDataValidation();
+                $documentValidation->setType(DataValidation::TYPE_LIST);
+                $documentValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $documentValidation->setAllowBlank(true);
+                $documentValidation->setShowInputMessage(true);
+                $documentValidation->setShowErrorMessage(true);
+                $documentValidation->setShowDropDown(true);
+                $documentValidation->setErrorTitle('Lỗi nhập liệu');
+                $documentValidation->setError('Vui lòng chọn một trong các tùy chọn hoặc để trống');
+                $documentValidation->setPromptTitle('Hồ sơ bản cứng');
+                $documentValidation->setPrompt('Chọn tình trạng hồ sơ hoặc để trống');
+                $documentValidation->setFormula1('"(Để trống),Đã nộp,Chưa nộp"');
+
+                // Dropdown cho cột Trình độ học vấn (P)
+                $educationValidation = $sheet->getCell('P2')->getDataValidation();
+                $educationValidation->setType(DataValidation::TYPE_LIST);
+                $educationValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $educationValidation->setAllowBlank(true);
+                $educationValidation->setShowInputMessage(true);
+                $educationValidation->setShowErrorMessage(true);
+                $educationValidation->setShowDropDown(true);
+                $educationValidation->setErrorTitle('Lỗi nhập liệu');
+                $educationValidation->setError('Vui lòng chọn một trong các tùy chọn hoặc để trống');
+                $educationValidation->setPromptTitle('Trình độ học vấn');
+                $educationValidation->setPrompt('Chọn trình độ học vấn hoặc để trống');
+                $educationValidation->setFormula1('"(Để trống),Đại học,Cao đẳng,Trung cấp,Thạc sĩ,VB2"');
+
+                // Dropdown cho cột Nguồn (U) - ĐÂY LÀ PHẦN QUAN TRỌNG
+                $sourceValidation = $sheet->getCell('U2')->getDataValidation();
+                $sourceValidation->setType(DataValidation::TYPE_LIST);
+                $sourceValidation->setErrorStyle(DataValidation::STYLE_INFORMATION);
+                $sourceValidation->setAllowBlank(true);
+                $sourceValidation->setShowInputMessage(true);
+                $sourceValidation->setShowErrorMessage(true);
+                $sourceValidation->setShowDropDown(true);
+                $sourceValidation->setErrorTitle('Lỗi nhập liệu');
+                $sourceValidation->setError('Vui lòng chọn một trong các nguồn hoặc để trống');
+                $sourceValidation->setPromptTitle('Nguồn khách hàng');
+                $sourceValidation->setPrompt('Chọn nguồn khách hàng hoặc để trống');
+                $sourceValidation->setFormula1('"(Để trống),Facebook,Zalo,Website,LinkedIn,TikTok,Bạn bè"');
+
+                // Áp dụng validation cho toàn bộ cột (từ dòng 2 đến 1000)
+                $sheet->setDataValidation('G2:G1000', clone $genderValidation);
+                $sheet->setDataValidation('O2:O1000', clone $documentValidation);
+                $sheet->setDataValidation('P2:P1000', clone $educationValidation);
+                $sheet->setDataValidation('U2:U1000', clone $sourceValidation);
+            }
         ];
     }
 }

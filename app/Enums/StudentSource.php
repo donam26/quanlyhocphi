@@ -10,6 +10,7 @@ enum StudentSource: string
     case LINKEDIN = 'linkedin';
     case TIKTOK = 'tiktok';
     case FRIEND_REFERRAL = 'friend_referral';
+    case OTHER = 'other';
 
     /**
      * Lấy tên hiển thị của nguồn
@@ -23,6 +24,7 @@ enum StudentSource: string
             self::LINKEDIN => 'LinkedIn',
             self::TIKTOK => 'TikTok',
             self::FRIEND_REFERRAL => 'Bạn bè giới thiệu',
+            self::OTHER => 'Khác',
         };
     }
 
@@ -38,6 +40,7 @@ enum StudentSource: string
             self::LINKEDIN => 'secondary',
             self::TIKTOK => 'dark',
             self::FRIEND_REFERRAL => 'warning',
+            self::OTHER => 'light',
         };
     }
 
@@ -53,6 +56,7 @@ enum StudentSource: string
             self::LINKEDIN => 'fab fa-linkedin',
             self::TIKTOK => 'fab fa-tiktok',
             self::FRIEND_REFERRAL => 'fas fa-users',
+            self::OTHER => 'fas fa-question-circle',
         };
     }
 
@@ -68,6 +72,7 @@ enum StudentSource: string
             self::LINKEDIN->value => self::LINKEDIN->label(),
             self::TIKTOK->value => self::TIKTOK->label(),
             self::FRIEND_REFERRAL->value => self::FRIEND_REFERRAL->label(),
+            self::OTHER->value => self::OTHER->label(),
         ];
     }
 
@@ -93,6 +98,7 @@ enum StudentSource: string
             'linkedin' => self::LINKEDIN,
             'tiktok' => self::TIKTOK,
             'friend_referral' => self::FRIEND_REFERRAL,
+            'other' => self::OTHER,
             default => null,
         };
     }

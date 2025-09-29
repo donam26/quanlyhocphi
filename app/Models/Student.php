@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Traits\Date;
 use App\Enums\StudentSource;
+use App\Enums\EducationLevel;
 
 class Student extends Model
 {
@@ -48,7 +49,7 @@ class Student extends Model
     protected $casts = [
         'date_of_birth' => 'date',
         'hard_copy_documents' => 'string',
-        'education_level' => 'string',
+        'education_level' => EducationLevel::class,
         'source' => StudentSource::class,
     ];
 
@@ -349,5 +350,38 @@ class Student extends Model
     public function scopeBySource($query, $source)
     {
         return $query->where('source', $source);
+    }
+
+    /**
+     * Lấy trình độ học vấn dưới dạng enum
+     */
+    public function getEducationLevelEnum(): ?EducationLevel
+    {
+        if ($this->education_level instanceof EducationLevel) {
+            return $this->education_level;
+        }
+
+        if (is_string($this->education_level)) {
+            return EducationLevel::fromString($this->education_level);
+        }
+
+        return null;
+    }
+
+    /**
+     * Lấy badge HTML cho trình độ học vấn
+     */
+    public function getEducationLevelBadgeAttribute(): string
+    {
+        $educationLevel = $this->getEducationLevelEnum();
+        return $educationLevel ? $educationLevel->badge() : '<span class="badge bg-secondary">Chưa xác định</span>';
+    }
+
+    /**
+     * Scope lọc theo trình độ học vấn
+     */
+    public function scopeByEducationLevel($query, $educationLevel)
+    {
+        return $query->where('education_level', $educationLevel);
     }
 }
