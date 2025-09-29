@@ -31,7 +31,7 @@ class StudentFactory extends Factory
             'nation' => 'Kinh',
             'current_workplace' => $this->faker->optional()->company(),
             'accounting_experience_years' => $this->faker->optional()->numberBetween(0, 20),
-            'education_level' => $this->faker->optional()->randomElement(['vocational', 'associate', 'bachelor', 'master', 'secondary']),
+            'education_level' => $this->faker->optional()->randomElement(['secondary', 'vocational', 'associate', 'bachelor', 'second_degree', 'master', 'phd']),
             'training_specialization' => $this->faker->optional()->jobTitle(),
             'hard_copy_documents' => $this->faker->randomElement(['submitted', 'not_submitted']),
             'notes' => $this->faker->optional()->sentence(),
@@ -46,7 +46,7 @@ class StudentFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'current_workplace' => $this->faker->company(),
             'accounting_experience_years' => $this->faker->numberBetween(1, 15),
-            'education_level' => $this->faker->randomElement(['associate', 'bachelor', 'master']),
+            'education_level' => $this->faker->randomElement(['associate', 'bachelor', 'second_degree', 'master', 'phd']),
             'training_specialization' => 'Kế toán',
         ]);
     }

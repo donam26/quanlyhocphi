@@ -269,7 +269,7 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
                 $ethnicity = $student->ethnicity_id ? \App\Models\Ethnicity::find($student->ethnicity_id) : null;
                 return $ethnicity ? $ethnicity->name : '';
             case 'education_level':
-                return $student->education_level;
+                return $this->formatEducationLevel($student->education_level);
             case 'training_specialization':
                 return $student->training_specialization;
             case 'accounting_experience_years':
@@ -504,5 +504,27 @@ class AttendanceMatrixExport implements FromArray, WithTitle, WithStyles, WithCo
             return 'Thanh toán một phần';
         }
         return 'Chưa thanh toán';
+    }
+
+    protected function formatEducationLevel($level)
+    {
+        switch ($level) {
+            case 'secondary':
+                return 'Trung học';
+            case 'vocational':
+                return 'Trung cấp';
+            case 'associate':
+                return 'Cao đẳng';
+            case 'bachelor':
+                return 'Đại học';
+            case 'second_degree':
+                return 'Văn bằng 2';
+            case 'master':
+                return 'Thạc sĩ';
+            case 'phd':
+                return 'Tiến sĩ';
+            default:
+                return $level;
+        }
     }
 }

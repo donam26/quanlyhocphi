@@ -205,7 +205,7 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
                         Carbon::parse($student->date_of_birth)->format('d/m/Y') : '';
                     break;
                 case 'education_level':
-                    $row[] = $student->education_level;
+                    $row[] = $this->formatEducationLevel($student->education_level);
                     break;
                 case 'training_specialization':
                     $row[] = $student->training_specialization;
@@ -380,3 +380,26 @@ class AttendanceExport implements FromCollection, WithHeadings, WithMapping, Wit
         return 'Chưa thanh toán';
     }
 }
+
+    protected function formatEducationLevel($level)
+    {
+        switch ($level) {
+            case 'secondary':
+                return 'Trung học';
+            case 'vocational':
+                return 'Trung cấp';
+            case 'associate':
+                return 'Cao đẳng';
+            case 'bachelor':
+                return 'Đại học';
+            case 'second_degree':
+                return 'Văn bằng 2';
+            case 'master':
+                return 'Thạc sĩ';
+            case 'phd':
+                return 'Tiến sĩ';
+            default:
+                return $level;
+        }
+    }
+

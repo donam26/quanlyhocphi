@@ -218,6 +218,9 @@ class DataNormalizer
         $normalized = self::removeAccents(trim((string) $educationValue));
         Log::debug('normalizeEducationLevel - Normalized value:', [$normalized]);
 
+        if (str_contains($normalized, 'trung hoc') || str_contains($normalized, 'secondary')) {
+            return 'secondary';
+        }
         if (str_contains($normalized, 'trung cap')) {
             return 'vocational';
         }
@@ -227,11 +230,14 @@ class DataNormalizer
         if (str_contains($normalized, 'dai hoc') || str_contains($normalized, 'university') || str_contains($normalized, 'cu nhan')) {
             return 'bachelor';
         }
+        if (str_contains($normalized, 'van bang 2') || str_contains($normalized, 'vb2') || str_contains($normalized, 'second_degree')) {
+            return 'second_degree';
+        }
         if (str_contains($normalized, 'thac si') || str_contains($normalized, 'master')) {
             return 'master';
         }
-        if (str_contains($normalized, 'vb2') || str_contains($normalized, 'van bang 2') || str_contains($normalized, 'secondary')) {
-            return 'secondary';
+        if (str_contains($normalized, 'tien si') || str_contains($normalized, 'phd') || str_contains($normalized, 'doctor')) {
+            return 'phd';
         }
 
         Log::warning('normalizeEducationLevel - No match found for:', [$normalized]);

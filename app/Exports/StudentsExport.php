@@ -223,16 +223,20 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
     protected function formatEducationLevel($level)
     {
         switch ($level) {
+            case 'secondary':
+                return 'Trung học';
             case 'vocational':
                 return 'Trung cấp';
             case 'associate':
                 return 'Cao đẳng';
             case 'bachelor':
                 return 'Đại học';
+            case 'second_degree':
+                return 'Văn bằng 2';
             case 'master':
                 return 'Thạc sĩ';
-            case 'secondary':
-                return 'VB2';
+            case 'phd':
+                return 'Tiến sĩ';
             default:
                 return '';
         }

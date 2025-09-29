@@ -216,7 +216,7 @@ class PaymentController extends Controller
     public function destroy(Payment $payment)
     {
         try {
-            $payment->delete();
+            $this->paymentService->deletePayment($payment);
 
             return response()->json([
                 'success' => true,

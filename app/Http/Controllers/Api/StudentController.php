@@ -358,7 +358,7 @@ class StudentController extends Controller
                 'accounting_experience_years' => 'nullable|integer|min:0',
                 'training_specialization' => 'nullable|string|max:255',
                 'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
-                'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+                'education_level' => 'nullable|in:vocational,associate,bachelor,second_degree,master,phd,secondary',
                 'source' => 'nullable|in:facebook,zalo,website,linkedin,tiktok,friend_referral',
                 'notes' => 'nullable|string',
                 // Thông tin công ty
@@ -371,7 +371,7 @@ class StudentController extends Controller
                 'current_workplace' => 'nullable|string|max:255',
                 'accounting_experience_years' => 'nullable|integer|min:0',
                 'training_specialization' => 'nullable|string|max:255',
-                'education_level' => 'nullable|in:secondary,vocational,associate,bachelor,master',
+                'education_level' => 'nullable|in:secondary,vocational,associate,bachelor,second_degree,master,phd',
                 'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             ];
 
@@ -384,7 +384,7 @@ class StudentController extends Controller
                     $rules['current_workplace'] = 'required|string|max:255';
                     $rules['accounting_experience_years'] = 'required|integer|min:0';
                     $rules['training_specialization'] = 'required|string|max:255';
-                    $rules['education_level'] = 'required|in:secondary,vocational,associate,bachelor,master';
+                    $rules['education_level'] = 'required|in:secondary,vocational,associate,bachelor,second_degree,master,phd';
                     $rules['hard_copy_documents'] = 'required|in:submitted,not_submitted';
                 }
             }
@@ -520,7 +520,7 @@ class StudentController extends Controller
                 'current_workplace' => 'nullable|string|max:255',
                 'accounting_experience_years' => 'nullable|integer|min:0',
                 'training_specialization' => 'nullable|string|max:255',
-                'education_level' => 'nullable|in:secondary,vocational,associate,bachelor,master',
+                'education_level' => 'nullable|in:secondary,vocational,associate,bachelor,second_degree,master,phd',
                 'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             ];
 
@@ -984,7 +984,7 @@ class StudentController extends Controller
                 'place_of_birth_province_id' => 'nullable|integer',
                 'ethnicity_id' => 'nullable|integer',
                 'gender' => 'nullable|in:male,female,other',
-                'education_level' => 'nullable|in:vocational,associate,bachelor,master,secondary',
+                'education_level' => 'nullable|in:vocational,associate,bachelor,second_degree,master,phd,secondary',
                 'accounting_experience_years' => 'nullable|string',
                 'current_workplace' => 'nullable|string',
                 'source' => 'nullable|string',
