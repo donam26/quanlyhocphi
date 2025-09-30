@@ -970,10 +970,7 @@ class PaymentController extends Controller
             // Filters
             if ($request->has('search')) {
                 $search = $request->search;
-                $query->where(function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%")
-                      ->orWhere('path', 'like', "%{$search}%");
-                });
+                $query->where('name', 'like', "%{$search}%");
             }
 
             // Sorting parameters
