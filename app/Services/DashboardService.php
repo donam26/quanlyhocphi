@@ -751,7 +751,7 @@ class DashboardService
                     'type' => 'enrollment',
                     'date' => $enrollment->enrollment_date,
                     'details' => [
-                        'student_name' => $enrollment->student->full_name,
+                        'student_name' => $enrollment->student->full_name ?? 'N/A',
                         'student_id' => $enrollment->student->id,
                         'course_name' => $enrollment->courseItem->name,
                         'course_id' => $enrollment->courseItem->id,
@@ -770,7 +770,7 @@ class DashboardService
                     'type' => 'payment',
                     'date' => $payment->payment_date,
                     'details' => [
-                        'student_name' => $payment->enrollment->student->full_name,
+                        'student_name' => $payment->enrollment->student->full_name ?? 'N/A',
                         'student_id' => $payment->enrollment->student->id,
                         'course_name' => $payment->enrollment->courseItem->name,
                         'course_id' => $payment->enrollment->courseItem->id,
@@ -791,7 +791,7 @@ class DashboardService
                     'type' => 'attendance',
                     'date' => $attendance->attendance_date,
                     'details' => [
-                        'student_name' => $attendance->student->full_name,
+                        'student_name' => $attendance->student->full_name ?? 'N/A',
                         'student_id' => $attendance->student->id,
                         'course_name' => $attendance->courseItem->name,
                         'course_id' => $attendance->courseItem->id,
@@ -882,7 +882,7 @@ class DashboardService
             'enrollments' => $unpaidEnrollments->take(10)->map(function($enrollment) {
                 return [
                     'id' => $enrollment->id,
-                    'student_name' => $enrollment->student->full_name,
+                    'student_name' => $enrollment->student->full_name ?? 'N/A',
                     'course_name' => $enrollment->courseItem->name,
                     'remaining_amount' => $enrollment->getRemainingAmount(),
                     'final_fee' => $enrollment->final_fee,

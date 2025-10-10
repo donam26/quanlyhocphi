@@ -62,12 +62,13 @@ class PaymentController extends Controller
                 $query->whereDate('payment_date', '<=', $request->end_date);
             }
 
-            // Sorting parameters
-            $sortBy = $request->input('sort_by', 'payment_date');
+            // Sorting parameters - default to newest first (desc)
+            $sortBy = $request->input('sort_by', 'created_at');
             $sortOrder = $request->input('sort_order', 'desc');
 
             // Validate sort fields to prevent SQL injection
             $allowedSortFields = [
+                'created_at',
                 'payment_date',
                 'amount',
                 'status',
