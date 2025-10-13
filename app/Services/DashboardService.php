@@ -643,8 +643,11 @@ class DashboardService
         
         // Lọc theo khóa học nếu có
         if ($courseItemId) {
-            $query->whereHas('enrollments', function ($q) use ($courseItemId) {
-                $q->where('course_item_id', $courseItemId);
+            $query->whereExists(function ($q) use ($courseItemId) {
+                $q->select(DB::raw(1))
+                  ->from('enrollments')
+                  ->whereColumn('enrollments.student_id', 'students.id')
+                  ->where('enrollments.course_item_id', $courseItemId);
             });
         }
         
@@ -898,8 +901,7 @@ class DashboardService
     public function getStudentsBySource($timeRange = 'day', $courseItemId = null)
     {
         $query = DB::table('students')
-            ->select('source', DB::raw('COUNT(*) as count'))
-            ->whereNotNull('source');
+            ->select('id', 'sources', 'created_at');
 
         // Lọc theo khoảng thời gian nếu cần
         if ($timeRange !== 'total') {
@@ -934,23 +936,37 @@ class DashboardService
             });
         }
 
-        $results = $query->groupBy('source')
-            ->orderBy('count', 'desc')
-            ->get();
+        $students = $query->get();
+        $sourceCounts = [];
 
-        $total = $results->sum('count');
+        foreach ($students as $student) {
+            $sources = json_decode($student->sources, true);
+            if (is_array($sources)) {
+                foreach ($sources as $source) {
+                    if (!isset($sourceCounts[$source])) {
+                        $sourceCounts[$source] = 0;
+                    }
+                    $sourceCounts[$source]++;
+                }
+            }
+        }
 
-        $data = $results->map(function ($item) use ($total) {
-            $sourceEnum = \App\Enums\StudentSource::fromString($item->source);
-            return [
-                'source' => $item->source,
-                'label' => $sourceEnum ? $sourceEnum->label() : $item->source,
+        arsort($sourceCounts);
+
+        $total = array_sum($sourceCounts);
+        $data = [];
+
+        foreach ($sourceCounts as $source => $count) {
+            $sourceEnum = \App\Enums\StudentSource::fromString($source);
+            $data[] = [
+                'source' => $source,
+                'label' => $sourceEnum ? $sourceEnum->label() : $source,
                 'icon' => $sourceEnum ? $sourceEnum->icon() : 'fas fa-question',
                 'color' => $sourceEnum ? $sourceEnum->color() : 'secondary',
-                'count' => $item->count,
-                'percentage' => $total > 0 ? round(($item->count / $total) * 100, 1) : 0
+                'count' => $count,
+                'percentage' => $total > 0 ? round(($count / $total) * 100, 1) : 0
             ];
-        });
+        }
 
         return [
             'data' => $data,
