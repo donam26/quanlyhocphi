@@ -348,7 +348,7 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
 
         // Ghi chú và nguồn
         $data['notes'] = DataNormalizer::normalizeText($row['ghi_chu'] ?? $row['notes'] ?? null);
-        $data['source'] = $this->normalizeSource($row['nguon'] ?? $row['source'] ?? null);
+        $data['sources'] = $this->normalizeSources($row['nguon'] ?? $row['sources'] ?? null);
 
         return array_filter($data, function($value) {
             return $value !== null && $value !== '';
@@ -542,23 +542,31 @@ class UnifiedStudentImport implements ToModel, WithHeadingRow, WithValidation, S
         return null;
     }
 
-    protected function normalizeSource($source)
+    protected function normalizeSources($sourcesValue)
     {
-        if (empty($source)) return null;
+        if (empty($sourcesValue)) {
+            return null;
+        }
 
-        $source = strtolower(trim($source));
+        // Tách chuỗi bằng dấu phẩy, trim khoảng trắng mỗi phần tử
+        $sources = array_map('trim', explode(',', $sourcesValue));
+        $normalizedSources = [];
 
-        $mapping = [
-            'facebook' => 'facebook',
-            'zalo' => 'zalo',
-            'website' => 'website',
-            'linkedin' => 'linkedin',
-            'tiktok' => 'tiktok',
-            'bạn bè' => 'friends',
-            'ban be' => 'friends'
-        ];
+        $validSources = array_column(\App\Enums\StudentSource::cases(), 'value');
 
-        return $mapping[$source] ?? $source;
+        foreach ($sources as $source) {
+            $normalized = strtolower(trim($source));
+            // Cố gắng khớp với các giá trị enum hợp lệ
+            if (in_array($normalized, $validSources)) {
+                $normalizedSources[] = $normalized;
+            } else {
+                // Nếu không khớp, có thể ghi log hoặc mặc định là 'other'
+                 $normalizedSources[] = 'other';
+            }
+        }
+
+        // Trả về mảng các nguồn đã được chuẩn hóa và loại bỏ trùng lặp
+        return array_unique($normalizedSources);
     }
 
     /**

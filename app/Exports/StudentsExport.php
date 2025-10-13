@@ -50,7 +50,7 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
             'tax_code' => 'Mã số thuế',
             'invoice_email' => 'Email hóa đơn',
             'company_address' => 'Địa chỉ công ty',
-            'source' => 'Nguồn',
+            'sources' => 'Nguồn',
             'notes' => 'Ghi chú',
             'created_at' => 'Ngày tạo',
             'enrollments_count' => 'Số khóa học',
@@ -160,8 +160,8 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
                 case 'company_address':
                     $row[] = $student->company_address;
                     break;
-                case 'source':
-                    $row[] = $this->formatSource($student->source);
+                case 'sources':
+                    $row[] = $this->formatSources($student->sources);
                     break;
                 case 'notes':
                     $row[] = $student->notes;
@@ -254,22 +254,46 @@ class StudentsExport implements FromCollection, WithHeadings, WithMapping, WithS
         }
     }
 
-    protected function formatSource($source)
+    protected function formatSources($sources)
     {
-        switch ($source) {
-            case 'facebook':
-                return 'Facebook';
-            case 'google':
-                return 'Google';
-            case 'website':
-                return 'Website';
-            case 'referral':
-                return 'Giới thiệu';
-            case 'other':
-                return 'Khác';
-            default:
-                return '';
+        if (empty($sources) || !is_array($sources)) {
+            return '';
         }
+
+        $formattedSources = [];
+        foreach ($sources as $source) {
+            switch ($source) {
+                case 'facebook':
+                    $formattedSources[] = 'Facebook';
+                    break;
+                case 'google':
+                    $formattedSources[] = 'Google';
+                    break;
+                case 'website':
+                    $formattedSources[] = 'Website';
+                    break;
+                case 'zalo':
+                    $formattedSources[] = 'Zalo';
+                    break;
+                case 'linkedin':
+                    $formattedSources[] = 'LinkedIn';
+                    break;
+                case 'tiktok':
+                    $formattedSources[] = 'TikTok';
+                    break;
+                case 'friend_referral':
+                    $formattedSources[] = 'Bạn bè giới thiệu';
+                    break;
+                case 'other':
+                    $formattedSources[] = 'Khác';
+                    break;
+                default:
+                    $formattedSources[] = $source ?? '';
+                    break;
+            }
+        }
+
+        return implode(', ', $formattedSources);
     }
 
     protected function getPaymentStatus($student)

@@ -41,7 +41,7 @@ class StudentController extends Controller
 
         // Filter by source
         if ($request->has('source') && $request->source) {
-            $query->where('source', $request->source);
+            $query->whereJsonContains('sources', $request->source);
         }
 
         // Sort - xử lý sắp xếp từ frontend
@@ -213,7 +213,7 @@ class StudentController extends Controller
 
         // Filter by source
         if ($request->has('source') && $request->source) {
-            $query->where('source', $request->source);
+            $query->whereJsonContains('sources', $request->source);
         }
 
         // Filter by place of birth province
@@ -359,20 +359,14 @@ class StudentController extends Controller
                 'training_specialization' => 'nullable|string|max:255',
                 'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
                 'education_level' => 'nullable|in:vocational,associate,bachelor,second_degree,master,phd,secondary',
-                'source' => 'nullable|in:facebook,zalo,website,linkedin,tiktok,friend_referral',
+                'sources' => 'nullable|array',
+                'sources.*' => 'in:facebook,zalo,website,linkedin,tiktok,friend_referral,other',
                 'notes' => 'nullable|string',
                 // Thông tin công ty
                 'company_name' => 'nullable|string|max:255',
                 'tax_code' => 'nullable|string|max:20',
                 'invoice_email' => 'nullable|email',
                 'company_address' => 'nullable|string|max:500',
-                'company_address' => 'nullable|string',
-                // Thông tin bổ sung cho khóa học đặc biệt
-                'current_workplace' => 'nullable|string|max:255',
-                'accounting_experience_years' => 'nullable|integer|min:0',
-                'training_specialization' => 'nullable|string|max:255',
-                'education_level' => 'nullable|in:secondary,vocational,associate,bachelor,second_degree,master,phd',
-                'hard_copy_documents' => 'nullable|in:submitted,not_submitted',
             ];
 
             // Kiểm tra nếu đang tạo cho khóa học đặc biệt
@@ -509,14 +503,14 @@ class StudentController extends Controller
                 'place_of_birth_province_id' => 'nullable|exists:provinces,id',
                 'nation' => 'nullable|string|max:255',
                 'ethnicity_id' => 'nullable|exists:ethnicities,id',
-                'source' => 'nullable|in:facebook,zalo,website,linkedin,tiktok,friend_referral',
+                'sources' => 'nullable|array',
+                'sources.*' => 'in:facebook,zalo,website,linkedin,tiktok,friend_referral,other',
                 'notes' => 'nullable|string',
                 // Thông tin công ty
                 'company_name' => 'nullable|string|max:255',
                 'tax_code' => 'nullable|string|max:20',
                 'invoice_email' => 'nullable|email',
-                'company_address' => 'nullable|string',
-                // Thông tin bổ sung cho khóa học đặc biệt
+                'company_address' => 'nullable|string|max:500',
                 'current_workplace' => 'nullable|string|max:255',
                 'accounting_experience_years' => 'nullable|integer|min:0',
                 'training_specialization' => 'nullable|string|max:255',
@@ -1071,7 +1065,7 @@ class StudentController extends Controller
 
             // Apply source filter
             if (!empty($filters['source'])) {
-                $query->where('source', $filters['source']);
+                $query->whereJsonContains('sources', $filters['source']);
             }
 
             // Apply hard copy documents filter
@@ -1118,7 +1112,7 @@ class StudentController extends Controller
                 'student_last_name', 'student_first_name', 'student_phone', 'student_email',
                 'student_date_of_birth', 'student_gender', 'student_province',
                 'ethnicity', 'current_workplace', 'accounting_experience_years',
-                'education_level', 'source', 'created_at'
+                'education_level', 'sources', 'created_at'
             ]);
 
             $fileName = 'danh_sach_hoc_vien_' . date('Y_m_d_H_i_s') . '.xlsx';

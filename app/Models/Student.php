@@ -36,7 +36,7 @@ class Student extends Model
         'tax_code',
         'invoice_email',
         'company_address',
-        'source'
+        'sources'
     ];
 
     /**
@@ -50,7 +50,7 @@ class Student extends Model
         'date_of_birth' => 'date',
         'hard_copy_documents' => 'string',
         'education_level' => EducationLevel::class,
-        'source' => StudentSource::class,
+        'sources' => 'array',
     ];
 
     /**
@@ -320,28 +320,23 @@ class Student extends Model
     }
 
     /**
-     * Lấy nguồn dưới dạng enum
+     * Lấy значки HTML cho các nguồn
      */
-    public function getSourceEnum(): ?StudentSource
+    public function getSourceBadgesAttribute(): string
     {
-        if ($this->source instanceof StudentSource) {
-            return $this->source;
+        if (empty($this->sources)) {
+            return '<span class="badge bg-secondary">Chưa xác định</span>';
         }
 
-        if (is_string($this->source)) {
-            return StudentSource::fromString($this->source);
+        $badges = '';
+        foreach ($this->sources as $sourceValue) {
+            $sourceEnum = StudentSource::tryFrom($sourceValue);
+            if ($sourceEnum) {
+                $badges .= $sourceEnum->badge() . ' ';
+            }
         }
 
-        return null;
-    }
-
-    /**
-     * Lấy badge HTML cho nguồn
-     */
-    public function getSourceBadgeAttribute(): string
-    {
-        $source = $this->getSourceEnum();
-        return $source ? $source->badge() : '<span class="badge bg-secondary">Chưa xác định</span>';
+        return trim($badges);
     }
 
     /**
@@ -349,7 +344,7 @@ class Student extends Model
      */
     public function scopeBySource($query, $source)
     {
-        return $query->where('source', $source);
+        return $query->whereJsonContains('sources', $source);
     }
 
     /**
