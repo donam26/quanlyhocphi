@@ -730,28 +730,86 @@ class PaymentController extends Controller
     public function getPaymentOverview(Request $request)
     {
         try {
-            // Tổng số ghi danh đang hoạt động
-            $totalActiveEnrollments = Enrollment::where('status', EnrollmentStatus::ACTIVE)->count();
+            // Get date filters from request
+            $startDate = $request->get('start_date');
+            $endDate = $request->get('end_date');
 
-            // Tổng học phí cần thu
-            $totalFees = Enrollment::where('status', EnrollmentStatus::ACTIVE)->sum('final_fee');
+            // Base query for enrollments
+            $enrollmentQuery = Enrollment::where('status', EnrollmentStatus::ACTIVE);
 
-            // Tổng đã thu
-            $totalPaid = Payment::where('status', 'confirmed')
+            // Base query for payments with date filters
+            $paymentQuery = Payment::where('status', 'confirmed')
                 ->whereHas('enrollment', function($q) {
                     $q->where('status', EnrollmentStatus::ACTIVE);
-                })->sum('amount');
+                });
 
-            // Số lượng chưa thanh toán đủ
-            $unpaidCount = Enrollment::where('status', EnrollmentStatus::ACTIVE)
-                ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
-                ->count();
+            // Apply date filters to payments if provided
+            if ($startDate) {
+                $paymentQuery->whereDate('payment_date', '>=', $startDate);
+            }
+            if ($endDate) {
+                $paymentQuery->whereDate('payment_date', '<=', $endDate);
+            }
 
-            // Số lượng đã thanh toán đủ
-            $fullyPaidCount = $totalActiveEnrollments - $unpaidCount;
+            // If date filters are applied, we need to calculate statistics differently
+            if ($startDate || $endDate) {
+                // For filtered view, we calculate based on payments in the date range
+                // but still consider all active enrollments for context
 
-            // Tổng còn thiếu
-            $totalRemaining = $totalFees - $totalPaid;
+                // Total active enrollments (not filtered by date)
+                $totalActiveEnrollments = $enrollmentQuery->count();
+
+                // Total fees for all active enrollments (not filtered by date)
+                $totalFees = $enrollmentQuery->sum('final_fee');
+
+                // Total paid within the date range
+                $totalPaid = $paymentQuery->sum('amount');
+
+                // For filtered statistics, we need to be more careful about unpaid count
+                // We'll count enrollments that have payments in the date range but are still not fully paid
+                $enrollmentsWithPaymentsInRange = $paymentQuery->distinct('enrollment_id')->pluck('enrollment_id');
+
+                if ($enrollmentsWithPaymentsInRange->isNotEmpty()) {
+                    $unpaidCount = Enrollment::where('status', EnrollmentStatus::ACTIVE)
+                        ->whereIn('id', $enrollmentsWithPaymentsInRange)
+                        ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
+                        ->count();
+                } else {
+                    $unpaidCount = 0;
+                }
+
+                // Total remaining is calculated differently for filtered view
+                // We show the remaining amount for enrollments that had payments in the date range
+                $totalRemaining = 0;
+                if ($enrollmentsWithPaymentsInRange->isNotEmpty()) {
+                    $enrollmentsInRange = Enrollment::where('status', EnrollmentStatus::ACTIVE)
+                        ->whereIn('id', $enrollmentsWithPaymentsInRange)
+                        ->get();
+
+                    foreach ($enrollmentsInRange as $enrollment) {
+                        $paidAmount = Payment::where('enrollment_id', $enrollment->id)
+                            ->where('status', 'confirmed')
+                            ->sum('amount');
+                        $remaining = max(0, $enrollment->final_fee - $paidAmount);
+                        $totalRemaining += $remaining;
+                    }
+                }
+
+                $fullyPaidCount = max(0, $enrollmentsWithPaymentsInRange->count() - $unpaidCount);
+
+            } else {
+                // Original logic for unfiltered view
+                $totalActiveEnrollments = $enrollmentQuery->count();
+                $totalFees = $enrollmentQuery->sum('final_fee');
+                $totalPaid = $paymentQuery->sum('amount');
+
+                $unpaidCount = Enrollment::where('status', EnrollmentStatus::ACTIVE)
+                    ->whereRaw('(SELECT COALESCE(SUM(amount), 0) FROM payments WHERE payments.enrollment_id = enrollments.id AND payments.status = "confirmed") < enrollments.final_fee')
+                    ->count();
+
+                $fullyPaidCount = $totalActiveEnrollments - $unpaidCount;
+                $totalRemaining = $totalFees - $totalPaid;
+            }
 
             return response()->json([
                 'success' => true,
