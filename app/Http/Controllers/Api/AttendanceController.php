@@ -887,4 +887,59 @@ class AttendanceController extends Controller
 
         return $total;
     }
+
+    /**
+     * API: Xóa lịch sử điểm danh theo ngày
+     */
+    public function deleteByDate(Request $request, CourseItem $courseItem, $date)
+    {
+        try {
+            // Sử dụng route parameter $date thay vì validate request body
+            $attendanceDate = Carbon::parse($date);
+
+            // Lấy tất cả ID của khóa học này và các khóa con (đệ quy)
+            $allCourseIds = $this->getAllDescendantCourseIds($courseItem);
+
+            // Xóa attendance records theo ngày
+            $deletedCount = Attendance::whereIn('course_item_id', $allCourseIds)
+                ->whereDate('attendance_date', $attendanceDate)
+                ->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Đã xóa {$deletedCount} bản ghi điểm danh ngày " . $attendanceDate->format('d/m/Y'),
+                'deleted_count' => $deletedCount
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xóa lịch sử điểm danh: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * API: Xóa toàn bộ lịch sử điểm danh của khóa học
+     */
+    public function deleteAll(CourseItem $courseItem)
+    {
+        try {
+            // Lấy tất cả ID của khóa học này và các khóa con (đệ quy)
+            $allCourseIds = $this->getAllDescendantCourseIds($courseItem);
+
+            // Xóa tất cả attendance records
+            $deletedCount = Attendance::whereIn('course_item_id', $allCourseIds)->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Đã xóa toàn bộ {$deletedCount} bản ghi điểm danh của khóa học: " . $courseItem->name,
+                'deleted_count' => $deletedCount
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Lỗi khi xóa toàn bộ lịch sử điểm danh: ' . $e->getMessage()
+            ], 500);
+        }
+    }
 }

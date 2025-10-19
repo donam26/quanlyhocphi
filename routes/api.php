@@ -267,6 +267,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/quick', [AttendanceController::class, 'quickAttendance']);
         Route::post('/save-from-tree', [AttendanceController::class, 'saveFromTree']);
 
+        // Delete operations
+        Route::delete('/course/{courseItem}/date/{date}', [AttendanceController::class, 'deleteByDate']);
+        Route::delete('/course/{courseItem}/all', [AttendanceController::class, 'deleteAll']);
+
         // Reports
         Route::post('/export', [AttendanceController::class, 'export']);
         Route::post('/export-matrix', [AttendanceController::class, 'exportMatrix']);
